@@ -84,7 +84,8 @@ test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 35 S10
     'marketplace_shipping_eligibility',
     'marketplace_knowledge_source', 'marketplace_knowledge_record',
     'marketplace_risk_rule', 'marketplace_knowledge_conflict',
-    'marketplace_knowledge_review'];
+    'marketplace_knowledge_review',
+    'product_outcome_profile', 'marketplace_playbook', 'product_lifecycle'];
   assert.deepEqual(tables, expected.sort());
   mos.close();
 });

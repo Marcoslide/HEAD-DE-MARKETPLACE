@@ -51,6 +51,15 @@
         <button class="gro-mini" onclick="toast('Regra marcada para revisão (fila de revisão do conhecimento).')">marcar para revisão</button>
         <button class="gro-mini" onclick="toast('Classificação interna corrigida — auditável; regra oficial nunca é sobrescrita.')">corrigir classificação</button>
       </div>`).join("") || '<p class="silence-note">nenhum registro neste filtro.</p>'}
+      <div class="cat-group">Inteligência estratégica (10.K.1) — playbooks · Customer Outcome · ciclo de vida</div>
+      <div class="op-line"><span class="gro-chip demo">PLAYBOOK</span> <b>Renovar criativo em saturação</b> <span class="gro-dim">· Saturation Strategy · Método R.E.A.L. (Retenção/Emoção)</span>
+        <div class="gro-dim">quando usar: CHAMPION/SATURATING com CTR em queda · quando não usar: lançamento · métrica: CTR/conversão/ranking · ponto de parada: sem melhora em 14 dias → reposicionar</div></div>
+      <div class="op-line"><span class="gro-chip demo">PLAYBOOK</span> <b>Vender transformação, não especificação</b> <span class="gro-dim">· Customer Outcome</span>
+        <div class="gro-dim">quando usar: anúncio só com ficha técnica · quando não usar: categoria de linguagem técnica pura · risco: promessa sem prova vira devolução · ponto de parada: alegação sem prova → remover</div></div>
+      <div class="op-line"><span class="gro-chip">OUTCOME</span> <b>Customer Outcome Profile</b>
+        <div class="gro-dim">"o que muda na vida do cliente" · trabalho funcional/emocional/social · uso diário · objeções · provas — por empresa e por produto, multinicho (eletrônico ≠ moda ≠ decoração)</div></div>
+      <div class="op-line"><span class="gro-chip">CICLO</span> <b>ciclo de vida do produto</b>
+        <div class="gro-dim">IDEA → LAUNCH → GROWING → CHAMPION → SATURATING → DECLINING — o estágio ALTERA a recomendação do Head</div></div>
       <p class="cat-src">Action modes: INFO · SUGGEST · WARN · ASK_CONFIRMATION · REQUIRE_REVIEW · BLOCK_EXTERNAL_ACTION — bloqueio só de ação externa; análise, plano, rascunho interno e coleta de dados nunca são impedidos.</p>
     </article>`;
   }
