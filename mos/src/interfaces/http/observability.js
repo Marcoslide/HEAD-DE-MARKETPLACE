@@ -87,6 +87,12 @@ function mountObservability(router, mos, { mie = null } = {}) {
         whatWorkedForCategory: mie.graph.whatWorkedForCategory('Quadros').slice(0, 5),
         topObjections: mie.graph.topObjections().slice(0, 5),
       } : null,
+      executivePlan: mie.epe ? (() => {
+        const p = mie.epe.planDay();
+        return { funnel: p.funnel, levelBreakdown: p.levelBreakdown,
+          attention: p.attention, decisions: p.decisions.map(d => ({ level: d.level, title: d.title, score: d.score })),
+          silence: p.silence.slice(0, 6) };
+      })() : null,
       lastPareceres: (mie.investigation.cases.at(-1) || { pareceres: [] }).pareceres
         .map(p => ({ domain: p.domain, constatacao: p.constatacao, confianca: p.confianca,
           urgencia: p.urgencia, recommendationType: p.recommendationType })),

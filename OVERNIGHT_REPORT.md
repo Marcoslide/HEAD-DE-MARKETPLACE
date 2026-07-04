@@ -196,6 +196,20 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   Documentado em `docs/knowledge-graph.md`; demo em `mie/demo-graph.js`.
 
 **Suíte total: 106 testes, 106 verdes.**
+
+- **Sprint 08 — Executive Planning Engine (EPE)**: a camada que transforma
+  inteligência em prioridade executiva — o Head vira diretor, não analista.
+  Score executivo auditável (impacto × confiança × urgência ÷ esforço, com
+  bônus de janela/recorrência/grafo/consenso e penalidade de irreversibilidade/
+  recusa), 7 níveis (IGNORAR→INTERROMPER), silêncio inteligente, capacidade
+  operacional do dia e o Plano do Dia (funil 317→2, atenção, decisões
+  priorizadas, "o que decidi não te mostrar"). Integrado a Specialists,
+  Graph, Memory, Prioritization, Learning e Observability. +15 testes.
+  Doc em `docs/executive-planning-engine.md`; demo em `mie/demo-executive.js`;
+  **HTML funcional em `design/prototipo-v3/index.html`** (abre no navegador,
+  sem servidor — mostra o Plano do Dia com painel "Como o EPE priorizou").
+
+**Suíte total: 121 testes, 121 verdes.**
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

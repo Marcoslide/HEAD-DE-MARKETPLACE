@@ -22,5 +22,18 @@ NS.CONFIG = {
   MEASUREMENT_WINDOW: 7,     // ciclos mínimos antes de concluir efeito (MIF 5.3)
   CALIBRATION_ALPHA: 0.4,    // EWMA da calibração de previsões
   PATTERN_ALPHA: 0.3,        // EWMA dos padrões (dia-da-semana, sazonalidade)
+
+  /* Executive Planning Engine (Sprint 08) — prioridade executiva */
+  EPE: {
+    HIGH_IMPACT: 1500,       // R$/mês que qualifica "impacto alto"
+    INTERRUPT_SCORE: 2500,   // score que, com urgência alta, justifica interromper
+    APPROVE_SCORE: 700,      // score mínimo para pedir aprovação ao dono
+    MISSION_SCORE: 260,      // score mínimo para virar missão autônoma
+    OBSERVE_SCORE: 80,       // score mínimo para ficar em observação (senão IGNORAR)
+    MIN_IMPACT: 100,         // abaixo disso não incomoda ninguém
+    LOW_CONF_CAP: 500,       // teto de score com confiança baixa
+    CAPACITY: { missions: 5, decisions: 2 }, // capacidade operacional do dia
+    CONF_BY_LABEL: { alta: 0.85, 'média': 0.6, baixa: 0.3 },
+  },
 };
 })(typeof module !== 'undefined' && module.exports ? require('../_ns.js') : (globalThis.MIE = globalThis.MIE || {}));

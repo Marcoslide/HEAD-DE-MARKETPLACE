@@ -17,14 +17,16 @@ NS.createMIE = function createMIE(options = {}) {
   const prioritization = new NS.PrioritizationEngine(bus, memory, world);
   const execution = new NS.ExecutionEngine(bus, world, memory);
   const learning = new NS.LearningEngine(bus, memory, world, graph);
+  const epe = new NS.ExecutivePlanningEngine(bus, { world, memory, prioritization, investigation, graph, learning });
   const head = new NS.HeadReporter(bus, { world, memory, prioritization, investigation, learning });
   const scheduler = new NS.ObservationScheduler(bus, { world, observation, execution, prioritization, memory, head });
 
   return {
     audit, bus, world, graph, memory, specialists,
-    observation, investigation, prioritization, execution, learning, scheduler, head,
+    observation, investigation, prioritization, execution, learning, epe, scheduler, head,
     tick: () => scheduler.tick(),
     runDays: n => scheduler.runDays(n),
+    planDay: opts => epe.planDay(opts),
     approve: id => prioritization.resolve(id, 'approve'),
     refuse: (id, motive) => prioritization.resolve(id, 'refuse', motive),
   };

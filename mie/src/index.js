@@ -19,6 +19,7 @@ require('./engines/investigation.js');
 require('./engines/prioritization.js');
 require('./engines/execution.js');
 require('./engines/learning.js');
+require('./engines/executive-planner.js');
 require('./engines/scheduler.js');
 require('./head-reporter.js');
 require('./create.js');
