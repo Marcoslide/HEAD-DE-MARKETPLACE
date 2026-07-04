@@ -83,7 +83,7 @@ Documentar todos os relacionamentos.
 
 # BLOCO 04 — APIs Internas
 
-- [ ] Criar toda a estrutura REST da aplicação.
+- [x] Criar toda a estrutura REST da aplicação.
 
 Controllers.
 Services.
