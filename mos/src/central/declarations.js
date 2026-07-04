@@ -27,6 +27,23 @@ const NO_WRITE = {
   listingsWrite: false, inventoryWrite: false, pricesWrite: false, adsWrite: false,
 };
 
+/* Compliance (Sprint 10): o que cada praça declara sobre regras/catálogo.
+   supportsExternalPublish é FALSE em todas — mesmo que a plataforma
+   permita publicar, o sistema mantém bloqueado neste estágio. */
+const COMPLIANCE_CAPS = {
+  supportsCategoryTaxonomy: true,
+  supportsCategoryRequirements: true,
+  supportsAttributeSchema: true,
+  supportsImageRules: true,
+  supportsVariationRules: false,       // não confirmado por praça — não inventar
+  supportsShippingRules: true,
+  supportsPersonalizationRules: true,
+  supportsFiscalRules: true,
+  supportsDraftValidation: true,
+  supportsListingDraft: true,
+  supportsExternalPublish: false,      // LEI deste estágio
+};
+
 const DECLARATIONS = {
   mercado_livre: {
     id: 'mercado_livre',
@@ -36,6 +53,7 @@ const DECLARATIONS = {
     authType: 'OAUTH2',
     supportsPolling: true,
     supportsWebhooks: true,           // notificações oficiais (topics)
+    compliance: { ...COMPLIANCE_CAPS },
     capabilities: {
       listingsRead: true, ordersRead: true, inventoryRead: true, pricesRead: true,
       logisticsRead: true, returnsRead: true, questionsRead: true,
@@ -51,6 +69,7 @@ const DECLARATIONS = {
     authType: 'OAUTH2',               // Open Platform: partner + shop authorization
     supportsPolling: true,
     supportsWebhooks: true,           // push mechanism oficial
+    compliance: { ...COMPLIANCE_CAPS },
     capabilities: {
       listingsRead: true, ordersRead: true, inventoryRead: true, pricesRead: true,
       logisticsRead: true, returnsRead: true, questionsRead: false,
@@ -66,6 +85,7 @@ const DECLARATIONS = {
     authType: 'OAUTH2',
     supportsPolling: true,
     supportsWebhooks: true,
+    compliance: { ...COMPLIANCE_CAPS },
     capabilities: {
       listingsRead: true, ordersRead: true, inventoryRead: true, pricesRead: true,
       logisticsRead: true, returnsRead: true, questionsRead: false,
@@ -83,6 +103,7 @@ const DECLARATIONS = {
     authType: 'OAUTH2',
     supportsPolling: true,
     supportsWebhooks: false,          // NÃO confirmado — não inventar
+    compliance: { ...COMPLIANCE_CAPS },
     capabilities: {
       listingsRead: true, ordersRead: true, inventoryRead: true, pricesRead: true,
       logisticsRead: true, returnsRead: false,

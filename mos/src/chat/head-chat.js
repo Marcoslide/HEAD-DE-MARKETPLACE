@@ -20,8 +20,9 @@ const localTime = (...a) => NS.localTime(...a);
 const QueryLayer = function (...a) { return new NS.QueryLayer(...a); };
 
 class HeadChat {
-  constructor({ dataset, clock, mie = null, companyId = null, logger = null }) {
+  constructor({ dataset, clock, mie = null, companyId = null, logger = null, compliance = null }) {
     this.clock = clock; this.mie = mie; this.companyId = companyId; this.log = logger;
+    this.compliance = compliance;   // adapter do Compliance Engine (Sprint 10)
     this.q = new QueryLayer({ dataset, clock, mie });
     this.dataset = dataset;
     this.context = null;          // consulta anterior (para "e na Shopee?", "e ontem?")
@@ -43,6 +44,12 @@ class HeadChat {
         ({ facts, alert } = this._operational(query));
         reply = compose(facts, { clock: this.clock, alert });
         this.context = query;                    // factual atualiza o contexto
+        break;
+      }
+      case 'CATALOG_COMPLIANCE_QUERY': {
+        facts = this._catalogCompliance(text, query);
+        reply = compose(facts, { clock: this.clock });
+        this.context = query;
         break;
       }
       case 'RISK_OR_EXCEPTION_QUERY': {
@@ -137,6 +144,41 @@ class HeadChat {
         alert = `${f.criticalToday.length} pedidos personalizados vencem prazo hoje.`;
     }
     return { facts, alert };
+  }
+
+  /* ---------- catálogo & compliance: consulta o MOTOR REAL ---------- */
+  _catalogCompliance(text, query) {
+    if (!this.compliance)
+      return { kind: 'NO_DATA', what: 'catálogo/compliance (motor não acoplado)',
+               dataSource: 'NO_DATA', coverage: [], missingPlatforms: [], confidence: 0,
+               asOf: this.clock.nowIso() };
+    const platform = query.platforms && query.platforms[0] !== 'ALL' ? query.platforms[0] : null;
+    const product = this.compliance.find(text);
+    if (product && platform) {
+      const r = this.compliance.evaluate(product, platform);
+      return { kind: 'COMPLIANCE_STATUS', result: r,
+               dataSource: r.dataSource || 'NO_DATA', isLive: false,
+               coverage: [platform], missingPlatforms: [], confidence: 0.9,
+               asOf: this.clock.nowIso() };
+    }
+    if (product) {
+      const rows = this.compliance.board().filter(b => b.sku === product.master.sku);
+      return { kind: 'COMPLIANCE_BOARD', rows, scope: product.master.name,
+               dataSource: rows[0] ? rows[0].dataSource : 'NO_DATA', isLive: false,
+               coverage: rows.map(r => r.platform), missingPlatforms: [], confidence: 0.9,
+               asOf: this.clock.nowIso() };
+    }
+    const rows = this.compliance.board(platform);
+    /* filtros de lista: bloqueados / prontos / risco */
+    const t = text.toLowerCase();
+    const filtered = /bloquead/.test(t) ? rows.filter(r => r.status === 'BLOCKED')
+      : /pronto/.test(t) ? rows.filter(r => r.status === 'READY' || r.status === 'READY_WITH_WARNINGS')
+      : /risco/.test(t) ? rows.filter(r => r.status !== 'READY')
+      : rows;
+    return { kind: 'COMPLIANCE_BOARD', rows: filtered, scope: platform,
+             dataSource: rows[0] ? rows[0].dataSource : 'NO_DATA', isLive: false,
+             coverage: platform ? [platform] : this.compliance.platforms,
+             missingPlatforms: [], confidence: 0.9, asOf: this.clock.nowIso() };
   }
 
   _decisionTerm(text) {
@@ -250,14 +292,14 @@ class HeadChat {
 NS.HeadChat = HeadChat;
 
 /* composição — dados normalizados da Central quando houver; fixtures no preview */
-NS.createHeadChat = function createHeadChat({ clock, mie = null, mos = null, companyId = null, dataset = null } = {}) {
+NS.createHeadChat = function createHeadChat({ clock, mie = null, mos = null, companyId = null, dataset = null, compliance = null } = {}) {
   if (!clock) throw new Error('createHeadChat exige o Clock injetado');
   let data = dataset;
   if (!data && mos && companyId)
     data = NS.datasetFromCentral(mos.repos, companyId, clock);  // fonte real, se sincronizada
   if (!data)
     data = NS.createDemoDataset(clock);                          // preview: fixtures coerentes
-  return new HeadChat({ dataset: data, clock, mie, companyId,
+  return new HeadChat({ dataset: data, clock, mie, companyId, compliance,
     logger: mos && mos.logger ? mos.logger.child({ mod: 'head-chat' }) : null });
 };
 })(typeof module !== 'undefined' && module.exports ? require('./_ns.js') : (globalThis.HEADCHAT = globalThis.HEADCHAT || {}));

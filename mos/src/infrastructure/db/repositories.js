@@ -276,6 +276,28 @@ function createRepositories(db) {
     publicResearch: new BaseRepository(db, 'public_research_evidence', 'pre',
       ['company_id', 'source_type', 'source_url', 'platform', 'subject', 'findings_json',
        'confidence', 'observed_at']),
+    /* Catalog & Compliance (Sprint 10) */
+    productProfile: new BaseRepository(db, 'product_profile', 'ppf',
+      ['product_id', 'company_id', 'brand', 'product_type', 'condition', 'description',
+       'tech_sheet_json', 'weight_g', 'packed_weight_g', 'height_cm', 'width_cm', 'depth_cm',
+       'packed_dims_json', 'fragile', 'special_packaging', 'production_days',
+       'personalization_days', 'made_to_order', 'personalization_json', 'daily_capacity',
+       'base_price', 'cost', 'min_margin_pct', 'ean', 'origin', 'warranty', 'fiscal_json',
+       'return_policy', 'notes', 'updated_at']),
+    productAsset: new BaseRepository(db, 'product_asset', 'ast',
+      ['product_id', 'company_id', 'kind', 'role', 'url', 'width', 'height', 'format',
+       'size_kb', 'has_watermark', 'has_text_overlay', 'position', 'created_at']),
+    marketplaceProfile: new BaseRepository(db, 'marketplace_product_profile', 'mpp',
+      ['product_id', 'company_id', 'platform', 'title', 'category_id', 'category_status',
+       'attributes_json', 'price', 'stock', 'shipping_json', 'content_json', 'updated_at']),
+    listingDraft: new BaseRepository(db, 'listing_draft', 'drf',
+      ['product_id', 'company_id', 'platform', 'version', 'status', 'payload_json',
+       'findings_json', 'checklist_json', 'suggestions_source', 'human_review',
+       'validation_run_id', 'created_at', 'updated_at']),
+    validationRun: new BaseRepository(db, 'validation_run', 'vrn',
+      ['company_id', 'product_id', 'listing_id', 'draft_id', 'platform', 'category_id',
+       'rule_pack_version', 'data_source', 'executed_at', 'executed_by', 'status',
+       'findings_json', 'evidence_json', 'payload_reference', 'created_at']),
   };
 }
 

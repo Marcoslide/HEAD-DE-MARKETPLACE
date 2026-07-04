@@ -115,6 +115,7 @@ class TikTokProvider extends MarketplaceProvider {
 function createProviderRegistry() {
   const providers = new Map();
   const connectors = new Map();   // Central de Marketplace (Sprint 09) — lado de LEITURA
+  const rulePacks = new Map();    // Compliance (Sprint 10) — regras por praça, com fonte
   for (const P of [MercadoLivreProvider, ShopeeProvider, AmazonProvider, MagaluProvider, TikTokProvider]) {
     const p = new P();
     providers.set(p.name, p);
@@ -145,6 +146,22 @@ function createProviderRegistry() {
       const c = connectors.get(name);
       return c ? c.declaration : null;
     },
+
+    /* ---- Compliance (Sprint 10): rule packs no MESMO registry.
+       Um marketplace novo registra seu pack sem alterar o núcleo. ---- */
+    registerRulePack(pack) {
+      if (!pack || !pack.platform || !pack.version)
+        throw new Error('rule pack inválido: exige platform e version');
+      rulePacks.set(pack.platform, pack);
+      return pack;
+    },
+    rulePack(name) {
+      const p = rulePacks.get(name);
+      if (!p) throw new Error('rule pack desconhecido: ' + name);
+      return p;
+    },
+    hasRulePack: name => rulePacks.has(name),
+    rulePackNames: () => [...rulePacks.keys()],
   };
 }
 

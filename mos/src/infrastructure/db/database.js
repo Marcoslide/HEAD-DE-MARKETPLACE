@@ -18,6 +18,9 @@ class Database {
     /* Central de Marketplace (Sprint 09) — tabelas novas, tudo aditivo */
     const central = fs.readFileSync(path.join(__dirname, 'schema-central.sql'), 'utf8');
     this.db.exec(central);
+    /* Catalog & Compliance (Sprint 10) — aditivo, lacunas reais apenas */
+    const compliance = fs.readFileSync(path.join(__dirname, 'schema-compliance.sql'), 'utf8');
+    this.db.exec(compliance);
     this._addColumns('marketplace_connection', {
       account_id: 'TEXT', store_id: 'TEXT',
       auth_type: 'TEXT', read_only: 'INTEGER NOT NULL DEFAULT 1',

@@ -18,7 +18,16 @@ const SOURCE_LABEL = {
   NORMALIZED_INTERNAL_DATA: 'Dados internos normalizados',
   LIVE_MARKETPLACE_DATA: 'Dados ao vivo das integrações',
   PUBLIC_RESEARCH: 'Pesquisa pública de mercado',
+  DEMO_RULE_FIXTURE: 'Rule Pack Demo (regras demonstrativas — não são política oficial)',
   NO_DATA: 'Sem dados',
+};
+const READINESS_LABEL = {
+  READY: 'validado contra as regras conhecidas — sem pendências',
+  READY_WITH_WARNINGS: 'validado contra as regras conhecidas, com alertas',
+  REVIEW_REQUIRED: 'exige REVISÃO antes de publicar',
+  BLOCKED: 'BLOQUEADO — há impedimentos',
+  INSUFFICIENT_DATA: 'dados insuficientes para validar',
+  NOT_SUPPORTED: 'praça sem rule pack registrado',
 };
 const dec = v => String(v).replace('.', ',');
 const money = v => `R$ ${Number(v).toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -157,6 +166,42 @@ function compose(facts, { clock, alert = null, question = null } = {}) {
       if (facts.provenance)
         lines.push(`• origem: ${plat(facts.provenance.platform)} · entidade ${facts.provenance.entityId} · evento ${facts.provenance.eventId}`);
       lines.push('', `Plano gerado em ${facts.planGeneratedAt}.`);
+      break;
+    }
+    /* ---------- Catálogo & Compliance (Sprint 10) ---------- */
+    case 'COMPLIANCE_STATUS': {
+      const r = facts.result;
+      lines.push(`${r.productName} — ${plat(r.platform)}: ${READINESS_LABEL[r.status] || r.status}.`);
+      const blockers = r.findings.filter(f => f.severity === 'BLOCKER');
+      const unknowns = r.findings.filter(f => f.severity === 'UNKNOWN');
+      const risks = r.findings.filter(f => f.severity === 'HIGH_RISK');
+      const warns = r.findings.filter(f => f.severity === 'WARNING');
+      if (blockers.length) {
+        lines.push('', 'Bloqueadores:');
+        for (const f of blockers) lines.push(`• ${f.message}`);
+      }
+      if (unknowns.length) {
+        lines.push('', 'Exigências não confirmadas (revisão necessária):');
+        for (const f of unknowns) lines.push(`• ${f.message}`);
+      }
+      if (risks.length || warns.length) {
+        lines.push('', 'Alertas:');
+        for (const f of [...risks, ...warns].slice(0, 5))
+          lines.push(`• ${f.message}${f.internal ? ' (regra interna da empresa, não da plataforma)' : ''}`);
+      }
+      if (r.category && !r.category.confirmed && r.category.suggestedCategory)
+        lines.push('', `Categoria sugerida: ${r.category.suggestedCategory} (${r.category.categoryId}) — confiança ${r.category.confidence}${r.category.reviewRequired ? ' · requer confirmação humana' : ''}.`);
+      if (r.missing.length) lines.push('', `Faltam: ${[...new Set(r.missing)].join('; ')}.`);
+      lines.push('', `Validação baseada no rule pack ${r.rulePackVersion} • verificado em ${r.verifiedAt} • ${r.disclaimer}.`);
+      break;
+    }
+    case 'COMPLIANCE_BOARD': {
+      if (!facts.rows.length) { lines.push(`Nenhum produto ${facts.scope ? `para ${facts.scope}` : ''} nesse recorte.`); break; }
+      lines.push(`Situação do catálogo${facts.scope ? ` — ${typeof facts.scope === 'string' && PLATFORM_LABEL[facts.scope] ? plat(facts.scope) : facts.scope}` : ''}:`, '');
+      for (const b of facts.rows.slice(0, 10))
+        lines.push(`• ${b.name} · ${plat(b.platform)}: ${READINESS_LABEL[b.status] || b.status}${b.topBlocker ? ` — ${b.topBlocker}` : ''}`);
+      const packs = [...new Set(facts.rows.map(r => r.rulePackVersion))];
+      lines.push('', `Validação baseada no(s) rule pack(s) ${packs.join(', ')} — nunca é aprovação oficial da plataforma.`);
       break;
     }
     case 'PENDING_DECISIONS': {

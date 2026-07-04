@@ -58,6 +58,8 @@ const ORDER_STATUS = [
 
 /* ---------------- classificação de intenção ---------------- */
 const INTENTS = [
+  { id: 'CATALOG_COMPLIANCE_QUERY',
+    rx: /pronto (para|pra) (anunciar|publicar|vender|o |a )?|pode ir (para|pra) |o que falta (para|pra) (publicar|anunciar|criar o anuncio)|qual categoria|codigo de categoria|risco de bloqueio|ficha tecnica|atributos? obrigatori|(esta|estao|itens?) bloquead|prontos (para|pra)|posso (levar|anunciar|publicar)|preciso corrigir (antes|primeiro)|suporta personalizado|anuncios? (incompletos|com risco)|virar (um )?rascunho|gerar rascunho|dentro das regras|peso e (as )?medidas/ },
   { id: 'ACTION_REQUEST',
     rx: /^(baixe|baixa|abaixe|pause|pausa|publique|publica|aumente|aumenta|altere|altera|crie|cria|suba|sobe|reduza|reduz|desative|desativa|ative|ativa|cancele|cancela|envie para|mude|muda|reposicione|ajuste|ajusta)\b/ },
   { id: 'DECISION_EXPLANATION',

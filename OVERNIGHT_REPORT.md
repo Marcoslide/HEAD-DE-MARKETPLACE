@@ -309,7 +309,35 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   headless (Chromium): roteiro completo de conversa sem erros, desktop e
   largura reduzida; screenshots gerados. +10 testes.
 
-**Suíte total: 189 testes, 189 verdes.** (179 + 10 da integração v3)
+- **Sprint 10 — Catalog, Rule & Compliance Engine** — *concluído. Foco
+  inicial: Mercado Livre, Shopee, TikTok Shop e Magalu. Modo: validação e
+  rascunho interno. Publicação externa continua bloqueada.*
+  O Head passa a entender se um produto/anúncio está pronto, incompleto,
+  arriscado, bloqueado ou apto a virar rascunho — POR marketplace, com
+  fonte e versão de regra. Auditoria primeiro (product/listing/providers/
+  chat REUTILIZADOS; 5 tabelas aditivas só para lacunas reais). Rule packs
+  com proveniência completa (VERIFIED/PROVISIONAL/UNKNOWN — UNKNOWN trava
+  READY; PROVISIONAL nunca gera aprovação definitiva; regra interna nunca
+  finge ser bloqueio oficial; nada inventado, sem scraping). Categorization
+  Engine (só devolve códigos existentes na taxonomia; baixa confiança →
+  revisão humana), Requirement Resolver em camadas, 9 categorias de
+  validação, readiness de 6 estados, checklist de revisão, Listing Draft
+  interno versionado (nada publica — publication_history permanece vazio),
+  Validation Runs append-only ("por que estava bloqueado dia 4?" tem
+  resposta auditável). Chat ganhou CATALOG_COMPLIANCE_QUERY consultando o
+  motor real com fonte/versão. Findings relevantes → sinais INTERNAL_ONLY
+  no EPE (pendência pequena não vira missão). supportsExternalPublish=false
+  nas 4 praças. **Protótipo v4** é a nova experiência principal: menu Home
+  · Operação · Catálogo · A Missão · Silêncio · Conhecimento — a área
+  Catálogo mostra visão geral, lista, painel por produto com abas por
+  marketplace, checklist, evidências, rascunho e ações internas, tudo
+  calculado AO VIVO pelo mesmo motor (UMD), com o banner permanente
+  "MODO LEITURA · VALIDAÇÃO INTERNA · NADA FOI PUBLICADO NO MARKETPLACE".
+  Validação headless verde (desktop + largura reduzida, zero erros).
+  +23 testes (30 garantias). Demo: node mos/demo-compliance.js.
+  Doc em docs/catalog-rule-compliance-engine.md.
+
+**Suíte total: 212 testes, 212 verdes.** (189 + 23 do Compliance)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*
