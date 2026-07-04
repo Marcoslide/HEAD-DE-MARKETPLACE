@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Head de Marketplace — Protótipo</title>
+<style>
+/* ============ Escritório Noturno — tokens ============ */
+:root{
+  --bg:#0B0C10; --surface:#12141A; --surface-2:#181B23; --hairline:#23262F;
+  --text:#EDEEF2; --text-2:#9DA1AC; --text-3:#5D616C;
+  --amber:#E3A94F; --amber-soft:rgba(227,169,79,.13);
+  --positive:#58C48A; --critical:#E06661; --info:#6E9FDB;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,system-ui,sans-serif;
+  --ease:cubic-bezier(.2,.7,.2,1);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--text);font:15px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+::selection{background:var(--amber-soft)}
+
+.app{display:flex;min-height:100vh}
+
+/* ============ Sidebar ============ */
+.sidebar{width:260px;flex:0 0 260px;display:flex;flex-direction:column;
+  border-right:1px solid var(--hairline);padding:20px 14px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:6px 10px 22px}
+.brand .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(135deg,#2A2317,#171310);
+  border:1px solid rgba(227,169,79,.35);display:grid;place-items:center;color:var(--amber);
+  font:600 13px/1 var(--serif)}
+.brand .name{font-weight:600;font-size:14px;letter-spacing:.01em}
+.brand .sub{font-size:11px;color:var(--text-3)}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav button{display:flex;align-items:center;gap:11px;padding:9px 10px;border-radius:9px;
+  color:var(--text-2);font-size:13.5px;font-weight:500;text-align:left;width:100%;
+  transition:background .15s var(--ease),color .15s var(--ease)}
+.nav button:hover{background:var(--surface);color:var(--text)}
+.nav button.active{background:var(--surface-2);color:var(--text)}
+.nav button:focus-visible,.btn:focus-visible,.chip:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+.nav .ico{width:17px;height:17px;flex:0 0 17px;opacity:.85}
+.nav .badge{margin-left:auto;min-width:19px;height:19px;padding:0 5px;border-radius:10px;
+  display:grid;place-items:center;font-size:11px;font-weight:600;
+  background:var(--amber-soft);color:var(--amber)}
+.nav .badge.live{background:rgba(88,196,138,.12);color:var(--positive)}
+
+/* O Pulso */
+.pulse-box{margin-top:auto;border-top:1px solid var(--hairline);padding:16px 10px 4px;cursor:pointer}
+.pulse-head{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:600;
+  letter-spacing:.09em;text-transform:uppercase;color:var(--text-3)}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--amber);
+  box-shadow:0 0 0 0 rgba(227,169,79,.5);animation:breathe 2.4s var(--ease) infinite}
+@keyframes breathe{
+  0%,100%{box-shadow:0 0 0 0 rgba(227,169,79,.45);opacity:1}
+  50%{box-shadow:0 0 0 7px rgba(227,169,79,0);opacity:.75}}
+.pulse-msg{margin-top:8px;font-size:12.5px;color:var(--text-2);min-height:38px;
+  transition:opacity .5s var(--ease)}
+.pulse-msg.fade{opacity:0}
+.pulse-link{margin-top:6px;font-size:11.5px;color:var(--text-3)}
+.pulse-box:hover .pulse-link{color:var(--amber)}
+
+/* ============ Conteúdo ============ */
+.main{flex:1;min-width:0;display:flex;justify-content:center;padding:44px 48px 90px}
+.view{width:100%;max-width:860px;display:none}
+.view.on{display:block;animation:arrive .3s var(--ease)}
+@keyframes arrive{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+.eyebrow{font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3)}
+.section{margin-top:40px}
+.section-h{display:flex;align-items:baseline;justify-content:space-between;
+  border-top:1px solid var(--hairline);padding-top:18px;margin-bottom:16px}
+.section-h .more{font-size:12.5px;color:var(--text-3)}
+.section-h .more:hover{color:var(--amber)}
+
+/* Voz do Head */
+.voice{font-family:var(--serif)}
+.brief h1{font:400 29px/1.32 var(--serif);letter-spacing:.005em;text-wrap:balance}
+.brief .lede{margin-top:14px;font:400 17px/1.65 var(--serif);color:var(--text-2);max-width:56ch}
+.worklist{margin:22px 0 0;display:grid;grid-template-columns:1fr 1fr;gap:9px 36px;list-style:none;max-width:620px}
+.worklist li{display:flex;gap:10px;font-size:14px;color:var(--text-2)}
+.worklist b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+.worklist .tick{color:var(--amber);font-size:13px;line-height:1.7}
+.keyfind{margin-top:24px;padding:16px 18px;border-left:2px solid var(--amber);
+  background:var(--amber-soft);border-radius:0 10px 10px 0;max-width:620px}
+.keyfind p{font:400 15.5px/1.6 var(--serif)}
+.sign{margin-top:18px;font:italic 400 14.5px var(--serif);color:var(--text-3)}
+
+/* Cards */
+.card{background:var(--surface);border:1px solid var(--hairline);border-radius:12px;
+  padding:22px 24px;transition:border-color .18s var(--ease),transform .3s var(--ease),opacity .3s var(--ease)}
+.card+.card{margin-top:12px}
+.card:hover{border-color:#2E323D}
+.card .eyebrow{display:flex;gap:8px;align-items:center}
+.card .eyebrow .tag{color:var(--amber)}
+.card .eyebrow .tag.pos{color:var(--positive)}
+.card .eyebrow .tag.crit{color:var(--critical)}
+.card .eyebrow .tag.info{color:var(--info)}
+.card h3{margin-top:10px;font:400 18px/1.5 var(--serif);letter-spacing:.005em;max-width:58ch}
+.evidence{margin-top:12px;display:flex;flex-direction:column;gap:6px}
+.evidence span{font-size:13px;color:var(--text-2);display:flex;gap:9px}
+.evidence span::before{content:"·";color:var(--text-3)}
+.meta-row{margin-top:14px;display:flex;gap:18px;flex-wrap:wrap;font-size:12.5px;color:var(--text-3)}
+.meta-row b{color:var(--positive);font-weight:600;font-variant-numeric:tabular-nums}
+.actions{margin-top:18px;display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:7px 15px;border-radius:8px;font-size:13px;font-weight:600;
+  border:1px solid var(--hairline);color:var(--text-2);
+  transition:all .15s var(--ease)}
+.btn:hover{color:var(--text);border-color:#343947;background:var(--surface-2)}
+.btn.primary{background:var(--amber);border-color:var(--amber);color:#171208}
+.btn.primary:hover{background:#EDB765}
+.btn.ghost{border-color:transparent;color:var(--text-3)}
+.btn.ghost:hover{color:var(--text-2);background:var(--surface-2)}
+.card.approved{border-color:rgba(88,196,138,.4)}
+.card.approved .approved-note{display:flex;gap:9px;margin-top:16px;font-size:13.5px;color:var(--positive)}
+.card.gone{opacity:0;transform:translateY(-6px)}
+.approved-note{display:none}
+
+/* Descobertas em grade */
+.grid3{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.grid3 .card{padding:18px 20px}
+.grid3 h3{font-size:15.5px}
+
+/* Missões resumo */
+.mini-missions{display:flex;flex-direction:column;gap:10px}
+.mini{display:flex;align-items:center;gap:12px;font-size:13.5px;color:var(--text-2)}
+.mini .dot{flex:0 0 8px}
+.mini b{color:var(--text);font-weight:500}
+
+/* ============ IA (conversa) ============ */
+.chat{display:flex;flex-direction:column;gap:26px}
+.msg .who{font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--text-3);margin-bottom:7px}
+.msg.user{align-self:flex-end;max-width:70%}
+.msg.user .bubble{background:var(--surface-2);border:1px solid var(--hairline);
+  border-radius:14px 14px 4px 14px;padding:12px 16px;font-size:14.5px}
+.msg.head{max-width:88%}
+.msg.head .who{color:var(--amber)}
+.msg.head .say{font:400 16px/1.65 var(--serif);max-width:58ch}
+.msg .card{margin-top:14px}
+.suggest{display:flex;gap:8px;flex-wrap:wrap;margin-top:34px}
+.chip{padding:7px 14px;border-radius:99px;border:1px solid var(--hairline);
+  font-size:12.5px;color:var(--text-2);transition:all .15s var(--ease)}
+.chip:hover{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+.composer{margin-top:12px;display:flex;align-items:center;gap:12px;
+  background:var(--surface);border:1px solid var(--hairline);border-radius:14px;padding:14px 18px}
+.composer:focus-within{border-color:rgba(227,169,79,.5)}
+.composer input{flex:1;background:none;border:0;outline:0;color:var(--text);font:15px var(--sans)}
+.composer input::placeholder{color:var(--text-3)}
+.composer .send{width:32px;height:32px;border-radius:9px;background:var(--amber);color:#171208;
+  display:grid;place-items:center;font-weight:700}
+
+/* ============ Produtos ============ */
+.prod{display:flex;align-items:center;gap:18px;padding:18px 20px}
+.thumb{width:52px;height:52px;border-radius:10px;flex:0 0 52px;
+  background:linear-gradient(135deg,#1C2029,#14161D);border:1px solid var(--hairline);
+  display:grid;place-items:center;color:var(--text-3);font-size:19px}
+.prod .info{flex:1;min-width:0}
+.prod .name{font-weight:600;font-size:14.5px}
+.prod .stats{margin-top:3px;font-size:12.5px;color:var(--text-3);display:flex;gap:14px;flex-wrap:wrap;
+  font-variant-numeric:tabular-nums}
+.prod .stats .down{color:var(--critical)} .prod .stats .up{color:var(--positive)}
+.prod .lastword{margin-top:7px;font:italic 400 13.5px var(--serif);color:var(--text-2)}
+.ring{position:relative;width:46px;height:46px;flex:0 0 46px}
+.ring svg{transform:rotate(-90deg)}
+.ring .n{position:absolute;inset:0;display:grid;place-items:center;font-size:12.5px;font-weight:600;
+  font-variant-numeric:tabular-nums}
+
+/* ============ Missões ============ */
+.mission .now{margin-top:10px;display:flex;gap:9px;align-items:center;font-size:13.5px;color:var(--text-2)}
+.mission details{margin-top:14px}
+.mission summary{font-size:12.5px;color:var(--text-3);cursor:pointer;list-style:none;display:flex;gap:6px;align-items:center}
+.mission summary::before{content:"▸";transition:transform .15s var(--ease);font-size:10px}
+.mission details[open] summary::before{transform:rotate(90deg)}
+.mission summary:hover{color:var(--amber)}
+.logbook{margin-top:12px;border-left:1px solid var(--hairline);padding-left:16px;
+  display:flex;flex-direction:column;gap:9px}
+.logbook div{font-size:13px;color:var(--text-2);display:flex;gap:12px}
+.logbook time{color:var(--text-3);font-variant-numeric:tabular-nums;flex:0 0 40px}
+.origin{margin-top:14px;font-size:12px;color:var(--text-3)}
+.done .h{display:flex;justify-content:space-between;gap:14px;align-items:baseline}
+.done .res{color:var(--positive);font-size:13px;font-variant-numeric:tabular-nums;white-space:nowrap}
+
+/* ============ Conhecimento ============ */
+.cols{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px}
+.know .apply{margin-top:6px}
+.know .proof{margin-top:12px;font-size:12.5px;color:var(--text-3)}
+
+/* Responsivo */
+@media (max-width:900px){
+  .sidebar{display:none}
+  .main{padding:28px 20px 70px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation:none!important;transition:none!important}
+  .dot{box-shadow:none}
+}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">H</div>
+      <div><div class="name">Head de Marketplace</div><div class="sub">operação de Marcos</div></div>
+    </div>
+    <nav class="nav" id="nav">
+      <button data-v="home" class="active"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 10.5 12 3l9 7.5V21H3z"/></svg>Home<span class="badge">2</span></button>
+      <button data-v="ia"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/></svg>IA</button>
+      <button data-v="produtos"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4m0 0 8-4m-8 4v10"/></svg>Produtos</button>
+      <button data-v="missoes"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Missões<span class="badge live">3</span></button>
+      <button data-v="conhecimento"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2zM19 3v18M8 7h7M8 11h7"/></svg>Conhecimento</button>
+    </nav>
+
+    <div class="pulse-box" data-v="missoes" id="pulseBox" role="button" tabindex="0" aria-label="Ver missões em andamento">
+      <div class="pulse-head"><span class="dot"></span>Trabalhando agora</div>
+      <div class="pulse-msg" id="pulseMsg">Monitorando preços de 436 concorrentes…</div>
+      <div class="pulse-link">3 missões ativas →</div>
+    </div>
+  </aside>
+
+  <!-- ================= CONTEÚDO ================= -->
+  <main class="main">
+
+    <!-- ===== HOME ===== -->
+    <section class="view on" id="v-home">
+      <div class="brief">
+        <div class="eyebrow">Sexta-feira, 4 de julho · seu briefing</div>
+        <h1 style="margin-top:14px">Bom dia, Marcos.</h1>
+        <p class="lede">Enquanto você descansava, continuei trabalhando na sua operação. A noite foi produtiva — e uma coisa me chamou atenção.</p>
+        <ul class="worklist">
+          <li><span class="tick">✓</span><span>Analisei <b>1.284</b> anúncios</span></li>
+          <li><span class="tick">✓</span><span>Monitorei <b>436</b> concorrentes</span></li>
+          <li><span class="tick">✓</span><span>Li <b>3.241</b> avaliações</span></li>
+          <li><span class="tick">✓</span><span>Detectei <b>4</b> oportunidades</span></li>
+          <li><span class="tick">✓</span><span>Criei <b>3</b> novas versões</span></li>
+          <li><span class="tick">✓</span><span>Preparei <b>2</b> decisões para você</span></li>
+        </ul>
+        <div class="keyfind">
+          <p class="voice">A descoberta mais importante: buscas por <b>“kit ferramentas com maleta”</b> cresceram 47% nas últimas duas semanas — e nenhum dos seus títulos menciona a maleta. Preparei uma proposta abaixo.</p>
+        </div>
+        <p class="sign">— Eu cuido do resto.</p>
+      </div>
+
+      <div class="section">
+        <div class="section-h"><span class="eyebrow">Aguardando sua decisão · 2</span></div>
+
+        <article class="card" id="dec1">
+          <div class="eyebrow"><span class="tag">Resposta competitiva</span><span>· Kit Ferramentas 129 peças</span></div>
+          <h3>Dois concorrentes baixaram preço agressivamente. Não sugiro cobrir — sugiro reposicionar o anúncio pelo diferencial da maleta, que é o que a busca está pedindo.</h3>
+          <div class="evidence">
+            <span>TechPro baixou 12% e FerraMax 18% desde terça-feira</span>
+            <span>Sua conversão caiu 23% no mesmo período</span>
+            <span>“com maleta” aparece em 47% mais buscas — e em nenhum título seu</span>
+          </div>
+          <div class="meta-row"><span>Impacto estimado: <b>+R$ 1.900/mês</b></span><span>Reversível em 1 clique</span><span>Confiança: alta</span></div>
+          <div class="actions">
+            <button class="btn primary" onclick="approve('dec1')">Aprovar</button>
+            <button class="btn">Ajustar</button>
+            <button class="btn">Recusar</button>
+            <button class="btn ghost" onclick="go('ia')">Perguntar sobre isso</button>
+          </div>
+          <div class="approved-note">✓&ensp;Aprovado. Virou missão — publico a nova versão e volto com o resultado medido.</div>
+        </article>
+
+        <article class="card" id="dec2">
+          <div class="eyebrow"><span class="tag">Nova versão</span><span>· Suporte de Notebook</span></div>
+          <h3>As avaliações elogiam a estabilidade, mas as fotos não mostram o produto aguentando peso. Criei 3 imagens novas demonstrando — quer que eu publique a mais forte?</h3>
+          <div class="evidence">
+            <span>“firme/estável” aparece em 68% das suas avaliações 5 estrelas</span>
+            <span>O concorrente líder mostra teste de peso na 2ª foto</span>
+          </div>
+          <div class="meta-row"><span>Impacto estimado: <b>+6% de conversão</b></span><span>Reversível em 1 clique</span></div>
+          <div class="actions">
+            <button class="btn primary" onclick="approve('dec2')">Aprovar</button>
+            <button class="btn">Ver as 3 versões</button>
+            <button class="btn">Recusar</button>
+            <button class="btn ghost" onclick="go('ia')">Perguntar sobre isso</button>
+          </div>
+          <div class="approved-note">✓&ensp;Aprovado. Publicando a imagem vencedora — acompanho o efeito nos próximos dias.</div>
+        </article>
+      </div>
+
+      <div class="section">
+        <div class="section-h"><span class="eyebrow">Descobertas de hoje</span></div>
+        <div class="grid3">
+          <article class="card">
+            <div class="eyebrow"><span class="tag info">Tendência</span></div>
+            <h3 class="voice">Buscas por “kit com maleta” cresceram 47% em 14 dias.</h3>
+            <div class="proof" style="margin-top:10px;font-size:12.5px;color:var(--text-3)">já usada na decisão acima</div>
+          </article>
+          <article class="card">
+            <div class="eyebrow"><span class="tag pos">Oportunidade</span></div>
+            <h3 class="voice">Seu Organizador de Cabos está a 2 posições do topo — falta pouco.</h3>
+            <div class="proof" style="margin-top:10px;font-size:12.5px;color:var(--text-3)">investigando o que os 2 acima fazem melhor</div>
+          </article>
+          <article class="card">
+            <div class="eyebrow"><span class="tag crit">Alerta</span></div>
+            <h3 class="voice">Uma avaliação 1 estrela no Kit menciona “peça faltando” — a 3ª do mês.</h3>
+            <div class="proof" style="margin-top:10px;font-size:12.5px;color:var(--text-3)">pode ser lote — recomendo checar com o fornecedor</div>
+          </article>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-h"><span class="eyebrow">Trabalho em andamento</span><button class="more" onclick="go('missoes')">ver missões →</button></div>
+        <div class="mini-missions">
+          <div class="mini"><span class="dot"></span><span><b>Investigando</b> queda de conversão · Kit Ferramentas — comparando preços de 12 concorrentes…</span></div>
+          <div class="mini"><span class="dot"></span><span><b>Criando</b> 3 versões de anúncio · Suporte de Notebook</span></div>
+          <div class="mini"><span class="dot"></span><span><b>Estudando</b> as 87 avaliações novas da semana</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== IA ===== -->
+    <section class="view" id="v-ia">
+      <div class="eyebrow">Conversa com o Head</div>
+      <div class="chat" style="margin-top:26px">
+        <div class="msg user"><div class="who">Marcos</div><div class="bubble">Por que minhas vendas caíram essa semana?</div></div>
+        <div class="msg head">
+          <div class="who">Head</div>
+          <p class="say">Investiguei agora. A queda está concentrada em um único produto — o restante da operação está estável. Olha o que encontrei:</p>
+          <article class="card">
+            <div class="eyebrow"><span class="tag">Diagnóstico</span><span>· Kit Ferramentas 129 peças</span></div>
+            <h3>A conversão caiu 23% desde terça. Causa provável: dois concorrentes baixaram preço de forma agressiva no mesmo dia.</h3>
+            <div class="evidence">
+              <span>TechPro: −12% · FerraMax: −18%, ambos na terça-feira</span>
+              <span>Seu tráfego se manteve — o problema é conversão, não visibilidade</span>
+              <span>Suas avaliações seguem superiores (4,8 vs 4,3)</span>
+            </div>
+            <div class="actions">
+              <button class="btn primary" onclick="go('home')">Ver a estratégia que preparei</button>
+              <button class="btn ghost">Ver detalhe completo</button>
+            </div>
+          </article>
+        </div>
+        <div class="msg user"><div class="who">Marcos</div><div class="bubble">E o que você faria no meu lugar?</div></div>
+        <div class="msg head">
+          <div class="who">Head</div>
+          <p class="say">Eu não cobriria o preço — sua margem não aguenta e suas avaliações ganham a briga. Eu reposicionaria o anúncio pelo diferencial da maleta, que é exatamente o que a busca está pedindo agora. A proposta está pronta na sua Home, com impacto estimado de R$ 1.900/mês. Um clique e eu executo.</p>
+        </div>
+      </div>
+      <div class="suggest">
+        <button class="chip">Crie 3 versões desse anúncio</button>
+        <button class="chip">Analise o concorrente TechPro</button>
+        <button class="chip">Como está minha operação?</button>
+      </div>
+      <div class="composer">
+        <input placeholder="Fale com o Head… (⌘K de qualquer tela)" aria-label="Fale com o Head">
+        <button class="send" aria-label="Enviar">→</button>
+      </div>
+    </section>
+
+    <!-- ===== PRODUTOS ===== -->
+    <section class="view" id="v-produtos">
+      <div class="section-h" style="border:0;padding:0"><span class="eyebrow">Produtos · ordenados por atenção</span><span class="more">148 anúncios</span></div>
+
+      <article class="card prod">
+        <div class="thumb">🧰</div>
+        <div class="info">
+          <div class="name">Kit Ferramentas 129 peças</div>
+          <div class="stats"><span class="down">↓ conversão −23% (7d)</span><span>#3 na busca</span><span>2 oportunidades</span></div>
+          <div class="lastword">“Estou investigando a queda — dois concorrentes baixaram preço. Proposta pronta na Home.”</div>
+        </div>
+        <div class="ring" data-score="61"></div>
+      </article>
+
+      <article class="card prod">
+        <div class="thumb">💻</div>
+        <div class="info">
+          <div class="name">Suporte de Notebook Alumínio</div>
+          <div class="stats"><span class="up">↑ conversão +6% (7d)</span><span>#1 na busca</span><span>1 oportunidade</span></div>
+          <div class="lastword">“Testando um título novo desde ontem. Sinal inicial positivo.”</div>
+        </div>
+        <div class="ring" data-score="87"></div>
+      </article>
+
+      <article class="card prod">
+        <div class="thumb">🔌</div>
+        <div class="info">
+          <div class="name">Organizador de Cabos (kit 20un)</div>
+          <div class="stats"><span class="up">↑ conversão +2% (7d)</span><span>#5 na busca</span><span>1 oportunidade</span></div>
+          <div class="lastword">“A 2 posições do topo. Estudando o que os dois acima fazem melhor.”</div>
+        </div>
+        <div class="ring" data-score="74"></div>
+      </article>
+
+      <article class="card prod">
+        <div class="thumb">🎧</div>
+        <div class="info">
+          <div class="name">Fone Bluetooth Sport Pro</div>
+          <div class="stats"><span>conversão estável</span><span>#8 na busca</span><span>sem pendências</span></div>
+          <div class="lastword">“Saudável. Monitorando — nada exige ação sua agora.”</div>
+        </div>
+        <div class="ring" data-score="82"></div>
+      </article>
+    </section>
+
+    <!-- ===== MISSÕES ===== -->
+    <section class="view" id="v-missoes">
+      <div class="section-h" style="border:0;padding:0"><span class="eyebrow">Em andamento · 3</span></div>
+
+      <article class="card mission">
+        <div class="eyebrow"><span class="tag">Investigando</span><span>· Kit Ferramentas 129 peças</span></div>
+        <h3>Entender a queda de conversão e preparar a resposta competitiva.</h3>
+        <div class="now"><span class="dot"></span>agora: comparando preços de 12 concorrentes…</div>
+        <details open>
+          <summary>diário de bordo</summary>
+          <div class="logbook">
+            <div><time>14:02</time><span>Li as 218 avaliações do concorrente líder — o ponto fraco dele é prazo de entrega</span></div>
+            <div><time>13:40</time><span>Identifiquei 2 quedas de preço agressivas (TechPro −12%, FerraMax −18%)</span></div>
+            <div><time>13:18</time><span>Confirmei: o tráfego se manteve, a queda é de conversão</span></div>
+            <div><time>12:55</time><span>Detectei a queda de 23% e abri esta investigação</span></div>
+          </div>
+        </details>
+        <div class="origin">origem: iniciada por mim — detectei queda de ranking às 12h55</div>
+      </article>
+
+      <article class="card mission">
+        <div class="eyebrow"><span class="tag">Criando</span><span>· Suporte de Notebook</span></div>
+        <h3>Criar 3 versões de imagem demonstrando a estabilidade que as avaliações elogiam.</h3>
+        <div class="now"><span class="dot"></span>agora: gerando a terceira variação…</div>
+        <div class="origin">origem: pedido seu, pela conversa, hoje às 9h12</div>
+      </article>
+
+      <article class="card mission">
+        <div class="eyebrow"><span class="tag">Estudando</span><span>· operação inteira</span></div>
+        <h3>Ler as 87 avaliações novas da semana em busca de padrões.</h3>
+        <div class="now"><span class="dot"></span>agora: 61 de 87 lidas…</div>
+        <div class="origin">origem: rotina contínua de vigília</div>
+      </article>
+
+      <div class="section">
+        <div class="section-h"><span class="eyebrow">Aguardando você · 1</span></div>
+        <article class="card mission">
+          <div class="eyebrow"><span class="tag">Bloqueada</span><span>· Kit Ferramentas</span></div>
+          <h3>A resposta competitiva está pronta — preciso da sua aprovação para publicar.</h3>
+          <div class="actions"><button class="btn primary" onclick="go('home')">Decidir agora</button></div>
+        </article>
+      </div>
+
+      <div class="section">
+        <div class="section-h"><span class="eyebrow">Concluídas hoje · 2</span></div>
+        <article class="card done">
+          <div class="h"><h3 style="margin-top:0">Troquei o título do Organizador de Cabos (v4)</h3><span class="res">medindo efeito · 1º sinal em 3 dias</span></div>
+        </article>
+        <article class="card done">
+          <div class="h"><h3 style="margin-top:0">Respondi 12 perguntas de compradores durante a madrugada</h3><span class="res">tempo médio de resposta: 4 min</span></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ===== CONHECIMENTO ===== -->
+    <section class="view" id="v-conhecimento">
+      <div class="section-h" style="border:0;padding:0"><span class="eyebrow">Conhecimento · a memória da sua operação</span></div>
+      <div class="cols">
+        <button class="chip">Aprendizados</button>
+        <button class="chip">Estratégias vencedoras</button>
+        <button class="chip">Palavras-chave</button>
+        <button class="chip">Criativos vencedores</button>
+      </div>
+
+      <article class="card know">
+        <div class="eyebrow"><span class="tag pos">Aprendizado</span><span>· categoria Ferramentas</span></div>
+        <h3>Anúncios com vídeo de uso real convertem 31% mais nesta categoria.</h3>
+        <div class="proof">comprovado em 2 produtos seus · junho/2026</div>
+        <div class="actions apply">
+          <button class="btn">Aplicar em outro produto</button>
+          <button class="btn ghost" onclick="go('ia')">Perguntar sobre isso</button>
+        </div>
+      </article>
+
+      <article class="card know">
+        <div class="eyebrow"><span class="tag pos">Estratégia vencedora</span><span>· guerra de preço</span></div>
+        <h3>Quando o concorrente corta preço, reposicionar pelo diferencial venceu cobrir o desconto — margem preservada e conversão recuperada em 9 dias.</h3>
+        <div class="proof">aplicada 1 vez · Fone Bluetooth, maio/2026 · resultado +14% de margem</div>
+        <div class="actions apply">
+          <button class="btn">Reaplicar</button>
+          <button class="btn ghost" onclick="go('ia')">Perguntar sobre isso</button>
+        </div>
+      </article>
+
+      <article class="card know">
+        <div class="eyebrow"><span class="tag pos">Palavra-chave</span><span>· em teste → comprovada</span></div>
+        <h3>“com maleta” — busca cresceu 47% em 14 dias; entrou na proposta de hoje para o Kit Ferramentas.</h3>
+        <div class="proof">descoberta hoje, 04/jul · aguardando resultado medido</div>
+      </article>
+    </section>
+
+  </main>
+</div>
+
+<script>
+// Navegação
+function go(v){
+  document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
+  document.getElementById('v-'+v).classList.add('on');
+  document.querySelectorAll('#nav button').forEach(b=>b.classList.toggle('active',b.dataset.v===v));
+  window.scrollTo({top:0});
+}
+document.querySelectorAll('#nav button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.v)));
+const pb=document.getElementById('pulseBox');
+pb.addEventListener('click',()=>go('missoes'));
+pb.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' ')go('missoes')});
+
+// O Pulso — frases de atividade em rotação
+const activities=[
+  "Monitorando preços de 436 concorrentes…",
+  "Lendo as avaliações novas da semana — 61 de 87…",
+  "Comparando os 12 concorrentes que mais crescem…",
+  "Observando seu ranking em 5 buscas estratégicas…",
+  "Gerando a terceira variação de imagem…",
+  "Revisando perguntas de compradores sem resposta…"
+];
+let ai=0;
+const msg=document.getElementById('pulseMsg');
+const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+if(!reduced){
+  setInterval(()=>{
+    msg.classList.add('fade');
+    setTimeout(()=>{ai=(ai+1)%activities.length;msg.textContent=activities[ai];msg.classList.remove('fade')},500);
+  },7000);
+}
+
+// Aprovação — o card confirma e sai da mesa
+function approve(id){
+  const c=document.getElementById(id);
+  if(c.classList.contains('approved'))return;
+  c.classList.add('approved');
+  c.querySelector('.actions').style.display='none';
+  c.querySelector('.approved-note').style.display='flex';
+  setTimeout(()=>{c.classList.add('gone');setTimeout(()=>{c.style.display='none';updateBadge()},350)},2200);
+}
+function updateBadge(){
+  const left=[...document.querySelectorAll('#dec1,#dec2')].filter(c=>c.style.display!=='none').length;
+  const badge=document.querySelector('#nav button[data-v="home"] .badge');
+  if(left===0){badge.remove()}else{badge.textContent=left}
+}
+</script>
+</body>
+</html>
