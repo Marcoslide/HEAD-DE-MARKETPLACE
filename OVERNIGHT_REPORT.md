@@ -227,7 +227,38 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   garante que nenhum arquivo em `mie/src` usa `Date` fora do Clock). Doc em
   `docs/clock-and-temporal-context.md`.
 
-**Suíte total: 133 testes, 133 verdes.** (121 + 12 do Clock)
+- **Sprint 09 — Central de Marketplace** — *concluído*: integrações oficiais,
+  dados unificados e inteligência operacional para Mercado Livre, Shopee,
+  TikTok Shop e Magalu — em **uma Central única** (`mos/src/central/`),
+  construída sobre a base auditada (Fase 1: mapa REUTILIZAR/ADAPTAR/
+  COMPLETAR/MIGRAR/CRIAR em `docs/sprint-09-auditoria-central-marketplace.md`).
+  O que nasceu: contrato único de conector (capability matrix; capability
+  inexistente = erro claro; **toda escrita bloqueada tecnicamente** —
+  READ_ONLY é lei), conexão OAuth backend-only com **tokens AES-256-GCM**
+  (máscara, refresh com lock single-flight, nada em logs/frontend/Git),
+  10 tabelas aditivas (credenciais, sync_state, raw_payload, orders+items,
+  inventory, prices, metrics, sync_log, integration_event, public_research),
+  Sync Orchestrator na fila `sync` do kernel (watermarks, retry/backoff em
+  rate limit, isolamento por empresa/conta/loja, falha de uma praça não
+  derruba as demais), payload bruto preservado p/ auditoria + entidade
+  canônica idêntica nas 4 praças, eventos com **chave de idempotência**
+  (nada duplica — nem no Plano do Dia), 6 playbooks de sinais
+  (estoque crítico do campeão, margem melhor em outro canal, campeão
+  ausente no canal, potencial TikTok, capacidade de personalizados, pedido
+  perto de atrasar) → Knowledge Graph → **EPE (que rejeita payload bruto
+  tecnicamente)** → Plano do Dia com proveniência completa (plataforma →
+  conta → entidade → evento → raw). Pesquisa pública separada POR
+  CONSTRUÇÃO (PUBLIC_RESEARCH, sem token, sem scraping). `/__dev/central`
+  mostra conexões, capabilities, watermarks, lag, eventos, Clock e sinais
+  ao EPE; `sync-mock` só roda com fixtures. TikTok/Magalu: conector
+  estruturado + fixtures + testes, conexão REAL bloqueada até validar
+  credenciais oficiais (nada inventado). Demo: `node mos/demo-central.js`
+  — o cenário do sprint vira INTERROMPER (estoque do campeão) + 2
+  aprovações (margem/expansão) + 2 execuções automáticas (pedidos no
+  prazo) + 1 investigação (vídeo TikTok). +21 testes.
+  Doc em `docs/marketplace-central.md`.
+
+**Suíte total: 154 testes, 154 verdes.** (133 + 21 da Central)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

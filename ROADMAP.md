@@ -55,7 +55,7 @@ Regras da arquitetura:
 | 2 · Conhecimento | ✅ **fundada** · expande sempre | `MIF.md` v1 (8 doutrinas) · Knowledge Base por vir |
 | 3 · Operacional | ✅ **fundada** · cresce por acréscimo | `MOS.md` v1 (Fluxos 001–010) · fluxos 001/007/009 já executáveis em `mos/` |
 | 4 · Cognitiva | ✅ **fundada** · +Specialists (S06) +Graph (S07) +EPE (S08) +Clock (S08.1) | [`mie/`](mie/README.md) — 7 motores + [Specialists](docs/specialists-engine.md) + [Knowledge Graph](docs/knowledge-graph.md) + [Executive Planning Engine](docs/executive-planning-engine.md) (prioridade executiva, plano do dia, silêncio inteligente, capacidade) + [Clock injetado](docs/clock-and-temporal-context.md) (tempo determinista/testável, proveniência, fuso da operação) + Debug Console |
-| 5 · Execução | ✅ **fundada** · simulada por interface | [`mos/`](mos/README.md) — backend DDD/EDA/Clean, banco (23 entidades), API REST+OpenAPI, Collector, WhatsApp, publicação e experimentação (tudo simulado, contratos prontos p/ integração real) |
+| 5 · Execução | ✅ **fundada** · +Central de Marketplace (S09) | [`mos/`](mos/README.md) — backend DDD/EDA/Clean, banco (33 entidades), API REST+OpenAPI, Collector, WhatsApp, publicação e experimentação + [**Central de Marketplace**](docs/marketplace-central.md): conector oficial autenticado (ML/Shopee prontos; TikTok/Magalu estruturados), tokens cifrados, sync com watermarks, eventos idempotentes, sinais → EPE, READ_ONLY técnico |
 | 6 · Experiência | ✅ **fundada** · evolui com as demais | `docs/01–05` + `design/prototipo-v2` + `design/prototipo-v3` (Plano do Dia do EPE, navegável) |
 
 ---

@@ -30,6 +30,11 @@ class ExecutivePlanningEngine {
     this.clock = clock || NS.systemClock;  // relógio de mundo real (Sprint 08.1)
     this.lastPlan = null;                   // último plano gerado (exposto no /__dev)
 
+    /* sinais EXTERNOS normalizados (Sprint 09 — Central de Marketplace).
+       O EPE nunca recebe payload bruto de API: só o sinal executivo. */
+    this.externalSignals = [];
+    this._externalKeys = new Set();
+
     /* diário do dia: o funil de atenção do Head (Art. 3 — mostrar o trabalho) */
     this.ledger = this._emptyLedger();
     if (bus) {
@@ -44,6 +49,24 @@ class ExecutivePlanningEngine {
   }
   get cfg() { return NS.CONFIG.EPE; }
   _emptyLedger() { return { signalsFound: 0, signalsIgnored: 0, investigated: 0, resolved: 0 }; }
+
+  /* ---------- sinais externos (Central de Marketplace, Sprint 09) ----------
+     Aceita APENAS sinal normalizado. Payload bruto de API é bloqueado
+     TECNICAMENTE (não por convenção) — quem quiser dado cru vai à
+     auditoria (raw_marketplace_payload), nunca ao EPE. */
+  addExternalSignal(signal) {
+    if (!signal || typeof signal !== 'object') throw new Error('sinal externo inválido');
+    for (const k of ['payload', 'raw', 'rawPayload', 'response', 'body'])
+      if (k in signal)
+        throw new Error(`EPE não aceita payload bruto (campo "${k}") — envie apenas o sinal normalizado`);
+    if (!signal.title) throw new Error('sinal externo precisa de title');
+    const key = signal.signalKey || `${signal.productId}|${signal.proposalType || signal.title}`;
+    if (this._externalKeys.has(key)) return null;      // idempotente: repetido não duplica
+    this._externalKeys.add(key);
+    const s = { ...signal, signalKey: key };
+    this.externalSignals.push(s);
+    return s;
+  }
 
   /* ---------- o coração: classificador executivo AUDITÁVEL ---------- */
   classify(candidate) {
@@ -88,6 +111,10 @@ class ExecutivePlanningEngine {
       consensusStrength: c.consensusStrength ?? 0,
       reluctance: c.reluctance ?? 0,
       autoAuthorized: !!c.autoAuthorized,
+      /* proveniência (Sprint 09): sinal rastreável até plataforma/conta/
+         entidade/evento — segue junto até o Plano do Dia */
+      provenance: c.provenance ?? null,
+      playbook: c.playbook ?? null,
     };
   }
 
@@ -215,6 +242,15 @@ class ExecutivePlanningEngine {
       const verdict = this.classify(this.factorsOf(d));
       candidates.push({ diagnosis: d, ...verdict });
     }
+    /* sinais externos normalizados (Central de Marketplace, Sprint 09) —
+       entram no MESMO funil executivo, com o mesmo dedupe */
+    for (const s of this.externalSignals) {
+      const key = `${s.productId}|${s.proposalType || s.title}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const verdict = this.classify(s);
+      candidates.push({ signal: s, ...verdict });
+    }
 
     /* 2. aplica CAPACIDADE OPERACIONAL do dia (as melhores primeiro) */
     const byScore = (a, b) => b.score - a.score;
@@ -292,6 +328,7 @@ class ExecutivePlanningEngine {
       impactMonthly: f.impactMonthly, confidence: f.confidenceLabel, urgency: f.urgency,
       effort: f.effort, score: x.score, reason: x.reason,
       proposalType: f.proposalType, class: f.class,
+      ...(f.provenance ? { provenance: f.provenance, playbook: f.playbook } : {}),
       breakdown: { impact: f.impactMonthly, urgency: f.urgency, confidence: f.confidenceLabel,
         effort: f.effort, riskOfWaiting: x.breakdown.riskOfWaiting, riskOfActingEarly: x.breakdown.riskOfActingEarly,
         base: x.breakdown.base, mult: x.breakdown.mult, factors: x.breakdown.factors, score: x.score },

@@ -8,7 +8,67 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-function mountObservability(router, mos, { mie = null } = {}) {
+function mountObservability(router, mos, { mie = null, central = null } = {}) {
+
+  /* ---------- Integrações de Marketplace (Central, Sprint 09) ---------- */
+  if (central) {
+    router.get('/__dev/central', { summary: 'Central de Marketplace: conexões, syncs, sinais', tags: ['dev'] }, () => {
+      const connections = mos.repos.connection.db.all(
+        `SELECT mc.*, c.name AS company_name FROM marketplace_connection mc
+         JOIN company c ON c.id = mc.company_id ORDER BY mc.id`);
+      const nowMs = central.clock.nowMs();
+      return {
+        readOnly: central.readOnly,                       // lei do sprint, visível
+        clock: { timezone: central.clock.timezone, now: central.clock.nowIso(),
+                 kind: central.clock.kind },
+        transport: { kind: central.transport.kind },      // fixture | http
+        platforms: Object.values(central.declarations).map(d => ({
+          id: d.id, displayName: d.displayName, integrationStatus: d.integrationStatus,
+          authType: d.authType, supportsWebhooks: d.supportsWebhooks,
+          capabilities: d.capabilities,
+        })),
+        connections: connections.map(c => ({
+          id: c.id, company: c.company_name, companyId: c.company_id,
+          platform: c.marketplace, status: c.status,
+          accountId: c.account_id, storeId: c.store_id,
+          readOnly: c.read_only !== 0, connectedAt: c.connected_at,
+          credential: central.credentials.maskedStatus(c.id),   // máscara, nunca segredo
+        })),
+        syncStates: mos.repos.syncState.db.all('SELECT * FROM marketplace_sync_state ORDER BY platform, resource')
+          .map(s => ({
+            platform: s.platform, resource: s.resource, status: s.status,
+            watermark: s.watermark, lastSuccessAt: s.last_success_at,
+            lagMs: s.last_success_at ? nowMs - new Date(s.last_success_at).getTime() : null,
+            records: { read: s.records_read, created: s.records_created,
+                       updated: s.records_updated, ignored: s.records_ignored },
+            error: s.error,
+          })),
+        recentSyncLogs: mos.repos.syncLog.db.all(
+          'SELECT * FROM marketplace_sync_log ORDER BY id DESC LIMIT 20'),
+        events: {
+          total: mos.repos.integrationEvent.count(),
+          duplicatesBlocked: central.events.duplicates,
+          last: mos.repos.integrationEvent.db.all(
+            'SELECT id, platform, event_type, entity_id, occurred_at FROM integration_event ORDER BY rowid DESC LIMIT 10'),
+        },
+        queue: { pending: mos.queues.sync ? mos.queues.sync.size() : 0,
+                 processed: mos.queues.sync ? mos.queues.sync.processed : 0,
+                 dead: mos.queues.sync ? mos.queues.sync.deadLetter.length : 0 },
+        signalsToEPE: central.bridge ? central.bridge.stats : null,
+        publicResearch: { total: mos.repos.publicResearch.count() },
+      };
+    });
+
+    /* botão de dev: sincronização MOCK — recusa qualquer transporte real */
+    router.post('/__dev/central/sync-mock', { summary: 'Executa sincronização mock (só fixtures)', tags: ['dev'] }, () => {
+      if (central.transport.kind !== 'fixture')
+        throw new Error('sync-mock bloqueado: o transporte ativo não é de fixtures — nunca tocar conta real por acidente');
+      const companies = mos.repos.company.db.all('SELECT id FROM company');
+      const queued = {};
+      for (const c of companies) queued[c.id] = central.orchestrator.syncCompany(c.id);
+      return { ok: true, transport: 'fixture', queued };
+    });
+  }
 
   router.get('/__dev', { summary: 'Painel de observabilidade (dev)', tags: ['dev'] },
     () => ({ _html: fs.readFileSync(path.join(__dirname, 'dev-panel.html'), 'utf8') }));

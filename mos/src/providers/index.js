@@ -114,6 +114,7 @@ class TikTokProvider extends MarketplaceProvider {
 
 function createProviderRegistry() {
   const providers = new Map();
+  const connectors = new Map();   // Central de Marketplace (Sprint 09) — lado de LEITURA
   for (const P of [MercadoLivreProvider, ShopeeProvider, AmazonProvider, MagaluProvider, TikTokProvider]) {
     const p = new P();
     providers.set(p.name, p);
@@ -125,6 +126,25 @@ function createProviderRegistry() {
       return p;
     },
     names: () => [...providers.keys()],
+
+    /* ---- Central (Sprint 09): o MESMO registry ganha o lado de leitura.
+       Um conector novo se registra aqui sem alterar nenhum núcleo. ---- */
+    registerConnector(connector) {
+      if (!connector || !connector.platform) throw new Error('conector inválido: falta platform');
+      connectors.set(connector.platform, connector);
+      return connector;
+    },
+    connector(name) {
+      const c = connectors.get(name);
+      if (!c) throw new Error('conector desconhecido: ' + name);
+      return c;
+    },
+    hasConnector: name => connectors.has(name),
+    connectorNames: () => [...connectors.keys()],
+    describe(name) {
+      const c = connectors.get(name);
+      return c ? c.declaration : null;
+    },
   };
 }
 

@@ -49,14 +49,18 @@ test('queue: concorrência limitada, retry com backoff e dead-letter', async () 
 
 /* ================= BANCO (Bloco 03) ================= */
 
-test('banco: migração completa das 23 entidades', () => {
+test('banco: migração completa das entidades (23 do núcleo + 10 da Central S09)', () => {
   const mos = createMOS();
   const tables = mos.db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`)
     .map(r => r.name).sort();
   const expected = ['audit_log', 'company', 'competitor', 'competitor_snapshot', 'decision',
-    'execution_plan', 'experiment', 'investigation', 'keyword', 'keyword_trend', 'learning',
-    'listing', 'listing_version', 'marketplace_connection', 'memory', 'mission', 'opportunity',
-    'product', 'publication_history', 'question', 'review', 'user', 'workspace'];
+    'execution_plan', 'experiment', 'integration_event', 'investigation', 'keyword',
+    'keyword_trend', 'learning', 'listing', 'listing_version', 'marketplace_connection',
+    'marketplace_credential', 'marketplace_inventory', 'marketplace_metric_snapshot',
+    'marketplace_order', 'marketplace_order_item', 'marketplace_price', 'marketplace_sync_log',
+    'marketplace_sync_state', 'memory', 'mission', 'opportunity', 'product',
+    'public_research_evidence', 'publication_history', 'question', 'raw_marketplace_payload',
+    'review', 'user', 'workspace'];
   assert.deepEqual(tables, expected);
   mos.close();
 });

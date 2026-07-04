@@ -15,7 +15,21 @@ class Database {
   migrate() {
     const schema = fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8');
     this.db.exec(schema);
+    /* Central de Marketplace (Sprint 09) — tabelas novas, tudo aditivo */
+    const central = fs.readFileSync(path.join(__dirname, 'schema-central.sql'), 'utf8');
+    this.db.exec(central);
+    this._addColumns('marketplace_connection', {
+      account_id: 'TEXT', store_id: 'TEXT',
+      auth_type: 'TEXT', read_only: 'INTEGER NOT NULL DEFAULT 1',
+      connected_at: 'TEXT', revoked_at: 'TEXT',
+    });
     return this;
+  }
+  /* migração aditiva de colunas: só ALTER quando a coluna não existe */
+  _addColumns(table, columns) {
+    const existing = new Set(this.db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name));
+    for (const [name, def] of Object.entries(columns))
+      if (!existing.has(name)) this.db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${def}`);
   }
   prepare(sql) {
     if (!this._stmts.has(sql)) this._stmts.set(sql, this.db.prepare(sql));

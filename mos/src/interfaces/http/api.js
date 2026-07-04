@@ -40,10 +40,10 @@ const dto = {
 };
 
 /* ---------- rotas ---------- */
-function createApi(mos, { dev = true, mie = null } = {}) {
+function createApi(mos, { dev = true, mie = null, central = null } = {}) {
   const router = new Router({ logger: mos.logger.child({ mod: 'http' }) });
   const { services, repos } = mos;
-  if (dev) mountObservability(router, mos, { mie });
+  if (dev) mountObservability(router, mos, { mie, central });
 
   router.get('/health', { summary: 'Saúde da plataforma', tags: ['sistema'] },
     () => ({ ok: true, uptime: process.uptime() }));

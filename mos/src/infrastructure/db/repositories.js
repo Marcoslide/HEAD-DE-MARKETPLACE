@@ -150,13 +150,78 @@ class AuditRepository {
   }
 }
 
+/* ---------- Central de Marketplace (Sprint 09) ---------- */
+
+class SyncStateRepository extends BaseRepository {
+  constructor(db) {
+    super(db, 'marketplace_sync_state', 'mss',
+      ['company_id', 'connection_id', 'platform', 'account_id', 'store_id', 'resource',
+       'watermark', 'last_attempt_at', 'last_success_at', 'status',
+       'records_read', 'records_created', 'records_updated', 'records_ignored', 'error']);
+  }
+  byConnectionResource(connectionId, resource) {
+    return this.db.get('SELECT * FROM marketplace_sync_state WHERE connection_id = ? AND resource = ?',
+      connectionId, resource) || null;
+  }
+  byCompany(companyId) {
+    return this.db.all('SELECT * FROM marketplace_sync_state WHERE company_id = ? ORDER BY platform, resource', companyId);
+  }
+}
+
+class MarketplaceOrderRepository extends BaseRepository {
+  constructor(db) {
+    super(db, 'marketplace_order', 'mor',
+      ['company_id', 'connection_id', 'platform', 'account_id', 'store_id', 'external_id',
+       'status', 'total', 'currency', 'buyer_ref', 'is_custom', 'deadline_at',
+       'occurred_at', 'observed_at', 'synchronized_at', 'raw_reference']);
+  }
+  byExternal(connectionId, externalId) {
+    return this.db.get('SELECT * FROM marketplace_order WHERE connection_id = ? AND external_id = ?',
+      connectionId, externalId) || null;
+  }
+  /* isolamento por empresa: TODA leitura de pedidos parte do company_id */
+  ofCompany(companyId, { platform = null } = {}) {
+    return platform
+      ? this.db.all('SELECT * FROM marketplace_order WHERE company_id = ? AND platform = ? ORDER BY occurred_at', companyId, platform)
+      : this.db.all('SELECT * FROM marketplace_order WHERE company_id = ? ORDER BY occurred_at', companyId);
+  }
+}
+
+class IntegrationEventRepository extends BaseRepository {
+  constructor(db) {
+    super(db, 'integration_event', 'iev',
+      ['company_id', 'platform', 'account_id', 'store_id', 'event_type', 'entity_type',
+       'entity_id', 'occurred_at', 'observed_at', 'synchronized_at', 'severity',
+       'confidence', 'payload_json', 'raw_reference', 'metadata_json']);
+  }
+  /* idempotência: o id É a chave — duplicado não insere e retorna false */
+  insertIdempotent(evt) {
+    const r = this.db.run(
+      `INSERT OR IGNORE INTO integration_event
+       (id, company_id, platform, account_id, store_id, event_type, entity_type, entity_id,
+        occurred_at, observed_at, synchronized_at, severity, confidence, payload_json, raw_reference, metadata_json)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      evt.id, evt.company_id, evt.platform, evt.account_id ?? null, evt.store_id ?? null,
+      evt.event_type, evt.entity_type, evt.entity_id ?? null,
+      evt.occurred_at ?? null, evt.observed_at ?? null, evt.synchronized_at ?? null,
+      evt.severity ?? 'INFO', evt.confidence ?? 1,
+      JSON.stringify(evt.payload ?? {}), evt.raw_reference ?? null, JSON.stringify(evt.metadata ?? {}));
+    return r.changes > 0;
+  }
+  ofCompany(companyId) {
+    return this.db.all('SELECT * FROM integration_event WHERE company_id = ? ORDER BY synchronized_at', companyId);
+  }
+}
+
 /* fábrica: todos os repositórios sobre uma conexão */
 function createRepositories(db) {
   return {
     workspace: new BaseRepository(db, 'workspace', 'ws', ['name']),
     user: new BaseRepository(db, 'user', 'usr', ['workspace_id', 'name', 'email', 'role']),
     company: new BaseRepository(db, 'company', 'cmp', ['workspace_id', 'name', 'objectives_json']),
-    connection: new BaseRepository(db, 'marketplace_connection', 'mkc', ['company_id', 'marketplace', 'status', 'settings_json']),
+    connection: new BaseRepository(db, 'marketplace_connection', 'mkc',
+      ['company_id', 'marketplace', 'status', 'settings_json',
+       'account_id', 'store_id', 'auth_type', 'read_only', 'connected_at', 'revoked_at']),
     product: new BaseRepository(db, 'product', 'prd', ['company_id', 'name', 'sku', 'cost', 'attributes_json']),
     listing: new ListingRepository(db),
     version: new ListingVersionRepository(db),
@@ -185,6 +250,32 @@ function createRepositories(db) {
     publication: new BaseRepository(db, 'publication_history', 'pub',
       ['listing_id', 'version_id', 'action', 'simulated', 'payload_json', 'outcome']),
     audit: new AuditRepository(db),
+    /* Central de Marketplace (Sprint 09) */
+    credential: new BaseRepository(db, 'marketplace_credential', 'crd',
+      ['connection_id', 'access_token_enc', 'refresh_token_enc', 'token_type',
+       'scope', 'expires_at', 'rotated_at', 'created_at', 'updated_at']),
+    syncState: new SyncStateRepository(db),
+    syncLog: new BaseRepository(db, 'marketplace_sync_log', 'msl',
+      ['company_id', 'connection_id', 'platform', 'resource', 'status', 'started_at',
+       'finished_at', 'records_read', 'records_created', 'records_updated', 'records_ignored', 'error']),
+    rawPayload: new BaseRepository(db, 'raw_marketplace_payload', 'raw',
+      ['company_id', 'connection_id', 'platform', 'resource', 'external_id', 'payload_json', 'fetched_at']),
+    morder: new MarketplaceOrderRepository(db),
+    morderItem: new BaseRepository(db, 'marketplace_order_item', 'moi',
+      ['order_id', 'external_listing_id', 'sku', 'title', 'quantity', 'unit_price']),
+    minventory: new BaseRepository(db, 'marketplace_inventory', 'min',
+      ['company_id', 'connection_id', 'platform', 'external_listing_id', 'sku', 'available',
+       'reserved', 'occurred_at', 'observed_at', 'synchronized_at', 'raw_reference']),
+    mprice: new BaseRepository(db, 'marketplace_price', 'mpr',
+      ['company_id', 'connection_id', 'platform', 'external_listing_id', 'price', 'original_price',
+       'currency', 'margin_pct', 'occurred_at', 'observed_at', 'synchronized_at', 'raw_reference']),
+    mmetric: new BaseRepository(db, 'marketplace_metric_snapshot', 'mms',
+      ['company_id', 'connection_id', 'platform', 'external_listing_id', 'metric', 'value',
+       'period', 'occurred_at', 'observed_at', 'synchronized_at', 'raw_reference']),
+    integrationEvent: new IntegrationEventRepository(db),
+    publicResearch: new BaseRepository(db, 'public_research_evidence', 'pre',
+      ['company_id', 'source_type', 'source_url', 'platform', 'subject', 'findings_json',
+       'confidence', 'observed_at']),
   };
 }
 
