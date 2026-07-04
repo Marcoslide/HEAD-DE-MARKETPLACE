@@ -56,6 +56,27 @@ WHATSAPP_ADMIN_ALLOWLIST
   priorize-os no primeiro piloto.
 - Logs e backups do banco ativos antes do piloto.
 
+## Como subir o servidor (FASE 1)
+
+```bash
+cp .env.example .env        # preencha os valores NO SERVIDOR (fora do Git)
+node mos/server.js          # porta em PORT (default 3000)
+curl -fsS https://SEU-DOMINIO/health   # health check → {"ok":true,...}
+```
+
+O host público (Railway, Render, Fly.io, VPS com Caddy/Nginx…) termina o
+TLS e repassa para a porta do processo. O corpo cru chega intacto ao
+webhook (assinatura HMAC validada sobre o `rawBody`). URLs finais:
+`https://SEU-DOMINIO/oauth/ml/callback` e
+`https://SEU-DOMINIO/webhooks/whatsapp`.
+
+As feature flags são ligadas NO SERVIDOR (nunca via HTTP público):
+
+```bash
+node mos/tools/flag.js list <companyId>
+node mos/tools/flag.js set MERCADO_LIVRE_OAUTH_ENABLED <companyId> on
+```
+
 ## Ordem de ativação sugerida
 
 1. Definir variáveis → subir o servidor com HTTPS.

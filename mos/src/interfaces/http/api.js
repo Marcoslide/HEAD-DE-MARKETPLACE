@@ -5,6 +5,7 @@
 'use strict';
 const { Router } = require('./router.js');
 const { mountObservability } = require('./observability.js');
+const { mountLive } = require('../../live/index.js');
 
 /* ---------- DTOs ---------- */
 const dto = {
@@ -40,10 +41,11 @@ const dto = {
 };
 
 /* ---------- rotas ---------- */
-function createApi(mos, { dev = true, mie = null, central = null, chat = null } = {}) {
+function createApi(mos, { dev = true, mie = null, central = null, chat = null, live = null } = {}) {
   const router = new Router({ logger: mos.logger.child({ mod: 'http' }) });
   const { services, repos } = mos;
   if (dev) mountObservability(router, mos, { mie, central, chat });
+  if (live) mountLive(router, mos, live);   // conexões reais (Sprint 10.A)
 
   router.get('/health', { summary: 'Saúde da plataforma', tags: ['sistema'] },
     () => ({ ok: true, uptime: process.uptime() }));
