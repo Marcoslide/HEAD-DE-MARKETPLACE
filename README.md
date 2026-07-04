@@ -32,9 +32,13 @@ Toda funcionalidade precisa passar por um único teste antes de existir:
 
 Se a resposta não for sim, a funcionalidade não entra no produto.
 
-## ⚖️ O documento soberano
+## ⚖️ Os documentos soberanos
 
-**[`CONSTITUICAO.md`](CONSTITUICAO.md)** — a Constituição do Head de Marketplace (Sprint 03). Define como o Head pensa, investiga, decide, prioriza, aprende, conversa e cala. **Todo Sprint futuro deve passar pelo Teste de Conformidade do Artigo 24 antes de ser aprovado.** Em conflito entre qualquer decisão técnica e a Constituição, a Constituição vence.
+| Documento | O que governa |
+|---|---|
+| **[`CONSTITUICAO.md`](CONSTITUICAO.md)** | **Quem o Head é** — como pensa, investiga, decide, prioriza, aprende, conversa e cala. Todo Sprint passa pelo Teste de Conformidade (Art. 24). Em conflito, a Constituição vence tudo. |
+| **[`MIF.md`](MIF.md)** | **O que o Head sabe fazer** — o Marketplace Intelligence Framework: a doutrina profissional de operação de marketplaces (patrimônio da empresa, executável por qualquer IA futura). |
+| **[`ROADMAP.md`](ROADMAP.md)** | **Para onde vamos** — as três trilhas (Inteligência · Plataforma · Conhecimento), os Sprints 04–15 e a estrela-polar do Sprint 20. |
 
 ## Estado deste repositório — Sprints 01–03
 
