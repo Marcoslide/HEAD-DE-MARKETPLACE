@@ -164,6 +164,26 @@ O único ponto que não fechou foi a **republicação do Artifact do protótipo 
 (falha de canal de permissão, duas tentativas) — pendência de ferramenta, não de
 código nem de tarefa do plano.
 
+
+---
+
+## Adendo pós-relatório — desenvolvimento continuado
+
+Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direção do dono):
+
+- **MieBridge** (recomendação nº 1 do CTO Review): ponte formal MIE↔plataforma que
+  espelha investigações, decisões e incidentes nos repositórios persistentes sem
+  tocar os motores. +6 testes.
+- **Sprint 06 — Specialists Engine**: 7 especialistas com parecer rico (diagnóstico,
+  evidências, hipóteses, confiança, recomendação, impacto, riscos, urgência), o
+  Conselho (consenso/conflitos/divergências), votação com pesos dinâmicos (acurácia
+  × evidências × confiança × afinidade) e memória de acertos que evolui com os
+  resultados medidos. +10 testes. Documentado em `docs/specialists-engine.md`;
+  demo em `mie/demo-specialists.js`.
+  - Conflito constitucional registrado em `docs/ideas-for-review.md#004`: expor
+    especialistas nomeados ao usuário exigiria emendar o Art. 11 (cláusula pétrea 5).
+
+**Suíte total após a continuação: 96 testes, 96 verdes.**
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

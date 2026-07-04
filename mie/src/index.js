@@ -8,6 +8,8 @@ require('./core/audit-log.js');
 require('./core/event-bus.js');
 require('./sim/world.js');
 require('./engines/memory.js');
+require('./specialists/roster.js');
+require('./specialists/council.js');
 require('./specialists/index.js');
 require('./playbooks/index.js');
 require('./engines/observation.js');

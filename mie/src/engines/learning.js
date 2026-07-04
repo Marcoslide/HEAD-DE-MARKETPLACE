@@ -32,6 +32,11 @@ class LearningEngine {
     const mid = (Math.abs(min) + Math.abs(max)) / 2;
     if (mid > 0) this.memory.updateCalibration(plan.type, Math.abs(result.liftPct) / mid);
 
+    /* histórico de acertos dos especialistas (Sprint 06): os especialistas
+       que sustentaram a recomendação executada ganham ou perdem peso. */
+    for (const dom of prediction.contributingDomains || [])
+      this.memory.recordSpecialistOutcome(dom, hit);
+
     /* avaliação → conhecimento (forma fixa do MIF 8.1) */
     if (hit) {
       this.bus.emit('learning.recorded', {

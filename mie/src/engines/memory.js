@@ -24,6 +24,7 @@ class MemoryEngine {
     this.decisions = [];
     this.profile = null;
     this.calibration = { predictions: 0, hits: 0, byType: new Map() }; // viés por estratégia
+    this.specialists = new Map(); // domain → { predictions, hits, weight } (Sprint 06)
 
     bus.on('learning.recorded', k => this.absorb(k));
   }
@@ -155,6 +156,32 @@ class MemoryEngine {
   calibrationFactor(type) {
     const v = this.calibration.byType.get(type);
     return v == null ? 1 : Math.max(0.5, Math.min(1.5, v));
+  }
+
+  /* ---------- histórico de acertos dos especialistas (Sprint 06) ----------
+     Cada especialista fica mais ou menos confiável com o tempo. O peso é
+     uma média móvel entre 0,5 (erra sempre) e 1,5 (acerta sempre), usada
+     pelo Conselho na votação ponderada. */
+  recordSpecialistOutcome(domain, hit) {
+    const s = this.specialists.get(domain) || { predictions: 0, hits: 0, weight: 1 };
+    s.predictions += 1;
+    if (hit) s.hits += 1;
+    const a = this.cfg.CALIBRATION_ALPHA;
+    s.weight = s.weight * (1 - a) + (hit ? 1.5 : 0.5) * a;
+    this.specialists.set(domain, s);
+    return s;
+  }
+  specialistAccuracy(domain) {
+    const s = this.specialists.get(domain);
+    if (!s) return 1; // sem histórico: peso neutro
+    return Math.max(0.5, Math.min(1.5, s.weight));
+  }
+  specialistsSnapshot() {
+    return [...this.specialists.entries()].map(([domain, s]) => ({
+      domain, predictions: s.predictions, hits: s.hits,
+      accuracy: s.predictions ? Math.round((s.hits / s.predictions) * 100) / 100 : null,
+      weight: Math.round(this.specialistAccuracy(domain) * 100) / 100,
+    }));
   }
 
   /* ---------- o jeito do dono (Art. 18: recusas ensinam) ---------- */

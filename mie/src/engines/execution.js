@@ -42,6 +42,9 @@ class ExecutionEngine {
       expectedLiftPct: d.proposal.impactPct,
       windowDays: MEASUREMENT_WINDOW,
       registeredAtDay: this.world.day,
+      /* especialistas que sustentaram a recomendação vencedora do Conselho —
+         serão creditados/debitados quando o resultado for medido (Sprint 06) */
+      contributingDomains: (d.council && d.council.consolidated && d.council.consolidated.contributingDomains) || [],
     };
 
     const plan = {

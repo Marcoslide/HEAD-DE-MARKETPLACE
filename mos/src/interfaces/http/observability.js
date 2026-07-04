@@ -81,8 +81,22 @@ function mountObservability(router, mos, { mie = null } = {}) {
         memory: mie.memory.snapshot(),
       },
       specialists: mie.specialists.domains,
+      specialistScores: mie.memory.specialistsSnapshot ? mie.memory.specialistsSnapshot() : [],
       lastPareceres: (mie.investigation.cases.at(-1) || { pareceres: [] }).pareceres
-        .map(p => ({ domain: p.domain, constatacao: p.constatacao, confianca: p.confianca })),
+        .map(p => ({ domain: p.domain, constatacao: p.constatacao, confianca: p.confianca,
+          urgencia: p.urgencia, recommendationType: p.recommendationType })),
+      lastCouncil: (() => {
+        const c = [...mie.investigation.cases].reverse().find(x => x.council);
+        if (!c) return null;
+        return {
+          caseId: c.id, productId: c.anomaly.productId,
+          consensus: c.council.consensus,
+          agreements: c.council.agreements,
+          conflicts: c.council.conflicts,
+          divergent: c.council.divergent.map(d => d.domain),
+          consolidated: c.council.consolidated,
+        };
+      })(),
     };
   });
 }

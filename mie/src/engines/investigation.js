@@ -82,9 +82,20 @@ class InvestigationEngine {
       ownerPreferences: this.memory.preferences.map(p => p.proposalType),
     });
 
-    /* 4. conselho de especialistas (Art. 10-11) */
-    c.pareceres = this.specialists.consult({ world: this.world, memory: this.memory, productId: pid });
-    this.step(c, 'consultar_especialistas', { pareceres: c.pareceres.map(p => ({ domain: p.domain, constatacao: p.constatacao })) });
+    /* 4. conselho de especialistas (Art. 10-11; Specialists Engine, Sprint 06)
+       Consulta os 7 especialistas E delibera: consenso, conflitos e
+       divergências. O parecer consolidado é do Conselho; a decisão final
+       continua sendo dos motores (Priorização + Constituição + MIF). */
+    const deliberation = this.specialists.council(
+      { world: this.world, memory: this.memory, productId: pid, anomaly: c.anomaly },
+      { memory: this.memory, problemType: c.anomaly.kind });
+    c.pareceres = deliberation.pareceres;
+    c.council = deliberation;
+    this.step(c, 'consultar_especialistas', {
+      pareceres: c.pareceres.map(p => ({ domain: p.domain, constatacao: p.constatacao, confianca: p.confianca })),
+      consenso: deliberation.consensus, conflitos: deliberation.conflicts.length,
+      divergentes: deliberation.divergent.map(d => d.domain),
+    });
 
     /* 5. comparar comportamento (o normal DESTA operação — Art. 17) */
     this.step(c, 'comparar_comportamento', {
@@ -138,6 +149,7 @@ class InvestigationEngine {
       confidence, confidenceLabel: label,
       evidence: c.steps.filter(s => s.findings && s.findings.note).map(s => s.findings.note),
       pareceres: c.pareceres,
+      council: c.council, // parecer consolidado + concordâncias/conflitos/divergentes
       proposal,
       recurrence: similar.length,
     };
