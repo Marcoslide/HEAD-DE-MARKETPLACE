@@ -55,6 +55,7 @@ class InvestigationEngine {
     const pid = c.anomaly.productId;
     const ctx = {
       world: this.world, memory: this.memory, productId: pid,
+      anomaly: c.anomaly,
       findings: c.findings,
       driftOf: (metric, days = 3) => {
         const rows = this.world.seriesOf(pid, days);

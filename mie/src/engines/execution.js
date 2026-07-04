@@ -9,6 +9,15 @@
 
 const MEASUREMENT_WINDOW = 7; // dias mínimos antes de concluir (MIF 5.3)
 
+/* a métrica prometida acompanha a alavanca puxada (MIF 5.3) */
+const METRIC_FOR_TYPE = {
+  creative: 'ctr',
+  visibility_push: 'impressions',
+  capture_demand: 'impressions',
+  fix_expectation: 'returnsRate', // direção: para BAIXO
+};
+const DOWNWARD_TYPES = new Set(['fix_expectation']);
+
 class ExecutionEngine {
   constructor(bus, world, memory) {
     this.bus = bus; this.world = world; this.memory = memory;
@@ -22,13 +31,13 @@ class ExecutionEngine {
   execute(item) {
     const d = item.diagnosis;
     const p = this.world.product(d.productId);
-    /* a métrica prometida acompanha a alavanca puxada (MIF 5.3: medir o fator certo) */
-    const metric = d.proposal.type === 'creative' ? 'ctr' : 'conv';
+    const metric = METRIC_FOR_TYPE[d.proposal.type] || 'conv';
     const baseline = this.currentMetric(d.productId, metric);
 
     /* Art. 15: a previsão vem ANTES da ação — sem previsão não há aprendizado */
     const prediction = {
       metric,
+      direction: DOWNWARD_TYPES.has(d.proposal.type) ? 'down' : 'up',
       baseline,
       expectedLiftPct: d.proposal.impactPct,
       windowDays: MEASUREMENT_WINDOW,
@@ -93,13 +102,24 @@ class ExecutionEngine {
       restore: ['restaurar versão anterior', 'confirmar publicação'],
       reputation: ['responder avaliações negativas publicamente', 'abrir verificação de lote/transportadora', 'ajustar foto de embalagem'],
       replicate: ['documentar a causa da vitória', 'aplicar nos produtos irmãos', 'testar elasticidade de preço para cima'],
+      capture_demand: ['garantir cobertura de estoque para a onda', 'testar elasticidade de preço para cima', 'reforçar palavras da onda no título'],
+      stock_brake: ['subir preço para frear a demanda', 'alertar reposição urgente', 'manter o anúncio ativo'],
+      visibility_push: ['reforçar palavras estratégicas', 'ativar tração paga em janela curta', 'medir posição diariamente'],
+      fix_expectation: ['refazer foto com escala real', 'recalibrar descrição e ficha', 'publicar como nova versão'],
+      adapt: ['analisar o que o novo padrão privilegia', 'adaptar 1 produto como teste', 'replicar se o teste vencer'],
+      defend_share: ['defender palavras estratégicas', 'explorar pontos fracos dos entrantes', 'monitorar share of search'],
     };
     return (base[proposal.type] || ['executar proposta']).map(s => ({ step: s, status: 'planned' }));
   }
 
   currentMetric(pid, metric) {
     const rows = this.world.seriesOf(pid, 3);
-    return rows.length ? rows.reduce((s, r) => s + r[metric], 0) / rows.length : null;
+    if (!rows.length) return null;
+    if (metric === 'returnsRate') {
+      const orders = rows.reduce((s, r) => s + r.orders, 0);
+      return orders > 0 ? rows.reduce((s, r) => s + r.returns, 0) / orders : 0;
+    }
+    return rows.reduce((s, r) => s + r[metric], 0) / rows.length;
   }
 }
 

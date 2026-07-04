@@ -123,14 +123,16 @@ const SPECIALISTS = {
   },
 
   behavior: (ctx) => {
-    const { world, productId: pid } = ctx;
+    const { world, memory, productId: pid } = ctx;
     const dow = world.day % 7;
+    const f = memory.weekdayFactor(pid, dow); // padrão APRENDIDO desta operação (Art. 17)
     return parecer('behavior',
-      (dow === 0 || dow === 6) ? 'Dia de padrão fraco típico desta categoria (fim de semana) — comparar com o mesmo dia das últimas semanas.'
-                               : 'Dia dentro do padrão de comportamento típico.',
-      { dayOfWeek: dow },
-      'média',
-      'toda comparação deve ser mesmo-dia-contra-mesmo-dia (MIF 5.3)');
+      f < 0.9 ? `Hoje é um dia estruturalmente fraco NESTA operação (índice aprendido ${f.toFixed(2)}) — descontar antes de concluir queda.`
+        : f > 1.06 ? `Hoje é um dia estruturalmente forte nesta operação (índice ${f.toFixed(2)}).`
+        : 'Dia dentro do padrão aprendido da operação.',
+      { dayOfWeek: dow, learnedIndex: Math.round(f * 100) / 100 },
+      memory.weekday.size >= 7 ? 'alta' : 'média',
+      'toda comparação deve ser mesmo-dia-contra-mesmo-dia (MIF 5.3); o índice é aprendido, não fixo');
   },
 };
 

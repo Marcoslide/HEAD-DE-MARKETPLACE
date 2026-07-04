@@ -13,9 +13,6 @@
 (function (NS) {
 'use strict';
 
-const THRESHOLD_RECOMMEND = 700;  // abaixo disso não vale a atenção do dono
-const LOW_CONFIDENCE_CAP = 500;   // confiança baixa nunca vira interrupção de fila
-
 class PrioritizationEngine {
   constructor(bus, memory, world) {
     this.bus = bus; this.memory = memory; this.world = world;
@@ -53,7 +50,7 @@ class PrioritizationEngine {
     }
 
     /* 3. confiança baixa → observar mais uma rodada, não alarmar (Art. 8.5) */
-    if (d.confidenceLabel === 'baixa' || item.score < THRESHOLD_RECOMMEND) {
+    if (d.confidenceLabel === 'baixa' || item.score < NS.CONFIG.THRESHOLD_RECOMMEND) {
       item.destination = item.score < 50 ? 'DISCARD' : 'OBSERVE';
       (item.destination === 'DISCARD' ? this.discarded : this.watchlist).push(item);
       this.bus.emit('priority.classified', item);
@@ -93,8 +90,11 @@ class PrioritizationEngine {
 
   scoreOf(d) {
     const revenue = this.world ? this.world.revenueMonthly(d.productId) : 10000;
-    const pct = d.proposal ? (d.proposal.impactPct[0] + d.proposal.impactPct[1]) / 2 : 0.02;
-    const impactMonthly = Math.round(revenue * pct);
+    const pct = d.proposal ? Math.abs(d.proposal.impactPct[0] + d.proposal.impactPct[1]) / 2 : 0.02;
+    /* a estimativa é corrigida pelo histórico de acerto das previsões
+       deste tipo de estratégia (Learning → Memory → aqui) */
+    const calibration = d.proposal ? this.memory.calibrationFactor(d.proposal.type) : 1;
+    const impactMonthly = Math.round(revenue * pct * calibration);
     const probability = d.confidence;
     const urgency = d.severity === 'critical' ? 3 : d.severity === 'attention' ? 2 : 1;
     const effort = Math.max(1, d.proposal ? d.proposal.effort : 1);
@@ -103,7 +103,7 @@ class PrioritizationEngine {
     if (d.proposal && d.proposal.window) score *= 1.5;          // janela expira
     if (d.recurrence > 0) score *= 1.2;                          // padrão recorrente
     if (d.proposal && d.proposal.reversible === false) score /= 2;
-    if (d.confidenceLabel === 'baixa') score = Math.min(score, LOW_CONFIDENCE_CAP);
+    if (d.confidenceLabel === 'baixa') score = Math.min(score, NS.CONFIG.LOW_CONFIDENCE_CAP);
 
     /* o jeito do dono (Art. 18): propostas de um tipo que ele recusa perdem prioridade */
     if (d.proposal) score *= (1 - 0.5 * this.memory.reluctance(d.proposal.type));
@@ -143,5 +143,4 @@ class PrioritizationEngine {
 }
 
 NS.PrioritizationEngine = PrioritizationEngine;
-NS.PRIORITY = { THRESHOLD_RECOMMEND, LOW_CONFIDENCE_CAP };
 })(typeof module !== 'undefined' && module.exports ? require('../_ns.js') : (globalThis.MIE = globalThis.MIE || {}));

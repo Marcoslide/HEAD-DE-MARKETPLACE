@@ -3,6 +3,7 @@
 'use strict';
 
 const NS = require('./_ns.js');
+require('./core/config.js');
 require('./core/audit-log.js');
 require('./core/event-bus.js');
 require('./sim/world.js');

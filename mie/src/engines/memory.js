@@ -5,27 +5,30 @@
 
    Camadas da memória:
      baselines    — o normal de cada métrica de cada produto (média + desvio)
+     patterns     — comportamento aprendido: dia-da-semana, sazonalidade
      knowledge    — a biblioteca viva (descoberta/contexto/evidência/força)
      preferences  — o jeito do dono decidir (recusas e motivos)
      decisions    — histórico completo de decisões e resultados
-     profile      — o dossiê da empresa (Fluxo 001) */
+     calibration  — o viés das próprias previsões, por tipo de estratégia */
 (function (NS) {
 'use strict';
-
-const WARMUP_DAYS = 14;
 
 class MemoryEngine {
   constructor(bus) {
     this.bus = bus;
-    this.baselines = new Map();   // `${productId}.${metric}` → {mean, std, n}
+    this.baselines = new Map();     // `${productId}.${metric}` → {mean, std, n}
+    this.weekday = new Map();       // `${productId}.dow${d}` → índice EWMA (sazonalidade semanal)
+    this.seasonality = new Map();   // mês → índice EWMA (sazonalidade anual)
     this.knowledge = [];
     this.preferences = [];
     this.decisions = [];
     this.profile = null;
-    this.calibration = { predictions: 0, hits: 0 }; // viés das previsões
+    this.calibration = { predictions: 0, hits: 0, byType: new Map() }; // viés por estratégia
 
     bus.on('learning.recorded', k => this.absorb(k));
   }
+
+  get cfg() { return NS.CONFIG; }
 
   /* ---------- o normal da operação (Art. 17) ---------- */
   learnBaseline(productId, metric, value) {
@@ -41,18 +44,64 @@ class MemoryEngine {
   normalOf(productId, metric) { return this.baselines.get(`${productId}.${metric}`) || null; }
   isWarmedUp(productId) {
     const b = this.normalOf(productId, 'conv');
-    return b && b.n >= WARMUP_DAYS;
+    return b && b.n >= this.cfg.WARMUP_DAYS;
   }
-  /* desvio em nº de desvios-padrão vs. o normal DESTA operação */
   zScore(productId, metric, value) {
     const b = this.normalOf(productId, metric);
     if (!b || !b.std) return 0;
     return (value - b.mean) / b.std;
   }
 
+  /* ---------- padrões de comportamento (Bloco 01: a empresa tem um ritmo) ---------- */
+  /* dia-da-semana: razão entre o dia e a média móvel — aprende que domingo
+     vende menos NESTA operação, sem nenhuma regra fixa */
+  learnWeekday(productId, dow, value, trailingMean) {
+    if (!trailingMean) return;
+    const key = `${productId}.dow${dow}`;
+    const ratio = value / trailingMean;
+    const prev = this.weekday.get(key);
+    const a = this.cfg.PATTERN_ALPHA;
+    this.weekday.set(key, prev == null ? ratio : prev * (1 - a) + ratio * a);
+  }
+  weekdayFactor(productId, dow) {
+    const v = this.weekday.get(`${productId}.dow${dow}`);
+    return v == null ? 1 : v;
+  }
+  /* deseasonaliza um valor para comparação justa (mesmo-dia-contra-mesmo-dia, MIF 5.3) */
+  deseasonalize(productId, dow, value) {
+    const f = this.weekdayFactor(productId, dow);
+    return f > 0.2 ? value / f : value;
+  }
+  learnSeason(month, demandIndex) {
+    const prev = this.seasonality.get(month);
+    const a = this.cfg.PATTERN_ALPHA;
+    this.seasonality.set(month, prev == null ? demandIndex : prev * (1 - a) + demandIndex * a);
+  }
+  /* chamado pelo Scheduler a cada ciclo: a memória aprende o ritmo da casa */
+  learnPatterns(world) {
+    for (const p of world.products) {
+      const rows = p.series;
+      if (rows.length < 8) continue;
+      const last = rows[rows.length - 1];
+      const trailing = rows.slice(-8, -1).reduce((s, r) => s + r.impressions, 0) / 7;
+      this.learnWeekday(p.id, last.day % 7, last.impressions, trailing);
+    }
+    const d = world.categoryDemand[world.categoryDemand.length - 1];
+    if (d) this.learnSeason(Math.floor(d.day / 30.4) % 12, d.index);
+  }
+  patternsSnapshot() {
+    const best = {}, worst = {};
+    for (const [key, v] of this.weekday) {
+      const [pid, dow] = key.split('.dow');
+      if (!best[pid] || v > best[pid].v) best[pid] = { dow: +dow, v };
+      if (!worst[pid] || v < worst[pid].v) worst[pid] = { dow: +dow, v };
+    }
+    return { bestDayByProduct: best, worstDayByProduct: worst,
+             seasonality: [...this.seasonality.entries()] };
+  }
+
   /* ---------- a biblioteca viva (MIF 8) ---------- */
   absorb(entry) {
-    // dedupe por chave da descoberta: repetição sobe força, contradição rebaixa
     const found = this.knowledge.find(k => k.key === entry.key);
     if (found) {
       if (entry.contradicts) {
@@ -61,6 +110,11 @@ class MemoryEngine {
       } else {
         found.strength = Math.min(3, found.strength + 1);
         found.evidence.push(entry.evidence);
+        /* força 3 = padrão da casa: passa a valer nas próximas propostas */
+        if (found.strength === 3 && !found.promoted) {
+          found.promoted = true;
+          this.bus.emit('strategy.updated', { key: found.key, discovery: found.discovery });
+        }
       }
       this.bus.emit('memory.updated', { kind: 'knowledge', key: found.key, strength: found.strength });
       return found;
@@ -80,6 +134,28 @@ class MemoryEngine {
       (!filter.kind || k.kind === filter.kind) &&
       (!filter.key || k.key.includes(filter.key)));
   }
+  /* vencedores comprovados (força ≥ 2): palavras, criativos, estratégias */
+  winners() {
+    const proved = this.knowledge.filter(k => k.strength >= 2);
+    return {
+      keywords: proved.filter(k => k.kind === 'keyword'),
+      creatives: proved.filter(k => k.kind === 'creative'),
+      strategies: proved.filter(k => k.kind === 'strategy'),
+      patterns: proved.filter(k => k.kind === 'pattern'),
+    };
+  }
+
+  /* ---------- calibração de previsões (Learning escreve, Prioritization lê) ---------- */
+  updateCalibration(type, realizationRatio) {
+    const a = this.cfg.CALIBRATION_ALPHA;
+    const clamped = Math.max(0, Math.min(2, realizationRatio));
+    const prev = this.calibration.byType.get(type);
+    this.calibration.byType.set(type, prev == null ? clamped : prev * (1 - a) + clamped * a);
+  }
+  calibrationFactor(type) {
+    const v = this.calibration.byType.get(type);
+    return v == null ? 1 : Math.max(0.5, Math.min(1.5, v));
+  }
 
   /* ---------- o jeito do dono (Art. 18: recusas ensinam) ---------- */
   recordPreference(pref) {
@@ -92,7 +168,6 @@ class MemoryEngine {
     });
   }
   reluctance(proposalType) {
-    // 0 (sem histórico de recusa) a 1 (recusa consistente)
     const n = this.preferences.filter(p => p.proposalType === proposalType).length;
     return Math.min(1, n * 0.4);
   }
@@ -104,13 +179,15 @@ class MemoryEngine {
   snapshot() {
     return {
       baselines: this.baselines.size,
+      weekdayPatterns: this.weekday.size,
       knowledge: this.knowledge.map(k => ({ key: k.key, strength: k.strength, kind: k.kind })),
       preferences: this.preferences.length,
       decisions: this.decisions.length,
+      calibration: [...this.calibration.byType.entries()].map(([t, v]) => ({ type: t, factor: Math.round(v * 100) / 100 })),
     };
   }
 }
 
 NS.MemoryEngine = MemoryEngine;
-NS.WARMUP_DAYS = WARMUP_DAYS;
+Object.defineProperty(NS, 'WARMUP_DAYS', { get: () => NS.CONFIG.WARMUP_DAYS, configurable: true });
 })(typeof module !== 'undefined' && module.exports ? require('../_ns.js') : (globalThis.MIE = globalThis.MIE || {}));

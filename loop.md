@@ -23,15 +23,15 @@ Se durante a execução surgir uma decisão de produto, UX, comportamento do Hea
 
 # BLOCO 01 — Marketplace Intelligence Engine
 
-- [ ] Revisar completamente o Marketplace Intelligence Engine procurando oportunidades de melhoria de arquitetura, desacoplamento, performance, legibilidade, extensibilidade e testabilidade. Refatorar apenas quando houver ganho objetivo.
+- [x] Revisar completamente o Marketplace Intelligence Engine procurando oportunidades de melhoria de arquitetura, desacoplamento, performance, legibilidade, extensibilidade e testabilidade. Refatorar apenas quando houver ganho objetivo.
 
-- [ ] Expandir os sete motores adicionando novos cenários de investigação utilizando dados simulados extremamente próximos da realidade dos marketplaces.
+- [x] Expandir os sete motores adicionando novos cenários de investigação utilizando dados simulados extremamente próximos da realidade dos marketplaces.
 
-- [ ] Criar novos playbooks baseados em situações reais como guerra de preço, queda silenciosa de conversão, explosão de vendas, ruptura de estoque, perda de ranking, aumento de devoluções, mudança de algoritmo e crescimento repentino de concorrentes.
+- [x] Criar novos playbooks baseados em situações reais como guerra de preço, queda silenciosa de conversão, explosão de vendas, ruptura de estoque, perda de ranking, aumento de devoluções, mudança de algoritmo e crescimento repentino de concorrentes.
 
-- [ ] Evoluir o Memory Engine para aprender padrões utilizando apenas dados simulados, armazenando comportamento da empresa, sazonalidade, horários de venda, criativos, palavras-chave e estratégias vencedoras.
+- [x] Evoluir o Memory Engine para aprender padrões utilizando apenas dados simulados, armazenando comportamento da empresa, sazonalidade, horários de venda, criativos, palavras-chave e estratégias vencedoras.
 
-- [ ] Evoluir o Learning Engine implementando ciclos completos de previsão, resultado, aprendizado e atualização automática da memória.
+- [x] Evoluir o Learning Engine implementando ciclos completos de previsão, resultado, aprendizado e atualização automática da memória.
 
 ---
 

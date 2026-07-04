@@ -44,6 +44,9 @@ class ObservationScheduler {
     /* varredura de observação → anomalias → (bus) investigação → priorização */
     const anomalies = this.observation.scan();
 
+    /* a memória aprende o ritmo da casa (dia-da-semana, sazonalidade) */
+    if (this.memory) this.memory.learnPatterns(this.world);
+
     /* medir planos cuja janela venceu → (bus) aprendizado */
     if (this.execution) this.execution.onTick();
 

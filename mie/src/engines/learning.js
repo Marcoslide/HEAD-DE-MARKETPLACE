@@ -15,7 +15,9 @@ class LearningEngine {
 
   evaluate(plan, prediction, result) {
     const [min, max] = prediction.expectedLiftPct;
-    const hit = result.liftPct >= min * 0.6; // dentro (com tolerância) do que foi prometido
+    /* efeito "para baixo" (ex.: reduzir devoluções): acerto é cair o prometido */
+    const down = prediction.direction === 'down';
+    const hit = down ? result.liftPct <= max * 0.6 : result.liftPct >= min * 0.6;
     const evaluation = {
       planId: plan.id, productId: plan.productId, type: plan.type,
       predicted: prediction.expectedLiftPct, actual: result.liftPct, hit,
@@ -24,6 +26,11 @@ class LearningEngine {
     this.evaluations.push(evaluation);
     this.memory.calibration.predictions += 1;
     if (hit) this.memory.calibration.hits += 1;
+
+    /* calibração automática: o quanto a realidade entregou do prometido —
+       corrige o otimismo/pessimismo das PRÓXIMAS estimativas deste tipo */
+    const mid = (Math.abs(min) + Math.abs(max)) / 2;
+    if (mid > 0) this.memory.updateCalibration(plan.type, Math.abs(result.liftPct) / mid);
 
     /* avaliação → conhecimento (forma fixa do MIF 8.1) */
     if (hit) {
