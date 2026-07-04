@@ -99,3 +99,34 @@ internamente), Silêncio (vigilância declarada com critério de alerta), Conhec
 
 Landing/planos/trial/onboarding SaaS, deploy/domínio/infra, OAuth real, escrita externa
 em marketplace, publicação externa de anúncios, novo motor de inteligência.
+
+---
+
+# Sprint 10.UI.1 — Cockpit 9.9 (refinamento sobre o v8)
+
+Evolução do v8 existente — mesmo design system, mesmos tokens, nenhum protótipo paralelo.
+
+## Diagnóstico corrigido
+
+| Problema do v8 | Correção no 10.UI.1 |
+|---|---|
+| Espaço vazio em telas largas | `.statusline` de 6 células, cockpit em 3 colunas (até 1920px+), padding reduzido, tabelas em largura útil |
+| Home "relatório inteligente" | Home = mesa executiva: faixa de status (status geral, marketplace em atenção, prioridade do dia, decisões, jobs, faturamento) + 2 colunas de decisão + rail de atividade |
+| Sem barra global | Barra global operacional em todas as áreas: empresa ativa, marketplace ativo ("Todos" ou canal), período (hoje/7d/30d), ambiente, status da base, busca global, notificações, jobs, tema e perfil — **a barra muda o contexto**: `UI.setCtx` refaz a tela ativa; `V8LOGIC.globalFilter` corta entidades por empresa+canal |
+| Conexões em cards / onboarding | Tabela corporativa (marketplace, empresa·conta, ambiente, status, OAuth, **leitura e escrita separadas**, última sync, saúde, erro, flags) + drawer com permissões, logs, webhooks e auditoria |
+| Crescimento com cara de CRM | **Leads/pipeline removidos por completo.** Novas subáreas: Performance (funil de 12 etapas, honesto — etapa sem origem = SEM DADOS), Oportunidades (fila priorizada com evidência/hipótese/impacto/risco/responsável e ações), Pedidos Não Pagos (perda isolada entre pedido criado e pagamento aprovado; hipóteses nunca viram causa), Experimentos (hipótese+métrica+ponto de parada obrigatórios), Aceleração (gates de Ads/promoção/kit — Ads nunca conserta margem ruim), Expansão (cruzamento schema/margem/logística/estoque), Resultados e Aprendizados |
+| Contraste baixo | Tokens `--ink-2`/`--ink-3` recalibrados; teste automatizado de razão WCAG (ink ≥ 7:1, ink-2 ≥ 4.5:1, ink-3 ≥ 4.0:1 nos dois temas) |
+| Painéis isolados | Drawer do produto ganhou aba **Relações** (oportunidades, experimentos, missões, compliance); oportunidade abre entidade; Home abre Crescimento; pedido não pago abre produto e experimento |
+
+## Multiempresa real
+
+`V8DATA.meta.empresas` (2 empresas demo); todo produto tem `companyId`; trocar a
+empresa na barra global troca as entidades de todas as telas.
+
+## Validação
+
+- `mos/test/ui-v8-cockpit.test.js`: **25 testes** novos (suíte total: **360, todos verdes**;
+  o teste 24 do 10.UI foi atualizado porque Leads deixou de existir — exigência deste sprint).
+- Headless: auto-testes por área + `?gbarself=1` (barra global), 1920/1366/1180/780 × 2 temas,
+  zero erros de console, barra global filtrando o catálogo ao vivo, busca global, drawers de
+  oportunidade/pedido não pago/conexão.

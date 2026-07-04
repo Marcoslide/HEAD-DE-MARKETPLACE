@@ -278,8 +278,9 @@ test('23 · integração desconectada nunca parece ativa', () => {
 
 test('24 · dado demonstrativo é SEMPRE rotulado', () => {
   for (const p of V8DATA.products) assert.equal(p.origem, 'DADO SIMULADO');
-  for (const l of V8DATA.crescimento.leads) assert.equal(l.origem, 'DADO SIMULADO');
-  assert.equal(V8DATA.crescimento.resultados.origem, 'DADO SIMULADO');
+  for (const o of V8DATA.crescimento.pedidosNaoPagos) assert.equal(o.origem, 'DADO SIMULADO');
+  for (const o of V8DATA.crescimento.oportunidades) assert.ok(o.evidencia && o.confianca, 'oportunidade com evidência e confiança');
+  assert.equal(V8DATA.crescimento.resultados['7d'].origem, 'DADO SIMULADO');
   assert.equal(V8DATA.meta.env, 'DEMONSTRAÇÃO');
   assert.match(html, /DADO SIMULADO · rotulado/, 'chip fixo na topbar');
   assert.match(html, /ESCRITA EXTERNA BLOQUEADA/, 'trava fixa na topbar');
