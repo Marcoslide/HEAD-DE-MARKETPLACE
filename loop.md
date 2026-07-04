@@ -37,19 +37,19 @@ Se durante a execução surgir uma decisão de produto, UX, comportamento do Hea
 
 # BLOCO 02 — Backend Foundation
 
-- [ ] Construir toda a arquitetura backend utilizando Domain Driven Design, Event Driven Architecture e Clean Architecture.
+- [x] Construir toda a arquitetura backend utilizando Domain Driven Design, Event Driven Architecture e Clean Architecture.
 
-- [ ] Criar Event Bus interno para comunicação entre módulos.
+- [x] Criar Event Bus interno para comunicação entre módulos.
 
-- [ ] Criar sistema de filas preparado para processamento assíncrono.
+- [x] Criar sistema de filas preparado para processamento assíncrono.
 
-- [ ] Preparar toda a arquitetura para suportar milhares de anúncios simultaneamente.
+- [x] Preparar toda a arquitetura para suportar milhares de anúncios simultaneamente.
 
 ---
 
 # BLOCO 03 — Banco de Dados
 
-- [ ] Projetar e implementar a modelagem definitiva do banco de dados.
+- [x] Projetar e implementar a modelagem definitiva do banco de dados.
 
 Criar entidades como:
 
