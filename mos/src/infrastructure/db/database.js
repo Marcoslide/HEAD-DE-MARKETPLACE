@@ -41,6 +41,9 @@ class Database {
     /* Listing Schema Engine (complemento 10.C) — aditivo */
     const listing = fs.readFileSync(path.join(__dirname, 'schema-listing.sql'), 'utf8');
     this.db.exec(listing);
+    /* Knowledge Foundation (Sprint 10.K) — aditivo */
+    const know = fs.readFileSync(path.join(__dirname, 'schema-knowledge.sql'), 'utf8');
+    this.db.exec(know);
     /* a MEMÓRIA continua UMA só (S02) — ganha campos de política de memória */
     this._addColumns('memory', {
       category: 'TEXT', source: 'TEXT', confidence: 'TEXT',
