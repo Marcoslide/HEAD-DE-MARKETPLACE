@@ -190,7 +190,7 @@ Nenhuma comunicação externa.
 
 # BLOCO 09 — Marketplace Collector
 
-- [ ] Construir toda a arquitetura do Marketplace Collector.
+- [x] Construir toda a arquitetura do Marketplace Collector.
 
 Implementar:
 
