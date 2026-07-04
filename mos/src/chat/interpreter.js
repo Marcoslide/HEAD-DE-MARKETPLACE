@@ -73,6 +73,11 @@ const INTENTS = [
     rx: /\bleads?\b|oportunidades? .*(follow ?-? ?up|precisam)/ },
   { id: 'GROWTH_ACTION',
     rx: /^(cria|criar|gera|gerar)r? (os |uns |uma |um )?(drafts?|rascunhos?|promocao|campanha)/ },
+  /* RID / Head Intelligence OS (Sprint 10.C) */
+  { id: 'INTERVENTION_REPORT',
+    rx: /^(fiz|coloquei|apliquei|troquei|reforcei|instalei)\b/ },
+  { id: 'REPORT_REQUEST',
+    rx: /relatorio (diario|semanal|do dia|da semana)|resumo (executivo|do dia|da semana)|manda o (resumo|relatorio)/ },
   { id: 'ACTION_REQUEST',
     rx: /^(baixe|baixa|abaixe|pause|pausa|publique|publica|aumente|aumenta|altere|altera|crie|cria|suba|sobe|reduza|reduz|desative|desativa|ative|ativa|cancele|cancela|envie para|mude|muda|reposicione|ajuste|ajusta)\b/ },
   { id: 'DECISION_EXPLANATION',

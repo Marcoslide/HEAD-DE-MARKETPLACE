@@ -408,6 +408,26 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   conversational-intake-and-data-completion.md.
 
 **Suíte total: 268 testes, 268 verdes.** (251 + 17 do intake)
+
+### Sprint 10.C — Head Intelligence OS (evolução do RID)
+
+  O RID (cadeia única do chat) virou diretor estratégico SEM nada
+  paralelo: radar pontuado (sinal pequeno fica em silêncio) → diagnóstico
+  com FATO ≠ HIPÓTESE e causalidade só com evidência → memória cruzada
+  (tabela memory ÚNICA + política: categoria, fonte, confiança, validade;
+  expirada/superada sai do contexto) → conflito com direção do dono abre
+  StrategicDialogue (decisão anterior + evidência nova + alternativas +
+  recomendação técnica; executa SÓ o aprovado; cada resposta vira memória)
+  → IntelligenceActionPlan com microtarefas → missão (repo S02) →
+  intervenção monitorada (linha de base, NOT_ENOUGH_DATA honesto) →
+  aprendizado reutilizável que influencia recomendações futuras →
+  relatórios diário/semanal com dedup anti-spam e fontes declaradas.
+  WhatsApp: relatório, intervenção e resposta de diálogo no gateway do
+  10.B; escrita externa continua impossível. Perfil de liderança ajusta a
+  VOZ, nunca a análise. 7 tabelas aditivas; +16 testes; 7 docs; v7 =
+  experiência principal (cenários espelho/direção/relatórios).
+
+**Suíte total: 284 testes, 284 verdes.** (268 + 16 do RID)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

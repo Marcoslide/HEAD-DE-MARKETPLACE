@@ -73,7 +73,11 @@ test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 35 S10
     'affiliate_payout_batch', 'promotion', 'promotion_target', 'promotion_marketplace_profile',
     'promotion_eligibility', 'promotion_margin_simulation', 'promotion_inventory_cap',
     'campaign', 'campaign_target', 'campaign_performance_snapshot',
-    'product_intake', 'intake_asset', 'source_reference', 'data_request'];
+    'product_intake', 'intake_asset', 'source_reference', 'data_request',
+    /* Head Intelligence OS (Sprint 10.C) */
+    'radar_signal', 'strategic_dialogue', 'intelligence_action_plan',
+    'intelligence_microtask', 'operational_intervention',
+    'user_leadership_profile', 'intelligence_report'];
   assert.deepEqual(tables, expected.sort());
   mos.close();
 });

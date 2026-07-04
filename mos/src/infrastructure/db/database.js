@@ -35,6 +35,15 @@ class Database {
     /* proveniência por campo: MANUAL | IA | IMPORTACAO | MARKETPLACE_SYNC |
        WHATSAPP_COMMAND | SISTEMA — sync nunca apaga edição manual em silêncio */
     this._addColumns('product_profile', { field_sources_json: 'TEXT' });
+    /* Head Intelligence OS (Sprint 10.C) — evolução do RID, tudo aditivo */
+    const rid = fs.readFileSync(path.join(__dirname, 'schema-rid.sql'), 'utf8');
+    this.db.exec(rid);
+    /* a MEMÓRIA continua UMA só (S02) — ganha campos de política de memória */
+    this._addColumns('memory', {
+      category: 'TEXT', source: 'TEXT', confidence: 'TEXT',
+      valid_until: 'TEXT', scope: 'TEXT', author: 'TEXT',
+      status: "TEXT NOT NULL DEFAULT 'ACTIVE'", related_json: 'TEXT',
+    });
     return this;
   }
   /* migração aditiva de colunas: só ALTER quando a coluna não existe */

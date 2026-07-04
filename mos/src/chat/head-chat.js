@@ -21,10 +21,11 @@ const QueryLayer = function (...a) { return new NS.QueryLayer(...a); };
 
 class HeadChat {
   constructor({ dataset, clock, mie = null, companyId = null, logger = null,
-                compliance = null, growth = null }) {
+                compliance = null, growth = null, rid = null }) {
     this.clock = clock; this.mie = mie; this.companyId = companyId; this.log = logger;
     this.compliance = compliance;   // adapter do Compliance Engine (Sprint 10)
     this.growth = growth;           // adapter do Crescimento (Sprint 10.B)
+    this.rid = rid;                 // Head Intelligence OS (Sprint 10.C) — MESMA cadeia
     this.q = new QueryLayer({ dataset, clock, mie });
     this.dataset = dataset;
     this.context = null;          // consulta anterior (para "e na Shopee?", "e ontem?")
@@ -82,6 +83,23 @@ class HeadChat {
             term: this._decisionTerm(text),
           });
         }
+        reply = compose(facts, { clock: this.clock });
+        break;
+      }
+      /* ---------- RID (10.C): intervenção e relatório — mesma cadeia ---------- */
+      case 'INTERVENTION_REPORT': {
+        facts = this.rid
+          ? this.rid.registerIntervention(text, { companyId: this.companyId })
+          : { kind: 'NO_DATA', what: 'intervenções (RID não acoplado)',
+              dataSource: 'NO_DATA', missingPlatforms: [], asOf: this.clock.nowIso() };
+        reply = compose(facts, { clock: this.clock });
+        break;
+      }
+      case 'REPORT_REQUEST': {
+        facts = this.rid
+          ? this.rid.report(text, { companyId: this.companyId })
+          : { kind: 'NO_DATA', what: 'relatórios (RID não acoplado)',
+              dataSource: 'NO_DATA', missingPlatforms: [], asOf: this.clock.nowIso() };
         reply = compose(facts, { clock: this.clock });
         break;
       }
@@ -324,14 +342,14 @@ class HeadChat {
 NS.HeadChat = HeadChat;
 
 /* composição — dados normalizados da Central quando houver; fixtures no preview */
-NS.createHeadChat = function createHeadChat({ clock, mie = null, mos = null, companyId = null, dataset = null, compliance = null, growth = null } = {}) {
+NS.createHeadChat = function createHeadChat({ clock, mie = null, mos = null, companyId = null, dataset = null, compliance = null, growth = null, rid = null } = {}) {
   if (!clock) throw new Error('createHeadChat exige o Clock injetado');
   let data = dataset;
   if (!data && mos && companyId)
     data = NS.datasetFromCentral(mos.repos, companyId, clock);  // fonte real, se sincronizada
   if (!data)
     data = NS.createDemoDataset(clock);                          // preview: fixtures coerentes
-  return new HeadChat({ dataset: data, clock, mie, companyId, compliance, growth,
+  return new HeadChat({ dataset: data, clock, mie, companyId, compliance, growth, rid,
     logger: mos && mos.logger ? mos.logger.child({ mod: 'head-chat' }) : null });
 };
 })(typeof module !== 'undefined' && module.exports ? require('./_ns.js') : (globalThis.HEADCHAT = globalThis.HEADCHAT || {}));

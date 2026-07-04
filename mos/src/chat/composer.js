@@ -316,6 +316,16 @@ function compose(facts, { clock, alert = null, question = null } = {}) {
         : 'Registro interno criado — revise na área correspondente. Nada foi publicado no marketplace.');
       break;
     }
+    /* ---------- RID / Head Intelligence OS (Sprint 10.C) ---------- */
+    case 'INTERVENTION_ACK': {
+      lines.push(facts.ack);
+      break;
+    }
+    case 'RID_REPORT': {
+      lines.push(...String(facts.text).split('\n'));
+      if (facts.deduplicated) lines.push('', '(relatório de hoje já existia — não vou te mandar duas vezes)');
+      break;
+    }
     default:
       return noData({ what: 'esse tipo de consulta' }, clock);
   }

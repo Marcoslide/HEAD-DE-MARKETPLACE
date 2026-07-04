@@ -25,6 +25,7 @@ class GrowthCommandGateway {
     this.r = repos; this.adaptation = adaptation; this.jobs = jobs;
     this.promotions = promotions; this.permissions = permissions; this.clock = clock;
     this.intake = intake;               // criação de anúncio pela conversa
+    this.ridHook = null;                // Sprint 10.C: acoplado via createRID
     this.dataCompletion = dataCompletion; // pendências de dado via WhatsApp
     /* telefone → usuário (admin da allowlist); padrão: dono da empresa */
     this.resolveUser = resolveUser || ((companyId) => {
@@ -216,6 +217,12 @@ class GrowthCommandGateway {
       const dc = await this.dataCompletion.answer({ companyId, from, text });
       if (dc.handled) return { reply: dc.reply, dataCompletion: true,
                                applied: dc.applied || [] };
+    }
+
+    /* 6. RID (10.C): diálogo estratégico, intervenção e relatório */
+    if (this.ridHook) {
+      const rr = await this.ridHook({ companyId, from, text });
+      if (rr) return rr;
     }
 
     return null;    // não é comando de ação → cai na Operational Query Layer

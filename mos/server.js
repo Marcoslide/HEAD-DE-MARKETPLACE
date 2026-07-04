@@ -21,6 +21,7 @@ const { createMOS } = require('./src/index.js');
 const { createCentral } = require('./src/central/index.js');
 const { CatalogService } = require('./src/catalog/catalog-service.js');
 const { createGrowth } = require('./src/growth/index.js');
+const { createRID } = require('./src/rid/index.js');
 const { createLive } = require('./src/live/index.js');
 const { createHeadChat } = require('./src/chat/index.js');
 const { MLAuthHttp } = require('./src/live/ml-live.js');
@@ -68,6 +69,9 @@ async function main() {
   /* Crescimento (10.B): leads, afiliados, promoções + gateway de comando —
      o WhatsApp usa o MESMO Adaptation Engine da tela */
   const growth = createGrowth({ mos, clock, catalog });
+  /* Head Intelligence OS (10.C): o RID orquestra o Growth — nada paralelo */
+  const rid = createRID({ mos, clock, growth });
+  growth.gateway.ridHook = rid.whatsappHook;
 
   const live = createLive({
     mos, clock, credentials: central.credentials,
