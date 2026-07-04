@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MIE · Debug Console</title>
+<style>
+:root{
+  --bg:#0B0C10;--surface:#12141A;--surface-2:#181B23;--line:#23262F;
+  --text:#EDEEF2;--text-2:#9DA1AC;--text-3:#5D616C;
+  --amber:#E3A94F;--green:#58C48A;--red:#E06661;--blue:#6E9FDB;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font:13px/1.55 -apple-system,"Segoe UI",system-ui,sans-serif;padding:18px}
+h1{font-size:15px;display:flex;align-items:center;gap:10px}
+h1 .tag{font:600 10px/1 var(--mono);color:var(--amber);border:1px solid rgba(227,169,79,.4);border-radius:5px;padding:3px 7px;letter-spacing:.08em}
+h1 .day{margin-left:auto;font:600 12px var(--mono);color:var(--text-2)}
+.toolbar{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0 16px}
+button{font:600 12px inherit;color:var(--text-2);background:var(--surface);border:1px solid var(--line);
+  border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover{color:var(--text);border-color:#343947}
+button.primary{background:var(--amber);border-color:var(--amber);color:#171208}
+button.scenario{border-style:dashed}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(330px,1fr));gap:12px;align-items:start}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px;min-height:60px}
+.panel h2{font-size:10.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--text-3);
+  margin-bottom:10px;display:flex;justify-content:space-between}
+.panel h2 .n{color:var(--amber);font-family:var(--mono)}
+.scroll{max-height:290px;overflow:auto}
+.row{padding:7px 8px;border-radius:7px;margin-bottom:4px;background:var(--surface-2);font-size:12px;color:var(--text-2)}
+.row b{color:var(--text);font-weight:600}
+.row .mono{font-family:var(--mono);font-size:11px}
+.row.audit{background:none;border-left:2px solid var(--line);border-radius:0;padding:2px 8px;margin:0 0 2px;
+  font-family:var(--mono);font-size:11px}
+.dest{font:700 10px var(--mono);border-radius:4px;padding:2px 6px;letter-spacing:.05em}
+.dest.RECOMMEND{background:rgba(227,169,79,.15);color:var(--amber)}
+.dest.OBSERVE{background:rgba(110,159,219,.14);color:var(--blue)}
+.dest.INTERRUPT{background:rgba(224,102,97,.16);color:var(--red)}
+.dest.EXECUTE{background:rgba(88,196,138,.14);color:var(--green)}
+.dest.DISCARD{background:var(--surface-2);color:var(--text-3)}
+details{margin-top:6px}
+summary{cursor:pointer;color:var(--text-3);font-size:11px}
+summary:hover{color:var(--amber)}
+.step{font-family:var(--mono);font-size:11px;color:var(--text-2);padding:1px 0 1px 14px;border-left:1px solid var(--line)}
+.pill{display:inline-block;font:700 10px var(--mono);padding:1px 6px;border-radius:8px;margin-left:6px}
+.pill.alta{background:rgba(88,196,138,.15);color:var(--green)}
+.pill.média,.pill.media{background:rgba(227,169,79,.15);color:var(--amber)}
+.pill.baixa{background:rgba(224,102,97,.15);color:var(--red)}
+.strength{color:var(--amber);letter-spacing:2px}
+.brief{font-family:Georgia,serif;font-size:13.5px;color:var(--text);line-height:1.6}
+.brief .muted{color:var(--text-2)}
+.actions{display:flex;gap:6px;margin-top:6px}
+.actions button{padding:4px 10px;font-size:11px}
+.empty{color:var(--text-3);font-size:12px;font-style:italic}
+.pulse{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-right:7px;
+  animation:b 2.4s infinite}
+@keyframes b{50%{opacity:.4}}
+@media (prefers-reduced-motion:reduce){.pulse{animation:none}}
+</style>
+</head>
+<body>
+
+<h1><span class="tag">MIE</span> Debug Console — os motores trabalhando
+  <span class="day" id="day">ciclo 0</span></h1>
+
+<div class="toolbar">
+  <button class="primary" onclick="D.tick(1)">▶ Avançar 1 ciclo</button>
+  <button class="primary" onclick="D.tick(7)">▶▶ Avançar 7 ciclos</button>
+  <span style="width:12px"></span>
+  <button class="scenario" onclick="D.scenario('price-war','p1')">💥 Guerra de preço (p1)</button>
+  <button class="scenario" onclick="D.scenario('ctr-noise','p2')">〰 Ruído de CTR (p2)</button>
+  <button class="scenario" onclick="D.scenario('new-competitor','p4')">🥊 Novo concorrente (p4)</button>
+  <button class="scenario" onclick="D.scenario('listing-down','p5')">🚨 Anúncio derrubado (p5)</button>
+  <button class="scenario" onclick="D.scenario('success-streak','p3')">🏆 Produto campeão (p3)</button>
+  <button class="scenario" onclick="D.scenario('review-wave','p1')">⭐ Onda de avaliações (p1)</button>
+</div>
+
+<div class="grid">
+  <div class="panel"><h2>Pulso — atividade do ciclo <span class="n" id="nAct"></span></h2><div id="activities"></div></div>
+  <div class="panel"><h2>Investigações <span class="n" id="nInv"></span></h2><div class="scroll" id="investigations"></div></div>
+  <div class="panel"><h2>Priorização — destinos <span class="n" id="nPri"></span></h2><div class="scroll" id="priorities"></div></div>
+  <div class="panel"><h2>Decisões na mesa do dono <span class="n" id="nDec"></span></h2><div id="decisions"></div></div>
+  <div class="panel"><h2>Planos de execução <span class="n" id="nPlan"></span></h2><div class="scroll" id="plans"></div></div>
+  <div class="panel"><h2>Memória da empresa <span class="n" id="nMem"></span></h2><div class="scroll" id="memory"></div></div>
+  <div class="panel"><h2>Briefing do dia (Head Reporter)</h2><div class="brief" id="briefing"></div></div>
+  <div class="panel"><h2>Trilha de auditoria (caixa-preta) <span class="n" id="nAud"></span></h2><div class="scroll" id="audit"></div></div>
+</div>
+
+<!-- Os mesmos módulos do Node, na mesma ordem — sem bundler -->
+<script src="../src/core/audit-log.js"></script>
+<script src="../src/core/event-bus.js"></script>
+<script src="../src/sim/world.js"></script>
+<script src="../src/engines/memory.js"></script>
+<script src="../src/specialists/index.js"></script>
+<script src="../src/playbooks/index.js"></script>
+<script src="../src/engines/observation.js"></script>
+<script src="../src/engines/investigation.js"></script>
+<script src="../src/engines/prioritization.js"></script>
+<script src="../src/engines/execution.js"></script>
+<script src="../src/engines/learning.js"></script>
+<script src="../src/engines/scheduler.js"></script>
+<script src="../src/head-reporter.js"></script>
+<script src="../src/create.js"></script>
+
+<script>
+const mie = MIE.createMIE({ seed: 42 });
+let lastResult = null;
+
+const D = {
+  tick(n) { for (let i = 0; i < n; i++) lastResult = mie.tick(); render(); },
+  scenario(name, pid) {
+    mie.world.applyScenario(name, { productId: pid });
+    lastResult = mie.tick(); render();
+  },
+  approve(id) { mie.approve(id); lastResult = mie.tick(); render(); },
+  refuse(id) { mie.refuse(id, 'decisão do operador no debug'); render(); },
+};
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+function render() {
+  $('day').textContent = 'ciclo ' + mie.world.day + (mie.memory.isWarmedUp('p1') ? '' : ' · aprendendo o normal…');
+
+  const acts = lastResult ? lastResult.activities : [];
+  $('nAct').textContent = acts.length;
+  $('activities').innerHTML = acts.map(a => `<div class="row"><span class="pulse"></span>${esc(a)}</div>`).join('')
+    || '<div class="empty">avance um ciclo</div>';
+
+  const cases = [...mie.investigation.cases].reverse();
+  $('nInv').textContent = cases.length;
+  $('investigations').innerHTML = cases.map(c => `
+    <div class="row"><b>${c.id}</b> · ${esc(c.playbook)} · ${esc(mie.world.product(c.anomaly.productId).name)}
+      <span class="pill ${c.diagnosis ? c.diagnosis.confidenceLabel : ''}">${c.diagnosis ? esc(c.diagnosis.confidenceLabel) : '…'}</span>
+      <div class="mono" style="margin-top:3px;color:var(--text-3)">causa: ${c.diagnosis ? esc(c.diagnosis.cause) : 'investigando'}</div>
+      <details><summary>diário (${c.steps.length} etapas — Art. 5, nenhuma pulada)</summary>
+        ${c.steps.map(s => `<div class="step">✓ ${esc(s.name)}</div>`).join('')}
+      </details>
+      <details><summary>pareceres do conselho (${c.pareceres.length})</summary>
+        ${c.pareceres.map(p => `<div class="step"><b>${esc(p.domain)}</b>: ${esc(p.constatacao)}</div>`).join('')}
+      </details>
+    </div>`).join('') || '<div class="empty">nenhuma investigação ainda</div>';
+
+  const classified = mie.bus.ofType('priority.classified').map(e => e.payload).reverse();
+  $('nPri').textContent = classified.length;
+  $('priorities').innerHTML = classified.map(p => `
+    <div class="row"><span class="dest ${p.destination}">${p.destination}</span>
+      <b class="mono"> ${p.score}</b> · ${esc(p.title)}
+      <div class="mono" style="color:var(--text-3)">impacto ~R$ ${p.impactMonthly.toLocaleString('pt-BR')}/mês · confiança ${esc(p.confidenceLabel)}</div>
+    </div>`).join('') || '<div class="empty">nada classificado ainda</div>';
+
+  const pending = mie.prioritization.pendingDecisions();
+  $('nDec').textContent = pending.length;
+  $('decisions').innerHTML = pending.map(d => `
+    <div class="row"><b>${esc(d.title)}</b>
+      <div style="color:var(--text-3)">${esc(d.reason)} · ~R$ ${d.impactMonthly.toLocaleString('pt-BR')}/mês</div>
+      <div class="actions">
+        <button class="primary" onclick="D.approve('${d.id}')">Aprovar</button>
+        <button onclick="D.refuse('${d.id}')">Recusar</button>
+      </div>
+    </div>`).join('') || '<div class="empty">fila vazia — curiosidades não chegam aqui (Art. 19)</div>';
+
+  const plans = [...mie.execution.plans].reverse();
+  $('nPlan').textContent = plans.length;
+  $('plans').innerHTML = plans.map(p => `
+    <div class="row"><b>${esc(p.title)}</b> <span class="mono">[${esc(p.status)}]</span>
+      ${p.prediction ? `<div class="mono" style="color:var(--text-3)">previsão ANTES da execução (Art. 15): ${p.prediction.metric} +${Math.round(p.prediction.expectedLiftPct[0]*100)}–${Math.round(p.prediction.expectedLiftPct[1]*100)}% em ${p.prediction.windowDays} ciclos</div>` : ''}
+      ${p.result ? `<div class="mono" style="color:var(--green)">medido: ${(p.result.liftPct*100).toFixed(1)}%</div>` : ''}
+    </div>`).join('') || '<div class="empty">nenhum plano ainda</div>';
+
+  const snap = mie.memory.snapshot();
+  $('nMem').textContent = snap.knowledge.length;
+  $('memory').innerHTML =
+    `<div class="row mono">baselines aprendidos: <b>${snap.baselines}</b> · decisões: <b>${snap.decisions}</b> · preferências do dono: <b>${snap.preferences}</b></div>` +
+    (snap.knowledge.map(k => `<div class="row"><span class="strength">${'●'.repeat(k.strength)}${'○'.repeat(3-k.strength)}</span> <span class="mono">${esc(k.key)}</span> <span style="color:var(--text-3)">(${esc(k.kind)})</span></div>`).join('')
+     || '<div class="empty">a biblioteca nasce dos ciclos fechados (Fluxo 010)</div>');
+
+  const b = lastResult && lastResult.briefing;
+  $('briefing').innerHTML = !b ? '<div class="empty">avance um ciclo</div>' : `
+    <div>${esc(b.greeting)}</div>
+    <div class="muted" style="margin-top:6px">${b.worked.map(esc).join(' · ')}</div>
+    ${b.interrupts.map(i => `<div style="color:var(--red);margin-top:6px">⚠ ${esc(i.title)} — ${esc(i.note)}</div>`).join('')}
+    ${b.decisions.length ? `<div style="margin-top:6px">Aguardando você: ${b.decisions.map(d => `<b>${esc(d.title)}</b> (${esc(d.impact)}, confiança ${esc(d.confidence)})`).join('; ')}</div>` : ''}
+    ${b.closedCycles.map(c => `<div style="color:var(--green);margin-top:6px">↺ ${esc(c)}</div>`).join('')}
+    ${b.watching ? `<div class="muted" style="margin-top:6px">${esc(b.watching)}</div>` : ''}
+    <div class="muted" style="margin-top:8px;font-style:italic">${esc(b.signature)}</div>`;
+
+  const audit = mie.audit.tail(40).reverse();
+  $('nAud').textContent = mie.audit.entries.length;
+  $('audit').innerHTML = audit.map(e =>
+    `<div class="row audit">[c${e.day}] ${esc(e.engine)} · ${esc(e.action)}${e.detail && e.detail.kind ? ' · ' + esc(e.detail.kind) : ''}</div>`).join('');
+}
+
+/* boot: aquece o normal da operação (Art. 17) e mostra o estado */
+mie.runDays(16);
+lastResult = mie.tick();
+render();
+</script>
+</body>
+</html>
