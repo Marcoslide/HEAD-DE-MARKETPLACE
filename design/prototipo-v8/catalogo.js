@@ -1,0 +1,511 @@
+/* =============================================================
+   v8 · CATÁLOGO — área operacional central
+   Subáreas: Visão Geral · Produtos · Anúncios · Rascunhos e Revisões ·
+   Pendências · Promoções Relacionadas.
+   Busca busca, filtro filtra, seleção seleciona, edição versiona,
+   ação em massa vira job auditável. Escrita externa: bloqueada.
+   ============================================================= */
+(function () {
+  'use strict';
+  const L = V8LOGIC, D = V8DATA;
+  const SUBS = ['Visão Geral', 'Produtos', 'Anúncios', 'Rascunhos e Revisões', 'Pendências', 'Promoções Relacionadas'];
+
+  const CAT = window.CATALOGO = {
+    sub: 'Produtos',
+    filters: {},              /* mantidos ao navegar entre subáreas */
+    sortKey: 'nome', sortDir: 'asc',
+    cols: { categoria: true, custo: true, atualizacao: true },
+    anuncioMkt: 'ml', anuncioTab: 'Todos',
+    drafts: [
+      { id: 'd1', produtoId: 'p7', mkt: 'tiktok', status: D.STATUS.PRONTO_REVISAO, nota: 'draft interno gerado da oportunidade priorizada' },
+      { id: 'd2', produtoId: 'p3', mkt: 'shopee', status: D.STATUS.EM_REVISAO, nota: 'aguardando foto com escala real' },
+    ],
+  };
+
+  const prods = () => UI.state.products;
+  const filtered = () => L.sortProducts(L.filterProducts(prods(), CAT.filters), CAT.sortKey, CAT.sortDir);
+
+  /* ---------------- shell da área ---------------- */
+  function render(sub) {
+    if (sub && SUBS.includes(sub)) CAT.sub = sub;
+    const el = UI.$('#v-catalogo');
+    el.innerHTML = `
+      <div class="eyebrow">catálogo · fonte única do produto</div>
+      <h1 class="h1">Catálogo</h1>
+      <p class="sub" style="margin-top:6px">Um registro por produto; perfis independentes por marketplace. ${UI.esc(D.STATUS.DADO_SIMULADO)} · rotulado.</p>
+      <div class="tabs" style="margin-top:16px">
+        ${SUBS.map(s => `<button class="tab ${s === CAT.sub ? 'on' : ''}" data-act="sub" data-sub="${s}">${s}${s === 'Pendências' ? `<span class="cnt">${prods().filter(p => p.pendencias.length).length}</span>` : ''}</button>`).join('')}
+      </div>
+      <div id="catBody" style="margin-top:16px"></div>`;
+    body();
+    el.onclick = onClick;
+    el.oninput = onInput;
+  }
+
+  function body() {
+    const el = UI.$('#catBody');
+    if (CAT.sub === 'Visão Geral') el.innerHTML = visaoGeral();
+    else if (CAT.sub === 'Produtos') el.innerHTML = produtos();
+    else if (CAT.sub === 'Anúncios') el.innerHTML = anuncios();
+    else if (CAT.sub === 'Rascunhos e Revisões') el.innerHTML = rascunhos();
+    else if (CAT.sub === 'Pendências') el.innerHTML = pendencias();
+    else el.innerHTML = promocoes();
+    UI.refreshBadges();
+  }
+
+  /* ---------------- subáreas ---------------- */
+  function visaoGeral() {
+    const ps = prods();
+    const ativos = ps.filter(p => Object.values(p.mkt).some(m => m.status === 'ATIVO')).length;
+    return `
+      <div class="grid3">
+        <div class="panel"><div class="eyebrow">produtos</div><div class="h1">${ps.length}</div><span class="src">${ativos} com anúncio ativo · ${UI.esc(D.STATUS.DADO_SIMULADO)}</span></div>
+        <div class="panel"><div class="eyebrow">pendências abertas</div><div class="h1">${ps.filter(p => p.pendencias.length).length}</div><span class="src">cada uma tem dono e destino</span></div>
+        <div class="panel"><div class="eyebrow">rascunhos internos</div><div class="h1">${CAT.drafts.length}</div><span class="src">publicação externa: ${UI.esc(D.STATUS.ESCRITA_BLOQUEADA)}</span></div>
+      </div>
+      <div class="callout" style="margin-top:14px">Este catálogo é a <b>fonte única</b>: o Product Master alimenta os perfis por marketplace, e cada perfil pode divergir sem sobrescrever os demais. Toda edição gera versão com autor e origem.</div>`;
+  }
+
+  function thSort(key, label) {
+    const arr = CAT.sortKey === key ? `<span class="arr">${CAT.sortDir === 'asc' ? '▲' : '▼'}</span>` : '';
+    return `<th data-act="sort" data-key="${key}">${label} ${arr}</th>`;
+  }
+
+  function produtos() {
+    const list = filtered();
+    const sel = UI.state.selection;
+    const fCount = L.activeFilterCount(CAT.filters);
+    const views = Object.keys(UI.state.views);
+    const chip = (label, on, act, extra) => `<button class="fchip ${on ? 'on' : ''}" data-act="${act}" ${extra || ''}>${label}</button>`;
+    const rows = list.map(p => {
+      const mg = L.margem(p);
+      return `<tr class="${sel.has(p.id) ? 'sel' : ''}" data-id="${p.id}">
+        <td><input type="checkbox" data-act="selrow" data-id="${p.id}" ${sel.has(p.id) ? 'checked' : ''} aria-label="Selecionar ${UI.esc(p.nome)}"></td>
+        <td><span class="thumb">▦</span></td>
+        <td><button class="tmain linklike" style="font-size:12.5px" data-act="drawer" data-id="${p.id}">${UI.esc(p.nome)}</button><span class="tsub">${UI.esc(p.sku)}</span></td>
+        ${CAT.cols.categoria ? `<td>${UI.esc(p.categoria)}</td>` : ''}
+        <td>${p.tipo.replace(/_/g, ' ').toLowerCase()}</td>
+        <td>${p.estoque}</td>
+        ${CAT.cols.custo ? `<td>${UI.brl(p.custo)}</td>` : ''}
+        <td>${UI.brl(p.precoBase)}</td>
+        <td>${mg == null ? '—' : mg + '%'}</td>
+        <td><span class="mrow">${D.MKTS.map(mk => {
+          const st = p.mkt[mk.key].status;
+          const c = st === 'ATIVO' ? 'on' : (st === 'PAUSADO' || st === 'EM_REVISAO') ? 'warn' : st === 'BLOQUEADO' ? 'err' : '';
+          return `<span class="mdot ${c}" title="${mk.nome}: ${st === 'NAO_PUBLICADO' ? 'não publicado' : st}"></span>`;
+        }).join('')}</span></td>
+        <td>${L.readiness(p)}%</td>
+        <td>${p.pendencias.length ? `<span class="st warn">${p.pendencias.length} pendência${p.pendencias.length > 1 ? 's' : ''}</span>` : '<span class="src">—</span>'}</td>
+        ${CAT.cols.atualizacao ? `<td><span class="src">${p.atualizadoEm}</span></td>` : ''}
+        <td><span class="rowact"><button class="btn sm ghost" data-act="drawer" data-id="${p.id}">abrir</button></span></td>
+      </tr>`;
+    }).join('');
+
+    return `
+      <div class="fbar" style="margin-top:0">
+        <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
+          <input id="catQ" placeholder="Buscar por nome ou SKU…" value="${UI.esc(CAT.filters.q || '')}" aria-label="Buscar produtos"></label>
+        ${chip('Com pendência', CAT.filters.comPendencia === true, 'f-pend')}
+        ${chip('Estoque ≤ 10', CAT.filters.estoqueMax === 10, 'f-estoque')}
+        ${chip('Margem ≥ 60%', CAT.filters.margemMin === 60, 'f-margem')}
+        ${chip('Ativos no ML', CAT.filters.marketplace === 'ml' && CAT.filters.statusMkt === 'ATIVO', 'f-ml')}
+        <button class="fchip" data-act="adv">Filtros avançados${fCount ? ` · <b>${fCount}</b>` : ''}</button>
+        ${fCount ? `<button class="fchip" data-act="f-clear">limpar (${fCount})</button>` : ''}
+        <span style="flex:1"></span>
+        <button class="fchip" data-act="saveview">salvar visão</button>
+        ${views.map(v => chip('▤ ' + v, false, 'loadview', `data-view="${UI.esc(v)}"`)).join('')}
+        <button class="fchip" data-act="cols">colunas</button>
+      </div>
+
+      ${list.length ? `
+      <div class="tblwrap">
+        <table class="tbl"><thead><tr>
+          <th class="nosort"><input type="checkbox" data-act="selall" ${list.length && list.every(p => sel.has(p.id)) ? 'checked' : ''} aria-label="Selecionar todos os filtrados" title="Seleciona todos os ${list.length} itens filtrados"></th>
+          <th class="nosort"></th>
+          ${thSort('nome', 'Produto')}
+          ${CAT.cols.categoria ? thSort('categoria', 'Categoria') : ''}
+          ${thSort('tipo', 'Tipo produção')}
+          ${thSort('estoque', 'Estoque')}
+          ${CAT.cols.custo ? thSort('custo', 'Custo') : ''}
+          ${thSort('precoBase', 'Preço base')}
+          ${thSort('margem', 'Margem')}
+          <th class="nosort">ML · Shp · TT · Mgl</th>
+          ${thSort('readiness', 'Readiness')}
+          <th class="nosort">Pendência</th>
+          ${CAT.cols.atualizacao ? thSort('atualizadoEm', 'Atualização') : ''}
+          <th class="nosort"></th>
+        </tr></thead><tbody>${rows}</tbody></table>
+        <div class="tfoot"><span>${list.length} de ${prods().length} produtos · ${UI.esc(D.STATUS.DADO_SIMULADO)}</span><span>${sel.size ? sel.size + ' selecionado(s)' : 'nenhum selecionado'}</span></div>
+      </div>` : `
+      <div class="panel"><div class="empty"><b>Nenhum produto corresponde aos filtros</b>
+        ${fCount} filtro(s) ativo(s). <button class="linklike" data-act="f-clear">Limpar filtros</button> para ver os ${prods().length} produtos.</div></div>`}
+
+      ${sel.size ? `
+      <div class="massbar" role="toolbar" aria-label="Ações em massa">
+        <b>${sel.size} selecionado(s)</b><span class="sep"></span>
+        <button class="btn sm" data-act="bulk" data-bulk="marcar_revisao">marcar para revisão</button>
+        <button class="btn sm" data-act="bulk" data-bulk="recalcular_margem">recalcular margens</button>
+        <button class="btn sm" data-act="bulk" data-bulk="gerar_rascunhos">gerar rascunhos internos</button>
+        <button class="btn sm" disabled title="${UI.esc(L.disabledReason('publicar_externo'))}">publicar nos marketplaces</button>
+        <span class="sep"></span>
+        <button class="btn sm ghost" data-act="selclear">limpar seleção</button>
+      </div>` : ''}`;
+  }
+
+  function anuncios() {
+    const mk = CAT.anuncioMkt;
+    const mkNome = D.MKTS.find(m => m.key === mk).nome;
+    const all = prods().map(p => ({ p, m: p.mkt[mk] }));
+    const TABS = { 'Todos': () => true, 'Ativos': x => x.m.status === 'ATIVO', 'Pausados': x => x.m.status === 'PAUSADO', 'Em revisão': x => x.m.status === 'EM_REVISAO', 'Bloqueados': x => x.m.status === 'BLOQUEADO', 'Não publicados': x => x.m.status === 'NAO_PUBLICADO' };
+    const list = all.filter(TABS[CAT.anuncioTab] || TABS.Todos);
+    const rk = D.ranking;
+    return `
+      <div class="fbar" style="margin-top:0">
+        ${D.MKTS.map(m => `<button class="fchip ${m.key === mk ? 'on' : ''}" data-act="anmkt" data-mkt="${m.key}">${m.nome}</button>`).join('')}
+        <span style="flex:1"></span>
+        <button class="btn sm" disabled title="${UI.esc(L.disabledReason('sync'))}">sincronizar anúncios</button>
+      </div>
+      <div class="tabs">${Object.keys(TABS).map(t => `<button class="tab ${t === CAT.anuncioTab ? 'on' : ''}" data-act="antab" data-tab="${t}">${t}<span class="cnt">${all.filter(TABS[t]).length}</span></button>`).join('')}</div>
+
+      ${list.length ? `
+      <div class="tblwrap" style="margin-top:14px">
+        <table class="tbl"><thead><tr>
+          <th class="nosort"></th><th class="nosort">Anúncio</th><th class="nosort">Preço no canal</th><th class="nosort">Margem</th><th class="nosort">Status</th><th class="nosort">Posição (contexto)</th><th class="nosort"></th>
+        </tr></thead><tbody>
+        ${list.map(({ p, m }) => {
+          const pos = rk.find(r => r.marketplace === mkNome && p.id === 'p1');
+          return `<tr>
+            <td><span class="thumb">▦</span></td>
+            <td><button class="tmain linklike" style="font-size:12.5px" data-act="drawer" data-id="${p.id}">${UI.esc(m.profile.titulo || p.nome)}</button><span class="tsub">${UI.esc(p.sku)} · perfil ${m.profile.titulo ? 'específico' : 'herdado do master'}</span></td>
+            <td>${UI.brl(m.preco)}</td>
+            <td>${L.margem(p, mk) == null ? '—' : L.margem(p, mk) + '%'}</td>
+            <td>${UI.stBadge(m.status)}${m.motivo ? `<span class="tsub">${UI.esc(m.motivo)}</span>` : ''}</td>
+            <td>${pos ? `<span class="tmain">${pos.posicao}º</span><span class="tsub">"${pos.palavra}" · ${pos.comparacao} · ${pos.data} · ${pos.origem}</span>` : `<span class="src">${D.STATUS.SEM_DADOS} — sem posição inventada</span>`}</td>
+            <td><span class="rowact"><button class="btn sm ghost" data-act="drawer" data-id="${p.id}">abrir</button></span></td>
+          </tr>`;
+        }).join('')}
+        </tbody></table>
+        <div class="tfoot"><span>${list.length} anúncio(s) · ${mkNome} · ${UI.esc(D.STATUS.DADO_SIMULADO)}</span>
+        <button class="linklike" disabled title="${UI.esc(L.disabledReason('ranking_real'))}" style="opacity:.55;cursor:not-allowed">ver ranking real</button></div>
+      </div>` : `
+      <div class="panel" style="margin-top:14px"><div class="empty"><b>Nenhum anúncio "${CAT.anuncioTab}" no ${mkNome}</b>
+        Conta ${D.STATUS.AGUARDANDO_CONEXAO.toLowerCase()} — crie um rascunho interno pela matriz de publicação do produto.</div></div>`}`;
+  }
+
+  function rascunhos() {
+    const dynamic = UI.state.jobs.filter(j => j.acao === 'gerar_rascunhos').flatMap(j => j.itens.map(id => ({ id: j.id + ':' + id, produtoId: id, mkt: '—', status: D.STATUS.PRONTO_REVISAO, nota: `gerado pelo job ${j.id}` })));
+    const list = [...CAT.drafts, ...dynamic];
+    if (!list.length) return `<div class="panel"><div class="empty"><b>Sem rascunhos</b>Rascunhos nascem da matriz de publicação, da Operação ou de jobs em massa.</div></div>`;
+    return `
+      <div class="callout" style="margin-top:0">Rascunho é <b>${UI.esc(D.STATUS.ACAO_INTERNA)}</b>: validado dentro do sistema. Publicar fora exige conexão oficial + aprovação — nunca será simulado como concluído.</div>
+      <div class="tblwrap" style="margin-top:12px"><table class="tbl"><thead><tr>
+        <th class="nosort">Rascunho</th><th class="nosort">Canal alvo</th><th class="nosort">Status</th><th class="nosort">Nota</th><th class="nosort"></th>
+      </tr></thead><tbody>
+      ${list.map(d => {
+        const p = prods().find(x => x.id === d.produtoId);
+        const mk = D.MKTS.find(m => m.key === d.mkt);
+        return `<tr><td><span class="tmain">${UI.esc(p ? p.nome : d.produtoId)}</span><span class="tsub">${d.id}</span></td>
+          <td>${mk ? mk.nome : '—'}</td><td>${UI.stBadge(d.status)}</td><td><span class="src">${UI.esc(d.nota)}</span></td>
+          <td><span class="rowact"><button class="btn sm ghost" data-act="drawer" data-id="${d.produtoId}">abrir produto</button></span></td></tr>`;
+      }).join('')}
+      </tbody></table></div>`;
+  }
+
+  function pendencias() {
+    const list = prods().filter(p => p.pendencias.length);
+    if (!list.length) return `<div class="panel"><div class="empty"><b>Nenhuma pendência aberta</b>Quando um dado obrigatório faltar, ele aparece aqui com dono e destino — nunca morre como alerta.</div></div>`;
+    return `<div class="tblwrap"><table class="tbl"><thead><tr>
+      <th class="nosort">Produto</th><th class="nosort">Pendência</th><th class="nosort">O que destrava</th><th class="nosort"></th></tr></thead><tbody>
+      ${list.flatMap(p => p.pendencias.map(pd => `<tr>
+        <td><span class="tmain">${UI.esc(p.nome)}</span><span class="tsub">${p.sku}</span></td>
+        <td><span class="st warn plain">${UI.esc(pd)}</span></td>
+        <td><span class="src">${pd.includes('peso') ? 'rascunho Shopee do Espelho Orgânico' : pd.includes('INMETRO') ? 'desbloqueio do anúncio no ML' : pd.includes('grade') ? 'revisão do Tênis no ML' : 'readiness do produto'}</span></td>
+        <td><span class="rowact"><button class="btn sm" data-act="drawer" data-id="${p.id}">resolver</button></span></td></tr>`)).join('')}
+      </tbody></table></div>`;
+  }
+
+  function promocoes() {
+    return `
+      <div class="callout" style="margin-top:0">Promoções vivem em <b>Crescimento</b>; aqui você vê as que tocam itens do catálogo, sempre respeitando margem mínima.</div>
+      <div class="tblwrap" style="margin-top:12px"><table class="tbl"><thead><tr>
+        <th class="nosort">Promoção</th><th class="nosort">Tipo</th><th class="nosort">Itens</th><th class="nosort">Margem mínima</th><th class="nosort">Status</th><th class="nosort"></th></tr></thead><tbody>
+        ${D.crescimento.promocoes.map(pr => `<tr>
+          <td><span class="tmain">${UI.esc(pr.nome)}</span><span class="tsub">${pr.origem}</span></td>
+          <td>${pr.tipo}</td><td>${pr.itens}</td>
+          <td>${pr.margemMinimaRespeitada ? '<span class="st pos">respeitada</span>' : '<span class="st neg">violada</span>'}</td>
+          <td>${UI.stBadge(pr.status)}</td>
+          <td><span class="rowact"><button class="btn sm ghost" data-act="gocresc">ver em Crescimento</button></span></td></tr>`).join('')}
+        </tbody></table></div>`;
+  }
+
+  /* ---------------- drawer do produto ---------------- */
+  CAT.openDrawer = function (id, tab) {
+    const p = prods().find(x => x.id === id);
+    if (!p) return;
+    CAT.drawerId = id; CAT.drawerTab = tab || CAT.drawerTab || 'master';
+    const t = CAT.drawerTab;
+    const vers = UI.state.versions.filter(v => v.produtoId === id);
+    const tabBtn = (k, lbl) => `<button class="tab ${t === k ? 'on' : ''}" data-act="dtab" data-tab="${k}">${lbl}</button>`;
+    const inp = (field, label, val, type) => `
+      <label style="display:block;margin-top:10px"><span class="eyebrow">${label}</span><br>
+      <input class="input" style="width:100%;margin-top:4px" type="${type || 'text'}" data-field="${field}" value="${UI.esc(val ?? '')}" placeholder="${val == null ? 'SEM DADOS — informe para destravar' : ''}"></label>`;
+
+    let bodyHtml = '';
+    if (t === 'master') {
+      bodyHtml = `
+        <p class="sub">Editar aqui <b>versiona</b> o Product Master e reavalia rascunhos. Perfis específicos por marketplace <b>não são sobrescritos</b> — você será avisado.</p>
+        ${inp('titulo', 'Título master', p.master.titulo)}
+        ${inp('marca', 'Marca', p.master.marca)}
+        ${inp('material', 'Material (ficha técnica)', p.master.material)}
+        ${inp('pesoEmbaladoKg', 'Peso embalado (kg)', p.master.pesoEmbaladoKg, 'number')}
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn primary" data-act="dsave">Salvar edições (gera versão)</button>
+          <button class="btn ghost" data-act="dclose">cancelar</button>
+        </div>`;
+    } else if (t === 'perfis') {
+      const mk = CAT.profileMkt || 'ml';
+      const prof = p.mkt[mk];
+      bodyHtml = `
+        <p class="sub">Perfil <b>independente</b> por canal: editar ${D.MKTS.find(m => m.key === mk).nome} não altera os demais nem o master.</p>
+        <div class="fbar">${D.MKTS.map(m => `<button class="fchip ${m.key === mk ? 'on' : ''}" data-act="dprofmkt" data-mkt="${m.key}">${m.nome}</button>`).join('')}</div>
+        <dl class="kv"><dt>Status no canal</dt><dd>${UI.stBadge(prof.status)}</dd>
+        <dt>Título efetivo</dt><dd>${UI.esc(prof.profile.titulo || p.master.titulo)} <span class="src">(${prof.profile.titulo ? 'específico do canal' : 'herdado do master'})</span></dd></dl>
+        ${inp('titulo', 'Título específico deste canal', prof.profile.titulo)}
+        ${inp('preco', 'Preço neste canal (R$)', prof.preco, 'number')}
+        <div style="display:flex;gap:8px;margin-top:14px">
+          <button class="btn primary" data-act="dsaveprof" data-mkt="${mk}">Salvar perfil ${D.MKTS.find(m => m.key === mk).nome}</button>
+        </div>`;
+    } else if (t === 'matriz') {
+      bodyHtml = `
+        <p class="sub">Onde este produto está, em que estado e por quê. Publicação externa permanece <b>${UI.esc(D.STATUS.ESCRITA_BLOQUEADA)}</b>.</p>
+        <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>
+          <th class="nosort">Marketplace</th><th class="nosort">Status</th><th class="nosort">Preço</th><th class="nosort">Margem</th><th class="nosort">Ação</th></tr></thead><tbody>
+        ${L.publicationMatrix(p).map(r => `<tr>
+          <td class="tmain">${r.marketplace}</td>
+          <td>${UI.stBadge(r.status)}${r.motivo ? `<span class="tsub">${UI.esc(r.motivo)}</span>` : ''}</td>
+          <td>${UI.brl(r.preco)}</td><td>${r.margem == null ? '—' : r.margem + '%'}</td>
+          <td>${r.status === 'NAO_PUBLICADO'
+            ? `<button class="btn sm" data-act="ddraft" data-mkt="${r.key}">criar rascunho interno</button>`
+            : `<button class="btn sm" disabled title="${UI.esc(L.disabledReason('publicar_externo'))}">publicar alteração</button>`}</td>
+        </tr>`).join('')}</tbody></table></div>`;
+    } else {
+      bodyHtml = vers.length ? `
+        <p class="sub">Toda edição vira versão: autor, origem, valor anterior e impacto.</p>
+        ${vers.slice().reverse().map(v => `<div class="ctxcard" style="margin-top:10px">
+          <div class="h"><b>${v.entidade === 'mkt_profile' ? 'Perfil ' + (D.MKTS.find(m => m.key === v.marketplace) || {}).nome : 'Product Master'} · ${UI.esc(v.campo)}</b><span class="src">${v.id} · ${v.em}</span></div>
+          <dl class="kv"><dt>Antes</dt><dd>${UI.esc(v.antes ?? '—')}</dd><dt>Depois</dt><dd>${UI.esc(v.depois)}</dd>
+          <dt>Autor · origem</dt><dd>${UI.esc(v.autor)} · ${UI.esc(v.origem)}</dd>
+          ${v.impacto ? `<dt>Impacto</dt><dd>${v.impacto.rascunhosReavaliados} rascunho(s) reavaliado(s)${v.impacto.perfisPreservados.length ? ' · perfis preservados: ' + v.impacto.perfisPreservados.join(', ') : ''}</dd>` : ''}</dl>
+        </div>`).join('')}` :
+        `<div class="empty"><b>Sem versões ainda</b>Edite o master ou um perfil e a trilha aparece aqui.</div>`;
+    }
+
+    UI.openDrawer(`
+      <div class="drawer-h"><div>
+        <div class="eyebrow">${UI.esc(p.sku)} · ${UI.esc(p.categoria)} · ${UI.esc(p.origem)}</div>
+        <h2 class="h1" style="font-size:18px">${UI.esc(p.nome)}</h2>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          ${p.pendencias.map(pd => `<span class="st warn plain">${UI.esc(pd)}</span>`).join('')}
+          <span class="st info plain">readiness ${L.readiness(p)}%</span>
+        </div></div>
+        <button class="btn ghost sm" data-act="dclose" aria-label="Fechar">✕ fechar</button></div>
+      <div class="tabs">${tabBtn('master', 'Product Master')}${tabBtn('perfis', 'Perfis por marketplace')}${tabBtn('matriz', 'Matriz de publicação')}${tabBtn('versoes', `Versões (${vers.length})`)}</div>
+      <div style="margin-top:14px">${bodyHtml}</div>`);
+    UI.$('#drawer').onclick = onDrawerClick;
+  };
+
+  /* ---------------- eventos ---------------- */
+  function onInput(e) {
+    if (e.target.id === 'catQ') {
+      CAT.filters.q = e.target.value;
+      const pos = e.target.selectionStart;
+      body();
+      const q = UI.$('#catQ'); if (q) { q.focus(); q.setSelectionRange(pos, pos); }
+    }
+  }
+
+  function onClick(e) {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    const act = b.dataset.act;
+    const F = CAT.filters;
+    const tgl = (k, v) => { F[k] === v ? delete F[k] : F[k] = v; };
+    if (act === 'sub') { CAT.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Catálogo · ' + CAT.sub; render(CAT.sub); }
+    else if (act === 'sort') { const k = b.dataset.key; if (CAT.sortKey === k) CAT.sortDir = CAT.sortDir === 'asc' ? 'desc' : 'asc'; else { CAT.sortKey = k; CAT.sortDir = 'asc'; } body(); }
+    else if (act === 'f-pend') { F.comPendencia === true ? delete F.comPendencia : F.comPendencia = true; body(); }
+    else if (act === 'f-estoque') { tgl('estoqueMax', 10); body(); }
+    else if (act === 'f-margem') { tgl('margemMin', 60); body(); }
+    else if (act === 'f-ml') { if (F.marketplace === 'ml') { delete F.marketplace; delete F.statusMkt; } else { F.marketplace = 'ml'; F.statusMkt = 'ATIVO'; } body(); }
+    else if (act === 'f-clear') { CAT.filters = {}; body(); }
+    else if (act === 'adv') openAdvanced();
+    else if (act === 'cols') openCols();
+    else if (act === 'saveview') openSaveView();
+    else if (act === 'loadview') { CAT.filters = L.loadView(UI.state, b.dataset.view) || {}; UI.toast(`Visão "${b.dataset.view}" aplicada.`); body(); }
+    else if (act === 'selrow') { L.toggleSelect(UI.state, b.dataset.id); body(); }
+    else if (act === 'selall') { const f = filtered(); f.every(p => UI.state.selection.has(p.id)) ? L.clearSelection(UI.state) : L.selectAllFiltered(UI.state, f); body(); }
+    else if (act === 'selclear') { L.clearSelection(UI.state); body(); }
+    else if (act === 'bulk') doBulk(b.dataset.bulk);
+    else if (act === 'drawer') CAT.openDrawer(b.dataset.id);
+    else if (act === 'anmkt') { CAT.anuncioMkt = b.dataset.mkt; body(); }
+    else if (act === 'antab') { CAT.anuncioTab = b.dataset.tab; body(); }
+    else if (act === 'gocresc') UI.go('crescimento');
+  }
+
+  function onDrawerClick(e) {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    const act = b.dataset.act, id = CAT.drawerId;
+    const p = prods().find(x => x.id === id);
+    if (act === 'dclose') UI.closeDrawer();
+    else if (act === 'dtab') CAT.openDrawer(id, b.dataset.tab);
+    else if (act === 'dprofmkt') { CAT.profileMkt = b.dataset.mkt; CAT.openDrawer(id, 'perfis'); }
+    else if (act === 'dsave') {
+      const inputs = UI.$$('#drawer [data-field]');
+      const changes = inputs.map(i => ({ f: i.dataset.field, v: i.type === 'number' ? (i.value ? +i.value : null) : i.value }))
+        .filter(c => String(p.master[c.f] ?? '') !== String(c.v ?? ''));
+      if (!changes.length) return UI.toast('Nada mudou — nenhuma versão criada.');
+      const conflita = changes.filter(c => Object.values(p.mkt).some(m => m.profile[c.f] !== undefined));
+      const apply = () => {
+        let n = 0, preservados = new Set();
+        for (const c of changes) {
+          const r = L.editMaster(UI.state, id, c.f, c.v);
+          if (r.changed) { n++; (r.perfisPreservados || []).forEach(x => preservados.add(x)); }
+        }
+        UI.toast(`${n} versão(ões) criada(s) · rascunhos reavaliados${preservados.size ? ' · perfis preservados: ' + [...preservados].join(', ') : ''}`, 'ok');
+        CAT.openDrawer(id, 'versoes'); body(); UI.refreshBadges();
+      };
+      if (conflita.length) {
+        UI.openModal(`<h3 class="h2">Perfis específicos existem</h3>
+          <p class="sub" style="margin-top:8px">Os campos <b>${conflita.map(c => c.f).join(', ')}</b> têm valor específico em algum marketplace. A edição do master <b>não vai sobrescrevê-los</b> — os canais continuam com o valor próprio.</p>
+          <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+            <button class="btn ghost" onclick="UI.closeModal()">cancelar</button>
+            <button class="btn primary" id="mConfirm">Entendi, salvar master</button></div>`);
+        UI.$('#mConfirm').onclick = () => { UI.closeModal(); apply(); };
+      } else apply();
+    }
+    else if (act === 'dsaveprof') {
+      const mk = b.dataset.mkt;
+      const inputs = UI.$$('#drawer [data-field]');
+      let n = 0;
+      for (const i of inputs) {
+        const v = i.type === 'number' ? (i.value ? +i.value : null) : i.value;
+        if (i.dataset.field === 'preco') { if (v !== p.mkt[mk].preco && v != null) { p.mkt[mk].preco = v; L.editProfile(UI.state, id, mk, 'preco', v); n++; } }
+        else if (v && v !== (p.mkt[mk].profile[i.dataset.field] ?? '')) { L.editProfile(UI.state, id, mk, i.dataset.field, v); n++; }
+      }
+      UI.toast(n ? `Perfil ${D.MKTS.find(m => m.key === mk).nome} atualizado — demais canais intactos.` : 'Nada mudou no perfil.', n ? 'ok' : '');
+      CAT.openDrawer(id, 'perfis'); body();
+    }
+    else if (act === 'ddraft') {
+      const mk = b.dataset.mkt;
+      CAT.drafts.push({ id: 'd' + (CAT.drafts.length + 1 + Math.floor(performance.now()) % 97), produtoId: id, mkt: mk, status: D.STATUS.EM_REVISAO, nota: 'rascunho interno criado da matriz' });
+      L._audit(UI.state, 'Marcos', 'draft_criado', `${p.sku} → ${mk} (interno)`);
+      UI.toast(`Rascunho interno criado para ${D.MKTS.find(m => m.key === mk).nome}. Publicação externa segue bloqueada.`, 'ok');
+      CAT.openDrawer(id, 'matriz');
+    }
+  }
+
+  function doBulk(action) {
+    const ids = [...UI.state.selection];
+    const r = L.bulkAction(UI.state, ids, action);
+    if (r.blocked) return UI.toast(r.reason, 'err');
+    UI.toast(`Job ${r.job.id} · "${action}" sobre ${r.job.total} itens · ${r.job.status} · reversível e auditado.`, 'ok');
+    L.clearSelection(UI.state);
+    body();
+  }
+
+  /* ---------------- modais auxiliares ---------------- */
+  function openAdvanced() {
+    const F = CAT.filters;
+    const cats = [...new Set(prods().map(p => p.categoria))];
+    const opt = (v, cur, lbl) => `<option value="${v}" ${cur === v ? 'selected' : ''}>${lbl || v}</option>`;
+    UI.openModal(`<h3 class="h2">Filtros avançados</h3>
+      <p class="sub" style="margin-top:4px">Combináveis entre si e com a busca. ${L.activeFilterCount(F)} ativo(s).</p>
+      <div style="display:grid;gap:10px;margin-top:12px">
+        <label><span class="eyebrow">Categoria</span><br><select class="select" id="afCat" style="width:100%">${opt('', F.categoria, 'todas')}${cats.map(c => opt(c, F.categoria)).join('')}</select></label>
+        <label><span class="eyebrow">Tipo de produção</span><br><select class="select" id="afTipo" style="width:100%">${opt('', F.tipo, 'todos')}${['PRONTA_ENTREGA', 'SOB_ENCOMENDA', 'PERSONALIZADO'].map(t => opt(t, F.tipo)).join('')}</select></label>
+        <label><span class="eyebrow">Situação em marketplace</span><br>
+          <select class="select" id="afMkt" style="width:49%">${opt('', F.marketplace, 'qualquer canal')}${D.MKTS.map(m => opt(m.key, F.marketplace, m.nome)).join('')}</select>
+          <select class="select" id="afSt" style="width:49%">${opt('', F.statusMkt, 'qualquer status')}${['ATIVO', 'PAUSADO', 'EM_REVISAO', 'BLOQUEADO', 'NAO_PUBLICADO'].map(s => opt(s, F.statusMkt)).join('')}</select></label>
+      </div>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button class="btn ghost" onclick="UI.closeModal()">cancelar</button>
+        <button class="btn primary" id="afApply">Aplicar filtros</button></div>`);
+    UI.$('#afApply').onclick = () => {
+      const g = id => UI.$('#' + id).value;
+      g('afCat') ? F.categoria = g('afCat') : delete F.categoria;
+      g('afTipo') ? F.tipo = g('afTipo') : delete F.tipo;
+      g('afMkt') ? F.marketplace = g('afMkt') : delete F.marketplace;
+      g('afSt') ? F.statusMkt = g('afSt') : delete F.statusMkt;
+      UI.closeModal(); body();
+    };
+  }
+
+  function openCols() {
+    UI.openModal(`<h3 class="h2">Colunas visíveis</h3>
+      <div style="display:grid;gap:8px;margin-top:12px">
+        ${['categoria', 'custo', 'atualizacao'].map(c => `<label style="display:flex;gap:8px;align-items:center"><input type="checkbox" data-col="${c}" ${CAT.cols[c] ? 'checked' : ''}> ${c === 'atualizacao' ? 'atualização' : c}</label>`).join('')}
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn primary" id="colApply">Aplicar</button></div>`);
+    UI.$('#colApply').onclick = () => {
+      UI.$$('#modal [data-col]').forEach(i => CAT.cols[i.dataset.col] = i.checked);
+      UI.closeModal(); body();
+    };
+  }
+
+  function openSaveView() {
+    UI.openModal(`<h3 class="h2">Salvar visão</h3>
+      <p class="sub" style="margin-top:4px">Guarda os ${L.activeFilterCount(CAT.filters)} filtro(s) atuais como visão nomeada.</p>
+      <input class="input" id="svName" style="width:100%;margin-top:10px" placeholder="ex.: pendências de decoração">
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button class="btn ghost" onclick="UI.closeModal()">cancelar</button>
+        <button class="btn primary" id="svSave">Salvar visão</button></div>`);
+    UI.$('#svSave').onclick = () => {
+      const n = UI.$('#svName').value.trim();
+      if (!n) return UI.toast('Dê um nome à visão.', 'err');
+      L.saveView(UI.state, n, CAT.filters);
+      UI.closeModal(); UI.toast(`Visão "${n}" salva.`, 'ok'); body();
+    };
+  }
+
+  UI.renderers.catalogo = render;
+
+  /* ---------------- auto-teste headless (?catself=1) ---------------- */
+  document.addEventListener('DOMContentLoaded', () => {
+    if (new URLSearchParams(location.search).get('catself') !== '1') return;
+    try {
+      const errs = [];
+      const need = (ok, m) => { if (!ok) errs.push(m); };
+      UI.go('catalogo', 'Produtos');
+      need(UI.$$('#catBody tbody tr').length === 12, 'tabela com 12 produtos');
+      /* busca busca */
+      CAT.filters.q = 'garrafa'; body();
+      need(UI.$$('#catBody tbody tr').length === 1, 'busca filtra');
+      CAT.filters = {}; CAT.filters.comPendencia = true; body();
+      need(UI.$$('#catBody tbody tr').length === prods().filter(p => p.pendencias.length).length, 'filtro pendência');
+      /* seleção + massbar */
+      L.selectAllFiltered(UI.state, filtered()); body();
+      need(!!UI.$('.massbar'), 'massbar aparece');
+      need(UI.$$('#catBody tr.sel').length > 0, 'linhas marcadas');
+      const r = L.bulkAction(UI.state, [...UI.state.selection], 'marcar_revisao');
+      need(!!r.job && UI.state.audit.some(a => a.acao === 'bulk_job'), 'bulk vira job auditável');
+      const blq = L.bulkAction(UI.state, ['p1'], 'publicar_externo');
+      need(blq.blocked && blq.reason.includes('ESCRITA EXTERNA BLOQUEADA'), 'publicação externa recusada');
+      L.clearSelection(UI.state); CAT.filters = {}; body();
+      /* drawer + edição versionada + independência de perfis */
+      CAT.openDrawer('p1', 'master');
+      need(!UI.$('#drawerWrap').hidden, 'drawer abre');
+      const antesML = JSON.stringify(prods().find(p => p.id === 'p1').mkt.ml.profile);
+      L.editProfile(UI.state, 'p1', 'shopee', 'titulo', 'Título Shopee auto-teste');
+      need(JSON.stringify(prods().find(p => p.id === 'p1').mkt.ml.profile) === antesML, 'editar Shopee não altera ML');
+      const ed = L.editMaster(UI.state, 'p1', 'marca', 'Casa Demo Premium');
+      need(ed.changed && ed.version.antes === 'Casa Demo', 'edição versiona com valor anterior');
+      UI.closeDrawer();
+      /* anúncios */
+      CAT.sub = 'Anúncios'; body();
+      CAT.anuncioMkt = 'shopee'; CAT.anuncioTab = 'Ativos'; body();
+      need(UI.$$('#catBody tbody tr').length === prods().filter(p => p.mkt.shopee.status === 'ATIVO').length, 'aba+seletor filtram anúncios');
+      CAT.sub = 'Produtos'; CAT.anuncioMkt = 'ml'; CAT.anuncioTab = 'Todos'; body();
+      document.body.dataset.catselfReady = errs.length ? 'fail: ' + errs.join(' | ') : 'ok';
+    } catch (e) { document.body.dataset.catselfReady = 'fail: ' + e.message; }
+  });
+}());
