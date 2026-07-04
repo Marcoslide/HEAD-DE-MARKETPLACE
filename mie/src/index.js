@@ -4,6 +4,7 @@
 
 const NS = require('./_ns.js');
 require('./core/config.js');
+require('./core/clock.js');
 require('./core/audit-log.js');
 require('./core/event-bus.js');
 require('./sim/world.js');

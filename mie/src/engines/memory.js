@@ -14,9 +14,10 @@
 'use strict';
 
 class MemoryEngine {
-  constructor(bus, graph = null) {
+  constructor(bus, graph = null, clock = null) {
     this.bus = bus;
     this.graph = graph;             // cérebro associativo (Sprint 07) — consultável pelos especialistas
+    this.clock = clock || NS.systemClock; // relógio de mundo real (Sprint 08.1) — proveniência dos registros
     this.baselines = new Map();     // `${productId}.${metric}` → {mean, std, n}
     this.weekday = new Map();       // `${productId}.dow${d}` → índice EWMA (sazonalidade semanal)
     this.seasonality = new Map();   // mês → índice EWMA (sazonalidade anual)
@@ -126,6 +127,7 @@ class MemoryEngine {
       discovery: entry.discovery, context: entry.context || {},
       evidence: [entry.evidence].filter(Boolean),
       strength: 1, day: NS._currentDay || 0,
+      observedAt: this.clock.nowIso(),   // proveniência de mundo real (Sprint 08.1)
     };
     this.knowledge.push(k);
     this.bus.emit('memory.updated', { kind: 'knowledge', key: k.key, strength: 1 });
@@ -187,7 +189,7 @@ class MemoryEngine {
 
   /* ---------- o jeito do dono (Art. 18: recusas ensinam) ---------- */
   recordPreference(pref) {
-    this.preferences.push({ ...pref, day: NS._currentDay || 0 });
+    this.preferences.push({ ...pref, day: NS._currentDay || 0, observedAt: this.clock.nowIso() });
     this.absorb({
       key: `pref.${pref.proposalType}.${pref.motive}`,
       kind: 'preference',
@@ -201,7 +203,11 @@ class MemoryEngine {
   }
 
   /* ---------- histórico de decisões (Art. 15) ---------- */
-  recordDecision(decision) { this.decisions.push(decision); }
+  /* proveniência estruturada (Sprint 08.1): decidedAt preenchido pelo Clock
+     se não vier — sem forçar registros antigos a terem os quatro carimbos. */
+  recordDecision(decision) {
+    this.decisions.push({ ...decision, decidedAt: decision.decidedAt || this.clock.nowIso() });
+  }
   similarDecisions(cause) { return this.decisions.filter(d => d.cause === cause); }
 
   snapshot() {

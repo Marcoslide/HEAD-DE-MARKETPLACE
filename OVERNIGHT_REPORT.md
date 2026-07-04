@@ -209,7 +209,25 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   **HTML funcional em `design/prototipo-v3/index.html`** (abre no navegador,
   sem servidor — mostra o Plano do Dia com painel "Como o EPE priorizou").
 
-**Suíte total: 121 testes, 121 verdes.**
+- **Sprint 08.1 — Clock Injetado e Contexto Temporal Unificado** — *concluído*:
+  o tempo vira parte explícita, injetável e testável do contexto de decisão.
+  `mie/src/core/clock.js` é a fonte ÚNICA de tempo de parede (ISO/`America/Sao_Paulo`),
+  com `createClock`/`frozenClock`/`systemClock` e helpers temporais puros
+  (`NS.time`: diff, isExpired, isRecent, waitingMs, windowsOverlap). Coexiste com
+  o "dia" simulado (`NS._currentDay`), que segue sendo a cadência interna dos
+  motores. `createMIE({ clock })` injeta o relógio em todos os motores (default
+  `systemClock`); `mie.clock` fica exposto. O **Plano do Dia** passa a carregar
+  `generatedAt`/`generatedAtIso`/`timezone`/`dateKey`; o EPE **rebaixa para
+  OBSERVAR** um item cuja janela de decisão expirou (sem mexer na fórmula do
+  score). Memória e Knowledge Graph carimbam proveniência de mundo real
+  (`observedAt`/`decidedAt`/`createdAtIso`/`lastAtIso`), de forma retrocompatível;
+  contrato de evento futuro (`{ source, eventType, occurredAt, observedAt, payload,
+  metadata }`) pronto, sem iniciar integração externa. `/__dev/mie` mostra o Clock
+  ativo (fuso, hora, tipo, último plano gerado). +12 testes (inclui varredura que
+  garante que nenhum arquivo em `mie/src` usa `Date` fora do Clock). Doc em
+  `docs/clock-and-temporal-context.md`.
+
+**Suíte total: 133 testes, 133 verdes.** (121 + 12 do Clock)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

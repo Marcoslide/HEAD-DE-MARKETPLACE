@@ -65,7 +65,9 @@ function renderBriefing() {
   const dias = ["domingo", "segunda-feira", "terça-feira", "quarta-feira", "quinta-feira", "sexta-feira", "sábado"];
   const meses = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
   const d = new Date();
-  $("#dateline").textContent = `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} · plano do dia`;
+  const hh = String(d.getHours()).padStart(2, "0"), mm = String(d.getMinutes()).padStart(2, "0");
+  // contexto temporal do plano (Sprint 08.1): quando o Head gerou este briefing
+  $("#dateline").textContent = `${dias[d.getDay()]}, ${d.getDate()} de ${meses[d.getMonth()]} · plano gerado às ${hh}:${mm}`;
   $("#lede").textContent = DATA.briefing.lede;
   $("#signature").textContent = DATA.briefing.signature;
 }

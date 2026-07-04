@@ -23,10 +23,12 @@ const LEVEL = {
 };
 
 class ExecutivePlanningEngine {
-  constructor(bus, { world, memory, prioritization, investigation, graph, learning } = {}) {
+  constructor(bus, { world, memory, prioritization, investigation, graph, learning, clock } = {}) {
     this.bus = bus; this.world = world; this.memory = memory;
     this.prioritization = prioritization; this.investigation = investigation;
     this.graph = graph; this.learning = learning;
+    this.clock = clock || NS.systemClock;  // relógio de mundo real (Sprint 08.1)
+    this.lastPlan = null;                   // último plano gerado (exposto no /__dev)
 
     /* diário do dia: o funil de atenção do Head (Art. 3 — mostrar o trabalho) */
     this.ledger = this._emptyLedger();
@@ -47,8 +49,19 @@ class ExecutivePlanningEngine {
   classify(candidate) {
     const f = this._normalize(candidate);
     const s = this._score(f);
-    const level = this._level(f, s.score);
-    return { level, score: s.score, factors: f, breakdown: s, reason: this._reason(level, f, s) };
+    let level = this._level(f, s.score);
+    /* Clock injetado (Sprint 08.1): se a JANELA DE DECISÃO já expirou, a chance
+       de agir passou — o item cai para OBSERVAR (sem mexer no score/fórmula).
+       Incidente crítico é a exceção: risco imediato interrompe de todo jeito. */
+    const expired = candidate.expiresAt != null
+      && f.severity !== 'critical'
+      && NS.time.isExpired(candidate.expiresAt, this.clock.now());
+    if (expired && level !== LEVEL.OBSERVE && level !== LEVEL.IGNORE) level = LEVEL.OBSERVE;
+    return {
+      level, score: s.score, factors: f, breakdown: s, expired,
+      reason: expired ? 'janela de decisão expirada — fora do tempo de agir'
+                      : this._reason(level, f, s),
+    };
   }
 
   _normalize(c) {
@@ -186,6 +199,9 @@ class ExecutivePlanningEngine {
   planDay({ capacity, day } = {}) {
     const cap = capacity || this.cfg.CAPACITY;
     const today = day != null ? day : (this.world ? this.world.day : 0);
+    /* contexto temporal do plano (Sprint 08.1): quando ele foi gerado, em que
+       fuso, e a chave do dia local — proveniência de mundo real do briefing. */
+    const generatedAtDate = this.clock.now();
 
     /* 1. reúne candidatos do estado atual do MIE (dedupe por produto+ação — Art. 13) */
     const seen = new Set();
@@ -248,8 +264,12 @@ class ExecutivePlanningEngine {
     const levelBreakdown = {};
     for (const L of Object.values(LEVEL)) levelBreakdown[L] = candidates.filter(x => x.level === L).length;
 
-    return {
+    const plan = {
       day: today, capacity: cap,
+      generatedAt: generatedAtDate.getTime(),
+      generatedAtIso: generatedAtDate.toISOString(),
+      timezone: this.clock.timezone,
+      dateKey: this.clock.dateKey(generatedAtDate),
       greeting: 'Bom dia. Enquanto você descansava, cuidei da sua operação.',
       funnel,
       attention: attention.slice(0, 5),
@@ -261,6 +281,8 @@ class ExecutivePlanningEngine {
       signature: (interrupts.length + approvals.length)
         ? 'O resto eu toco. — Eu cuido do resto.' : 'Sem pendências. Eu cuido do resto.',
     };
+    this.lastPlan = plan;
+    return plan;
   }
 
   _publicItem(x) {

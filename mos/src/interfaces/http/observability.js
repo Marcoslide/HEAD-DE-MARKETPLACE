@@ -64,6 +64,14 @@ function mountObservability(router, mos, { mie = null } = {}) {
     if (!mie) return { attached: false };
     return {
       attached: true, day: mie.world.day,
+      /* Clock ativo (Sprint 08.1) — tempo de mundo real por trás do plano */
+      clock: mie.clock ? {
+        timezone: mie.clock.timezone,
+        now: mie.clock.nowIso(),
+        today: mie.clock.today(),
+        kind: mie.clock.kind,                         // system | frozen (injetado)
+        lastPlanGeneratedAt: (mie.epe && mie.epe.lastPlan) ? mie.epe.lastPlan.generatedAtIso : null,
+      } : null,
       engines: {
         observation: { openAnomalies: mie.observation.openAnomalies.size },
         investigation: {

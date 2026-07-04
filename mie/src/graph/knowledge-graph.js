@@ -42,23 +42,30 @@ const EDGE = {
 const nid = (type, key) => `${type}:${key}`;
 
 class KnowledgeGraph {
-  constructor({ decayPerDay = 0.03, floor = 0.12, reinforce = 0.6, cap = 3, clock = null } = {}) {
+  constructor({ decayPerDay = 0.03, floor = 0.12, reinforce = 0.6, cap = 3, clock = null, wallClock = null } = {}) {
     this.nodes = new Map();          // id → { id, type, key, label, props, createdDay, lastDay }
     this.edges = new Map();          // `${type}|${from}|${to}` → aresta
     this.decayPerDay = decayPerDay;  // fração perdida por dia de desuso
     this.floor = floor;              // abaixo disso a relação é "esquecida" nas consultas
     this.reinforceStep = reinforce;
     this.cap = cap;
+    /* dois relógios distintos e coexistentes (Sprint 08.1):
+       - clock: o "dia" simulado (contador de ciclos) — usado por decaimento/consultas;
+       - wallClock: o tempo de PAREDE (ISO/timezone) — proveniência de mundo real. */
     this.clock = clock || (() => NS._currentDay || 0);
+    this.wallClock = wallClock;      // opcional: quando presente, carimba createdAtIso/lastAtIso
   }
+  _iso() { return this.wallClock ? this.wallClock.nowIso() : null; }
 
   /* ---------- nós ---------- */
   upsertNode(type, key, props = {}, label = null) {
     const id = nid(type, key);
     const day = this.clock();
+    const iso = this._iso();
     const existing = this.nodes.get(id);
-    if (existing) { Object.assign(existing.props, props); existing.lastDay = day; return existing; }
+    if (existing) { Object.assign(existing.props, props); existing.lastDay = day; if (iso) existing.lastAtIso = iso; return existing; }
     const node = { id, type, key, label: label || String(key), props, createdDay: day, lastDay: day };
+    if (iso) { node.createdAtIso = iso; node.lastAtIso = iso; }  // proveniência de mundo real (Sprint 08.1)
     this.nodes.set(id, node);
     return node;
   }
@@ -68,17 +75,20 @@ class KnowledgeGraph {
   /* ---------- arestas (com reforço) ---------- */
   link(type, fromId, toId, { weight = 1, evidence = null, outcome = null } = {}) {
     const day = this.clock();
+    const iso = this._iso();
     const key = `${type}|${fromId}|${toId}`;
     const e = this.edges.get(key);
     if (e) {
       e.weight = Math.min(this.cap, e.weight + this.reinforceStep);
       e.confirmations += 1; e.lastSeenDay = day;
+      if (iso) e.lastAtIso = iso;
       if (outcome) e.outcome = outcome;
       if (evidence) e.evidence.push(evidence);
       return e;
     }
     const edge = { id: key, type, from: fromId, to: toId, weight, outcome,
                    evidence: evidence ? [evidence] : [], createdDay: day, lastSeenDay: day, confirmations: 1 };
+    if (iso) { edge.createdAtIso = iso; edge.lastAtIso = iso; }  // proveniência de mundo real (Sprint 08.1)
     this.edges.set(key, edge);
     return edge;
   }
