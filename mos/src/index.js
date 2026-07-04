@@ -10,6 +10,7 @@ const { createRepositories } = require('./infrastructure/db/repositories.js');
 const { createServices } = require('./application/services.js');
 const { createProviderRegistry } = require('./providers/index.js');
 const { PublicationService } = require('./application/publication-service.js');
+const { ExperimentService } = require('./application/experiment-service.js');
 
 function createMOS({ dbFile = ':memory:', logLevel = 'warn', logSink = null } = {}) {
   const logger = new Logger({ level: logLevel, sink: logSink });
@@ -33,6 +34,7 @@ function createMOS({ dbFile = ':memory:', logLevel = 'warn', logSink = null } = 
   const services = createServices({ repos, bus, logger });
   const providers = createProviderRegistry();
   services.publication = new PublicationService({ repos, bus, queues, providers, logger });
+  services.experiment = new ExperimentService({ repos, bus, catalog: services.catalog, logger });
 
   return { db, repos, bus, queues, services, providers, logger,
     close: () => db.close() };

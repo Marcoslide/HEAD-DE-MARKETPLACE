@@ -227,7 +227,7 @@ Tudo utilizando eventos simulados.
 
 # BLOCO 11 — Experimentação
 
-- [ ] Construir arquitetura do sistema de experimentação.
+- [x] Construir arquitetura do sistema de experimentação.
 
 Versionamento
 Experimentos
