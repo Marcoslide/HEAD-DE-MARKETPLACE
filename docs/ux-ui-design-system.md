@@ -197,3 +197,55 @@ CNPJ, conta, pedido não pago, missão, oportunidade, experimento e conhecimento
   pagos por loja, bulk multiloja com confirmação de escopo, job auditado,
   visão por loja, isolamento entre empresas), 1920/1366/1180/780 × 2 temas,
   zero erros de console.
+
+---
+
+# Sprint 10.V — Commercial Productization (jornada comercial completa)
+
+## Jornada
+
+`DESCOBRIR → landing → criar conta → confirmar e-mail → onboarding (8 etapas)
+→ grupo/empresa → CNPJs (puláveis) → lojas → marketplaces (estados) → catálogo
+→ equipe → primeira missão sugerida → Ativação → trial → planos`
+
+Arquivos: `commercial.js` (lógica UMD testável — contas, papéis, planos, trial,
+convites, tickets, checklist), `gate.js` (landing + 11 telas de auth/estado +
+wizard de onboarding), `admin.js` (áreas Ativação · Equipe · Planos · Suporte).
+Menu ganhou o grupo "conta" com as 4 áreas novas; as 8 áreas originais intactas.
+
+## Decisões-chave
+
+- **Landing conectada**: mesmo design system e temas do produto; o "print" do
+  hero é o próprio produto renderizado (não mockup). Sem promessa de resultado
+  garantido; planos e trial declarados ("sem cartão"; escrita externa bloqueada).
+- **Gate de entrada**: primeira visita → landing; qualquer parâmetro de
+  validação ou visita anterior → app direto (sessão demonstrativa semeada).
+  Telas: login, cadastro, recuperar/redefinir senha, confirmar e-mail, convite,
+  primeiro acesso, sessão expirada, acesso negado, conta suspensa, trial expirado.
+- **Onboarding cria contexto real**: grupo/empresa (`tipoDado: DADOS REAIS`),
+  CNPJs sem validação externa (puláveis, adicionáveis depois), lojas com tipos
+  (loja ≠ marketplace), marketplaces com 5 estados — **selecionar/conectar
+  nunca habilita escrita** —, catálogo (5 modos), convites com papel+escopo e
+  primeira missão derivada do que foi feito ou pulado.
+- **Papéis com enforcement**: 11 papéis × 10 permissões em `V8COM.can()`;
+  LEITURA não edita nada; só OWNER altera plano; a UI desabilita com a razão.
+- **Trial honesto**: 14 dias, contador na barra global, estados
+  ATIVO/EXPIRANDO/EXPIRADO; expirar limita o acesso e **preserva todos os
+  dados** (não existe função de apagar conta).
+- **Planos sem cobrança**: Starter/Pro/Scale/Enterprise com limites, recursos e
+  "em breve"; upgrade cria **solicitação interna auditável**; zero Stripe,
+  zero cartão.
+- **Demo × real**: `guardDemoMix` recusa anexar dado simulado a empresa real;
+  troca de modo é explícita e auditada; a conta real começa vazia e a
+  demonstração é sempre rotulada.
+- **Suporte com estados honestos**: solicitação criada → aguardando resposta →
+  respondido → resolvido → indisponível; sem promessa de resposta em tempo real.
+
+## Validação
+
+- `mos/test/ui-v8-commercial.test.js`: 27 itens obrigatórios (suíte total:
+  **411, todos verdes**).
+- Headless: 10 auto-testes de área (incl. `?gateself=1` percorrendo cadastro →
+  onboarding completo → Ativação e `?admself=1`), landing desktop+mobile ×
+  2 temas, 8 telas de estado, jornada completa com screenshots, 12 áreas ×
+  3 larguras × 2 temas — zero erros de console.

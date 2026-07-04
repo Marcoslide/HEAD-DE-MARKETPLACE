@@ -55,7 +55,26 @@
     toggleTheme() { UI.setTheme(UI.theme() === 'dark' ? 'light' : 'dark'); },
 
     /* ---------- navegação ---------- */
-    NAMES: { home: 'Home', operacao: 'Operação', catalogo: 'Catálogo', crescimento: 'Crescimento', conexoes: 'Conexões', missao: 'A Missão', silencio: 'Silêncio', conhecimento: 'Conhecimento' },
+    NAMES: { home: 'Home', operacao: 'Operação', catalogo: 'Catálogo', crescimento: 'Crescimento', conexoes: 'Conexões', missao: 'A Missão', silencio: 'Silêncio', conhecimento: 'Conhecimento', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
+
+    /* ---------- conta comercial (10.V) ----------
+       Sessão demonstrativa: conta semeada; sessão real: criada no gate. */
+    account: null,
+    seedDemoAccount() {
+      const acc = V8COM.createAccount({
+        nome: 'Marcos', sobrenome: 'Demo', email: 'marcos@demo.example', telefone: '+55 31 90000-0000',
+        senha: 'x', empresa: 'Líder Comércio Digital LTDA', pais: 'Brasil', aceiteTermos: true, aceitePrivacidade: true,
+      });
+      acc.modo = 'DEMONSTRACAO';
+      V8COM.obGrupoEmpresa(acc, { grupo: 'Líder Group', empresa: 'Líder Comércio Digital LTDA', segmento: 'Casa e Decoração', pais: 'Brasil', porte: '10-50', modelo: 'loja física + marketplace' });
+      V8COM.obAddCnpj(acc, { nomeFiscal: 'Líder Comércio Digital LTDA', nomeFantasia: 'Matriz MG', estado: 'MG', cidade: 'Lagoa Santa', principal: true });
+      V8COM.obAddLoja(acc, { nome: 'Shopee Líder Molduras MG', tipo: 'marketplace', responsavel: 'Ana' });
+      V8COM.obSelectMarketplaces(acc, [{ marketplace: 'Shopee', estado: 'usar demonstração' }, { marketplace: 'Mercado Livre', estado: 'conectar depois' }]);
+      V8COM.obCatalogo(acc, 'catálogo demonstrativo');
+      V8COM.invite(acc, { email: 'ana@demo.example', papel: 'CATALOGO' });
+      V8COM.obComplete(acc);
+      return acc;
+    },
     go(v, sub) {
       UI.view = v;
       $$('.view').forEach(el => el.classList.toggle('on', el.id === 'v-' + v));
@@ -116,6 +135,7 @@
           ${UI._gmenu === 'notif' ? `<div class="gmenu">${notifs.length ? notifs.map(n => `<button class="gm-i" data-gact="open" data-ref="${n.ref}"><span class="sig ${n.nivel}" style="width:7px;height:7px;border-radius:50%;margin-top:5px;background:var(--${n.nivel === 'info' ? 'info' : n.nivel})"></span><span><b>${UI.esc(n.txt)}</b></span></button>`).join('') : '<div class="empty" style="padding:14px"><b>Sem notificações</b></div>'}</div>` : ''}</span>
         <span class="gwrap"><button class="gicon" data-gact="menu" data-menu="jobs" title="Jobs em andamento e concluídos nesta sessão">⚙ <span class="gbadge">${jobs.length || ''}</span></button>
           ${UI._gmenu === 'jobs' ? `<div class="gmenu">${jobs.length ? jobs.slice().reverse().map(j => `<button class="gm-i" data-gact="open" data-ref="operacao:"><span><b>${j.id} · ${UI.esc(j.acao)} (${j.total} itens)</b><span class="src">${UI.esc(j.status)} · ${UI.esc(j.autor)} · reversível</span>${j.escopo ? `<span class="src">escopo: ${UI.esc(j.escopo.empresa)} · ${j.escopo.cnpjs.length} CNPJ(s) · ${j.escopo.lojas.length} loja(s)</span>` : ''}</span></button>`).join('') : '<div class="empty" style="padding:14px"><b>Nenhum job nesta sessão</b>Ações em massa aparecem aqui com trilha.</div>'}</div>` : ''}</span>
+        ${UI.account && UI.account.plano === 'TRIAL' ? `<button class="gicon" data-gact="open" data-ref="planos:" title="Trial ativo — dias restantes; clique para ver planos e uso.">TRIAL · ${V8COM.trialDaysLeft(UI.account)}d</button>` : ''}
         <button class="gicon" onclick="UI.toggleTheme()" title="Alternar tema claro/escuro">◐</button>
         <span class="gwrap"><button class="gicon" data-gact="menu" data-menu="perfil" title="Perfil e permissões">${UI.esc(V8DATA.meta.usuario[0])} · ${UI.esc(V8DATA.meta.papel)}</button>
           ${UI._gmenu === 'perfil' ? `<div class="gmenu"><div style="padding:8px 10px;font-size:12px">
@@ -196,6 +216,7 @@
       if (e.key === 'Escape') { UI.closeDrawer(); UI.closeModal(); if (UI._gmenu) { UI._gmenu = null; UI.renderGbar(); } }
     });
 
+    if (!UI.account) UI.account = UI.seedDemoAccount();
     UI.renderGbar();
     UI.refreshBadges();
     const params = new URLSearchParams(location.search);

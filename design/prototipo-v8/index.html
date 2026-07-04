@@ -26,6 +26,11 @@
       <button data-v="missao"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>A Missão</span><em class="nbadge" data-badge="missao"></em></button>
       <button data-v="silencio"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/></svg><span>Silêncio</span><em class="nbadge" data-badge="silencio"></em></button>
       <button data-v="conhecimento"><svg viewBox="0 0 24 24"><path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2zM19 3v18M8 7h7M8 11h7"/></svg><span>Conhecimento</span><em class="nbadge" data-badge="conhecimento"></em></button>
+      <div class="eyebrow" style="padding:14px 10px 4px">conta</div>
+      <button data-v="ativacao"><svg viewBox="0 0 24 24"><path d="M4 12l5 5L20 6"/></svg><span>Ativação</span><em class="nbadge" data-badge="ativacao"></em></button>
+      <button data-v="equipe"><svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 5a3.5 3.5 0 0 1 0 7M21.5 20a6.5 6.5 0 0 0-5-6.3"/></svg><span>Equipe</span><em class="nbadge" data-badge="equipe"></em></button>
+      <button data-v="planos"><svg viewBox="0 0 24 24"><path d="M4 20V9M10 20V4M16 20v-8M22 20H2"/></svg><span>Planos</span><em class="nbadge" data-badge="planos"></em></button>
+      <button data-v="suporte"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.4 2.3c-.8.3-.9 1-.9 1.7M12 17h.01"/></svg><span>Suporte</span><em class="nbadge" data-badge="suporte"></em></button>
     </nav>
 
     <div class="side-foot">
@@ -59,8 +64,15 @@
     <section class="view" id="v-missao"></section>
     <section class="view" id="v-silencio"></section>
     <section class="view" id="v-conhecimento"></section>
+    <section class="view" id="v-ativacao"></section>
+    <section class="view" id="v-equipe"></section>
+    <section class="view" id="v-planos"></section>
+    <section class="view" id="v-suporte"></section>
   </main>
 </div>
+
+<!-- GATE COMERCIAL (10.V): landing → auth → onboarding → produto -->
+<div class="gate" id="gate" hidden></div>
 
 <!-- drawer + modal + toast -->
 <div class="drawer-wrap" id="drawerWrap" hidden>
@@ -88,6 +100,7 @@
 <script src="../../mos/src/growth/demo-growth.js"></script>
 
 <script src="data.js"></script>
+<script src="commercial.js"></script>
 <script src="app.js"></script>
 <script src="home.js"></script>
 <script src="operacao.js"></script>
@@ -97,5 +110,7 @@
 <script src="missao.js"></script>
 <script src="silencio.js"></script>
 <script src="conhecimento.js"></script>
+<script src="admin.js"></script>
+<script src="gate.js"></script>
 </body>
 </html>
