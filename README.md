@@ -32,7 +32,11 @@ Toda funcionalidade precisa passar por um único teste antes de existir:
 
 Se a resposta não for sim, a funcionalidade não entra no produto.
 
-## Estado deste repositório — Sprint 01
+## ⚖️ O documento soberano
+
+**[`CONSTITUICAO.md`](CONSTITUICAO.md)** — a Constituição do Head de Marketplace (Sprint 03). Define como o Head pensa, investiga, decide, prioriza, aprende, conversa e cala. **Todo Sprint futuro deve passar pelo Teste de Conformidade do Artigo 24 antes de ser aprovado.** Em conflito entre qualquer decisão técnica e a Constituição, a Constituição vence.
+
+## Estado deste repositório — Sprints 01–03
 
 Este sprint é **exclusivamente de produto e experiência**. Não há backend, banco, APIs nem regras de negócio aqui — por decisão, não por falta. A visão de produto premium nasce no primeiro desenho; engenharia se refatora depois, primeira impressão não.
 
