@@ -211,7 +211,7 @@ Nesta etapa utilizar apenas cenários simulados.
 
 # BLOCO 10 — WhatsApp
 
-- [ ] Construir a arquitetura completa do módulo WhatsApp.
+- [x] Construir a arquitetura completa do módulo WhatsApp.
 
 Conversation Engine
 Command Parser
