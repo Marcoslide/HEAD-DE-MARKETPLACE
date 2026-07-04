@@ -5,18 +5,21 @@
 'use strict';
 
 class AuditLog {
-  constructor() {
+  constructor({ limit = 20000 } = {}) {
     this.entries = [];
+    this.limit = limit; // ring: caixa-preta com teto (não vaza em execuções longas)
     this.listeners = [];
+    this._seq = 0;
   }
   record(engine, action, detail) {
     const entry = {
-      seq: this.entries.length + 1,
+      seq: ++this._seq,
       day: NS._currentDay || 0,
       engine, action,
       detail: detail === undefined ? null : detail,
     };
     this.entries.push(entry);
+    if (this.entries.length > this.limit) this.entries.shift();
     for (const fn of this.listeners) fn(entry);
     return entry;
   }

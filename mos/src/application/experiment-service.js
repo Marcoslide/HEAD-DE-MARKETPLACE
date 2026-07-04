@@ -81,18 +81,9 @@ class ExperimentService {
 
     const listingId = exp.listing_id;
     if (!won) {
-      /* 6.3: derrota → rollback automático para a baseline */
-      const base = this.r.version.byId(exp.baseline_version_id);
-      const restored = this.r.version.insert({
-        listing_id: listingId, number: this.r.version.nextNumber(listingId),
-        title: base.title, price: base.price,
-        images_json: JSON.parse(base.images_json || '[]'),
-        author: 'head', reason: `rollback automático: experimento ${experimentId} perdeu`,
-      });
-      this.r.listing.update(listingId, {
-        active_version_id: restored.id, title: base.title, price: base.price,
-        updated_at: new Date().toISOString(),
-      });
+      /* 6.3: derrota → rollback automático para a baseline (via Catalog) */
+      this.catalog.restoreVersion(listingId, exp.baseline_version_id,
+        { reason: `rollback automático: experimento ${experimentId} perdeu` });
       this.bus.emit('experiment.rolled_back', { experimentId, listingId });
     }
 
@@ -124,17 +115,8 @@ class ExperimentService {
       throw new ValidationError('parada antecipada só por DANO claro (MIF 6.4) — vitória precoce não encerra experimento');
     const exp = this.r.experiment.byId(experimentId);
     if (exp.status !== 'running') throw new ConflictError('experimento não está rodando');
-    const base = this.r.version.byId(exp.baseline_version_id);
-    const restored = this.r.version.insert({
-      listing_id: exp.listing_id, number: this.r.version.nextNumber(exp.listing_id),
-      title: base.title, price: base.price,
-      images_json: JSON.parse(base.images_json || '[]'),
-      author: 'head', reason: `parada por dano: ${reason}`,
-    });
-    this.r.listing.update(exp.listing_id, {
-      active_version_id: restored.id, title: base.title, price: base.price,
-      updated_at: new Date().toISOString(),
-    });
+    this.catalog.restoreVersion(exp.listing_id, exp.baseline_version_id,
+      { reason: `parada por dano: ${reason}` });
     const updated = this.r.experiment.update(experimentId, {
       status: 'stopped_early', result_json: { stoppedFor: reason },
       concluded_at: new Date().toISOString(),

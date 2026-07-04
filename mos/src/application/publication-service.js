@@ -8,12 +8,12 @@
    Cada passo grava publication_history (auditável) e publica evento.
    A aprovação é SEMPRE do dono (publicar é Classe C — MIF 7.2). */
 'use strict';
-const { ValidationError, ConflictError } = require('../kernel/errors.js');
+const { ConflictError } = require('../kernel/errors.js');
 
 class PublicationService {
-  constructor({ repos, bus, queues, providers, logger }) {
+  constructor({ repos, bus, queues, providers, catalog, logger }) {
     this.r = repos; this.bus = bus; this.queues = queues;
-    this.providers = providers; this.log = logger;
+    this.providers = providers; this.catalog = catalog; this.log = logger;
 
     /* a publicação pesada roda na fila, não no request */
     this.queues.publication.process(async job => this._executePublish(job.data));
@@ -104,21 +104,13 @@ class PublicationService {
     return result;
   }
 
-  /* rollback: restaurar versão anterior (reversibilidade é lei) */
+  /* rollback: restaurar versão anterior (reversibilidade é lei).
+     A restauração em si vive APENAS no CatalogService — aqui só o
+     registro de publicação e o evento do domínio de publicação. */
   rollback(listingId, toVersionId) {
     const v = this.r.version.byId(toVersionId);
-    if (v.listing_id !== listingId) throw new ValidationError('versão não pertence ao anúncio');
-    const restored = this.r.version.insert({
-      listing_id: listingId,
-      number: this.r.version.nextNumber(listingId),
-      title: v.title, description: v.description, price: v.price,
-      images_json: JSON.parse(v.images_json || '[]'),
-      author: 'head', reason: `rollback para v${v.number}`,
-    });
-    this.r.listing.update(listingId, {
-      active_version_id: restored.id, title: v.title, price: v.price,
-      updated_at: new Date().toISOString(),
-    });
+    const restored = this.catalog.restoreVersion(listingId, toVersionId,
+      { reason: `rollback para v${v.number}` });
     this._history(listingId, restored.id, 'rollback', { from: toVersionId });
     this.bus.emit('publication.rolled_back', { listingId, to: restored.id });
     return restored;

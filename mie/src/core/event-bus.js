@@ -24,10 +24,11 @@
 'use strict';
 
 class EventBus {
-  constructor(audit) {
+  constructor(audit, { historyLimit = 10000 } = {}) {
     this.audit = audit;
     this.subs = new Map();
     this.history = [];
+    this.historyLimit = historyLimit; // ring: teto em execuções longas
   }
   on(type, fn) {
     if (!this.subs.has(type)) this.subs.set(type, []);
@@ -36,6 +37,7 @@ class EventBus {
   emit(type, payload) {
     const event = { type, payload, day: NS._currentDay || 0 };
     this.history.push(event);
+    if (this.history.length > this.historyLimit) this.history.shift();
     if (this.audit) this.audit.record('bus', type, summarize(payload));
     for (const fn of this.subs.get(type) || []) fn(payload, event);
     return event;

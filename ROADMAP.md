@@ -53,9 +53,9 @@ Regras da arquitetura:
 |---|---|---|
 | 1 · Constitucional | ✅ **construída** | `CONSTITUICAO.md` (25 artigos, cláusulas pétreas, Teste de Conformidade) |
 | 2 · Conhecimento | ✅ **fundada** · expande sempre | `MIF.md` v1 (8 doutrinas) · Knowledge Base por vir |
-| 3 · Operacional | ✅ **fundada** · cresce por acréscimo | `MOS.md` v1 (Fluxos 001–010) |
+| 3 · Operacional | ✅ **fundada** · cresce por acréscimo | `MOS.md` v1 (Fluxos 001–010) · fluxos 001/007/009 já executáveis em `mos/` |
 | 4 · Cognitiva | ✅ **fundada** · v1 sobre dados simulados | [`mie/`](mie/README.md) — 7 motores + 7 especialistas + playbooks executáveis + 17 testes de conformidade + Debug Console |
-| 5 · Execução | ⏳ futura | backend, banco, Collector, APIs, WhatsApp, publicação |
+| 5 · Execução | ✅ **fundada** · simulada por interface | [`mos/`](mos/README.md) — backend DDD/EDA/Clean, banco (23 entidades), API REST+OpenAPI, Collector, WhatsApp, publicação e experimentação (tudo simulado, contratos prontos p/ integração real) |
 | 6 · Experiência | ✅ **fundada** · evolui com as demais | `docs/01–05` + `design/prototipo-v2` (navegável) |
 
 ---

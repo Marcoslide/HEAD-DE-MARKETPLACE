@@ -84,12 +84,13 @@ class CatalogService {
     return version;
   }
 
-  restoreVersion(listingId, versionId) {
+  restoreVersion(listingId, versionId, { reason = null } = {}) {
     const v = this.r.version.byId(versionId);
     if (v.listing_id !== listingId) throw new ValidationError('versão não pertence ao anúncio');
     const restored = this.createVersion(listingId, {
       title: v.title, description: v.description, price: v.price,
-      author: 'head', reason: `restauração da v${v.number}`,
+      images: JSON.parse(v.images_json || '[]'),
+      author: 'head', reason: reason || `restauração da v${v.number}`,
     });
     this.bus.emit('listing.version_restored', { listingId, from: versionId, to: restored.id });
     return restored;

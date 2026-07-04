@@ -263,7 +263,7 @@ Sem alterar a interface do cliente.
 
 # BLOCO 13 — Testes
 
-- [ ] Criar testes automatizados cobrindo todos os módulos implementados.
+- [x] Criar testes automatizados cobrindo todos os módulos implementados.
 
 Sucesso.
 Falha.
@@ -276,7 +276,7 @@ Regressão.
 
 # BLOCO 14 — Refatoração
 
-- [ ] Executar revisão completa do projeto procurando código duplicado, acoplamentos, problemas arquiteturais, gargalos de performance, oportunidades de simplificação e melhoria de legibilidade.
+- [x] Executar revisão completa do projeto procurando código duplicado, acoplamentos, problemas arquiteturais, gargalos de performance, oportunidades de simplificação e melhoria de legibilidade.
 
 Corrigir automaticamente tudo que encontrar.
 
@@ -284,7 +284,7 @@ Corrigir automaticamente tudo que encontrar.
 
 # BLOCO 15 — CTO Review
 
-- [ ] Ao concluir todas as tarefas anteriores, assumir o papel de CTO de uma empresa global de tecnologia.
+- [x] Ao concluir todas as tarefas anteriores, assumir o papel de CTO de uma empresa global de tecnologia.
 
 Realizar uma auditoria completa do Marketplace Operating System.
 
