@@ -337,7 +337,38 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   +23 testes (30 garantias). Demo: node mos/demo-compliance.js.
   Doc em docs/catalog-rule-compliance-engine.md.
 
-**Suíte total: 212 testes, 212 verdes.** (189 + 23 do Compliance)
+- **Sprint 10.A — Conexões reais, WhatsApp, Mercado Livre e piloto** —
+  *concluído. Pronto para ativação real hoje (checklist externa em
+  docs/live-activation-checklist.md).* Área CONEXÕES vira parte principal
+  do produto (v5: Home · Operação · Catálogo · Conexões · A Missão ·
+  Silêncio · Conhecimento). WhatsApp Business SOMENTE pela via oficial:
+  webhook de verificação + inbound com assinatura HMAC do corpo cru,
+  deduplicação pelo id oficial, eventos normalizados por companyId;
+  piloto de resposta (flag + allowlist de admin) responde pela MESMA
+  Operational Query Layer — e comando de ação SEMPRE redireciona para
+  Conexões (WhatsApp nunca executa). OAuth REAL do Mercado Livre: state
+  de uso único com expiração, troca de code backend-only, tokens no vault
+  cifrado do S09, identidade validada, sync inicial READ_ONLY pelo MESMO
+  SyncOrchestrator (transporte HTTP no lugar do fixture). TRAVA dos
+  PROVISIONAL: categoria/atributos confirmados na fonte OFICIAL pós-OAuth
+  (snapshot com fonte/hora/versão) antes do Dry Run — mock rotulado nunca
+  se passa por oficial. Creative Intelligence v1 (só ML): 8 tipos,
+  Product Truth Pack imutável com hashes (INSUFFICIENT_PRODUCT_TRUTH
+  quando faltam dados), provider por env + flag OFF (sem provider →
+  briefing + fila pendente, nunca imagem fake), validação de fidelidade
+  (divergência bloqueia aprovação) e revisão humana SEMPRE obrigatória.
+  PILOTO (exceção única de escrita): DRY_RUN sem chamada externa →
+  READY_FOR_PILOT → confirmação explícita (admin + flag por
+  empresa/conta/usuário + OAuth real + conta confirmada + digitar
+  "CRIAR ANÚNCIO PILOTO REAL") → 1 anúncio; idempotência
+  draft+conta+hash (nunca 2); falha sem retry automático; jamais via
+  Chat/WhatsApp; Shopee/TikTok/Magalu seguem sem escrita. 6 feature
+  flags default false; 8 tabelas aditivas; rotas de webhook/OAuth/board/
+  piloto; +18 testes (30 garantias). Demo: node mos/demo-live.js. Docs:
+  live-connections-and-pilot.md, product-fidelity-protocol.md,
+  live-activation-checklist.md.
+
+**Suíte total: 230 testes, 230 verdes.** (212 + 18 do live)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

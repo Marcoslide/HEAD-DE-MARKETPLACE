@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Head de Marketplace — v5</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">H</div>
+      <div><div class="name">Head de Marketplace</div><div class="sub">operação de Marcos</div></div>
+    </div>
+    <nav class="nav" id="nav" aria-label="Navegação principal">
+      <button data-v="home" class="active"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 10.5 12 3l9 7.5V21H3z"/></svg>Home<span class="badge" id="badgeHome">2</span></button>
+      <button data-v="operacao"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/></svg>Operação</button>
+      <button data-v="catalogo"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg>Catálogo<span class="badge" id="badgeCatalog"></span></button>
+      <button data-v="conexoes"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M9 12a4 4 0 0 1 4-4h4a4 4 0 0 1 0 8h-2M15 12a4 4 0 0 1-4 4H7a4 4 0 0 1 0-8h2"/></svg>Conexões<span class="badge" id="badgeConn"></span></button>
+      <button data-v="missoes"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>A Missão<span class="badge live" id="badgeMissions">8</span></button>
+      <button data-v="silencio"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/></svg>Silêncio</button>
+      <button data-v="conhecimento"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2zM19 3v18M8 7h7M8 11h7"/></svg>Conhecimento</button>
+    </nav>
+    <div class="pulse-box" id="pulseBox" role="button" tabindex="0" aria-label="Ver missões">
+      <div class="pulse-head"><span class="dot" id="pulseDot"></span><span id="pulseState">Trabalhando agora</span></div>
+      <div class="pulse-msg" id="pulseMsg"></div>
+      <div class="pulse-link" id="pulseLink">8 missões ativas →</div>
+    </div>
+  </aside>
+
+  <main class="main">
+
+    <!-- HOME · PLANO DO DIA -->
+    <section class="view on" id="v-home">
+      <div class="brief">
+        <div class="eyebrow" id="dateline"></div>
+        <h1 id="greeting" style="margin-top:14px"></h1>
+        <p class="lede" id="lede"></p>
+
+        <!-- o funil de atenção do EPE -->
+        <div class="funnel" id="funnel"></div>
+        <p class="silence-note" style="margin-top:10px" id="funnelNote"></p>
+
+        <!-- o que importa hoje -->
+        <div class="section" style="margin-top:24px">
+          <div class="section-h"><span class="eyebrow">Hoje sua atenção deve ir para</span></div>
+          <div class="attention" id="attention"></div>
+        </div>
+        <p class="sign" id="signature"></p>
+
+        <!-- entrada rápida e discreta: Home mostra; Operação responde -->
+        <div class="ask-head" id="askHead">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="16" height="16"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/></svg>
+          <input id="askHeadInput" placeholder="Pergunte ao Head — &quot;Quanto vendi hoje?&quot;" aria-label="Pergunte ao Head" autocomplete="off">
+          <button id="askHeadGo" aria-label="Perguntar">→</button>
+        </div>
+      </div>
+
+      <!-- decisões priorizadas -->
+      <div class="section">
+        <div class="section-h"><span class="eyebrow" id="decisionsTitle">Aguardando sua decisão</span>
+          <span class="more" style="color:var(--text-3)">priorizadas pelo EPE</span></div>
+        <div id="decisions"></div>
+      </div>
+
+      <!-- silêncio inteligente (resumo) -->
+      <div class="section">
+        <div class="section-h"><span class="eyebrow">O que eu decidi não te mostrar</span>
+          <button class="more" data-go="silencio">ver tudo →</button></div>
+        <p class="silence-note">Filtrei estes por baixo impacto, ruído ou falta de confiança — para você não gastar atenção à toa.</p>
+        <div class="silence-list" id="silencePreview"></div>
+      </div>
+    </section>
+
+    <!-- OPERAÇÃO · Central Operacional Conversacional (Sprint 09.A) -->
+    <section class="view" id="v-operacao">
+      <div class="op-head">
+        <div>
+          <div class="eyebrow">Operação · pergunte qualquer coisa sobre a empresa</div>
+          <p class="silence-note" style="margin-top:6px">Home mostra o que merece sua atenção. Aqui eu respondo o que você quiser saber agora — com fonte, horário e cobertura. Em modo leitura: comandos viram proposta para sua aprovação.</p>
+        </div>
+        <div class="op-cmds">
+          <button class="chip" data-cmd="briefing">Briefing da manhã</button>
+          <button class="chip" data-cmd="radar">Radar operacional</button>
+          <button class="chip" data-cmd="closing">Fechamento do dia</button>
+        </div>
+      </div>
+      <div class="op-shortcuts" id="opShortcuts" aria-label="Atalhos de consulta"></div>
+      <div class="chat" id="opChat" style="margin-top:18px" aria-live="polite"></div>
+      <div class="suggest" id="opSuggest"></div>
+      <div class="composer">
+        <input id="opInput" placeholder="Pergunte ao Head… (⌘K)" aria-label="Pergunte ao Head" autocomplete="off">
+        <button class="send" id="opSend" aria-label="Enviar">→</button>
+      </div>
+    </section>
+
+    <!-- CATÁLOGO · produtos, readiness, compliance e rascunhos (Sprint 10) -->
+    <section class="view" id="v-catalogo">
+      <div class="cat-banner">MODO LEITURA · VALIDAÇÃO INTERNA · NADA FOI PUBLICADO NO MARKETPLACE</div>
+      <div class="section-h flat" style="margin-top:14px"><span class="eyebrow">Catálogo · produtos, requisitos e prontidão por marketplace</span>
+        <span class="more" id="catPackNote"></span></div>
+      <div class="cat-overview" id="catOverview"></div>
+      <div class="section" id="catListWrap">
+        <div class="section-h"><span class="eyebrow">Produtos</span></div>
+        <div id="catList"></div>
+      </div>
+      <div class="section" id="catDetail" style="display:none"></div>
+    </section>
+
+    <!-- CONEXÕES · WhatsApp, OAuth, marketplaces, pilotos (Sprint 10.A) -->
+    <section class="view" id="v-conexoes">
+      <div class="cat-banner">Modo demonstração — nenhuma conta foi conectada ou anúncio foi criado</div>
+      <div class="section-h flat" style="margin-top:14px"><span class="eyebrow">Conexões · canais, contas, saúde e pilotos</span>
+        <span class="more" id="connNote"></span></div>
+      <div id="connCards" class="conn-grid"></div>
+      <div class="section" id="connDetail" style="display:none"></div>
+      <div class="section" id="pilotFlow" style="display:none"></div>
+    </section>
+
+    <!-- MISSÕES -->
+    <section class="view" id="v-missoes">
+      <div class="section-h flat"><span class="eyebrow">Missões · ordenadas por prioridade executiva</span><span class="more" id="missionsCount"></span></div>
+      <div id="missions"></div>
+      <div class="section">
+        <div class="section-h"><span class="eyebrow">Histórico de hoje</span></div>
+        <div class="history" id="history"><div><time>—</time>Nenhuma ação sua ainda. Aprove ou recuse uma decisão na Home.</div></div>
+      </div>
+    </section>
+
+    <!-- SILÊNCIO -->
+    <section class="view" id="v-silencio">
+      <div class="section-h flat"><span class="eyebrow">Silêncio inteligente · o que decidi não te mostrar</span></div>
+      <p class="silence-note">Um bom Head sabe calar. De 317 sinais, 302 não mereciam sua atenção. Aqui está o que segurei e por quê — auditável, mas fora do seu caminho.</p>
+      <div class="silence-list" id="silenceFull"></div>
+    </section>
+
+    <!-- CONHECIMENTO -->
+    <section class="view" id="v-conhecimento">
+      <div class="section-h flat"><span class="eyebrow">Conhecimento · o cérebro do Head</span></div>
+      <p class="silence-note">O EPE prioriza usando o que o Head já aprendeu: o consenso do conselho de especialistas e os precedentes do Knowledge Graph. Por isso "Reposicionar" subiu — já funcionou nesta categoria antes.</p>
+      <article class="card"><div class="eyebrow"><span class="tag pos">Estratégia vencedora</span></div>
+        <h3 class="voice">Reposicionar pelo diferencial venceu cobrir preço nesta categoria — margem preservada, conversão recuperada em 9 dias.</h3>
+        <div style="margin-top:10px;font-size:12.5px;color:var(--text-3)">peso no grafo: ●●○ · reaproveitada na decisão 1 de hoje</div></article>
+      <article class="card"><div class="eyebrow"><span class="tag pos">Objeção recorrente</span></div>
+        <h3 class="voice">"Veio diferente da foto" aparece em 31% das devoluções — foto com escala real corta o problema.</h3>
+        <div style="margin-top:10px;font-size:12.5px;color:var(--text-3)">virou a decisão 2 de hoje</div></article>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<!-- Camada COMPARTILHADA do Head Chat (Sprint 09.A) — os MESMOS arquivos
+     que a API/testes usam em Node. Nenhuma lógica de resposta vive no v3. -->
+<script src="../../mie/src/core/clock.js"></script>
+<script src="../../mos/src/chat/interpreter.js"></script>
+<script src="../../mos/src/chat/period.js"></script>
+<script src="../../mos/src/chat/demo-dataset.js"></script>
+<script src="../../mos/src/chat/query-layer.js"></script>
+<script src="../../mos/src/chat/composer.js"></script>
+<script src="../../mos/src/chat/head-chat.js"></script>
+
+<script src="../../mos/src/compliance/rule-packs.js"></script>
+<script src="../../mos/src/compliance/engine.js"></script>
+<script src="../../mos/src/compliance/demo-products.js"></script>
+<script src="../../mos/src/compliance/chat-adapter.js"></script>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+<script src="chat-operacao.js"></script>
+<script src="catalogo.js"></script>
+<script src="conexoes.js"></script>
+</body>
+</html>

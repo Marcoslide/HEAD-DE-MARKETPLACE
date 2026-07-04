@@ -41,11 +41,13 @@ class Router {
       const match = url.pathname.match(route.regex);
       route.keys.forEach((k, i) => { params[k] = decodeURIComponent(match[i + 1]); });
       const query = Object.fromEntries(url.searchParams);
-      const body = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readJson(req) : null;
+      const read = ['POST', 'PATCH', 'PUT'].includes(req.method) ? await readJson(req) : null;
+      const body = read ? read.parsed : null;
+      const rawBody = read ? read.raw : '';
 
       if (route.schema) validate(body || {}, route.schema);
 
-      const result = await route.handler({ params, query, body, requestId, log });
+      const result = await route.handler({ params, query, body, rawBody, headers: req.headers, requestId, log });
       if (result && result._html) {
         res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'x-request-id': requestId });
         res.end(result._html);
@@ -83,7 +85,8 @@ function readJson(req) {
     });
     req.on('end', () => {
       if (!chunks.length) return resolve(null);
-      try { resolve(JSON.parse(Buffer.concat(chunks).toString('utf8'))); }
+      const raw = Buffer.concat(chunks).toString('utf8');
+      try { const parsed = JSON.parse(raw); resolve({ parsed, raw }); }
       catch { reject(new ValidationError('JSON inválido no corpo da requisição')); }
     });
     req.on('error', reject);

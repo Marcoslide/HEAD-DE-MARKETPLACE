@@ -49,11 +49,13 @@ test('queue: concorrência limitada, retry com backoff e dead-letter', async () 
 
 /* ================= BANCO (Bloco 03) ================= */
 
-test('banco: migração completa (23 núcleo + 10 Central S09 + 5 Compliance S10)', () => {
+test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A)', () => {
   const mos = createMOS();
   const tables = mos.db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`)
     .map(r => r.name).sort();
-  const expected = ['audit_log', 'company', 'competitor', 'competitor_snapshot', 'decision',
+  const expected = ['audit_log', 'category_snapshot', 'company', 'competitor', 'competitor_snapshot',
+    'creative_asset', 'decision', 'feature_flag', 'oauth_state', 'pilot_run', 'product_truth_pack',
+    'whatsapp_connection', 'whatsapp_event',
     'execution_plan', 'experiment', 'integration_event', 'investigation', 'keyword',
     'keyword_trend', 'learning', 'listing', 'listing_draft', 'listing_version',
     'marketplace_connection', 'marketplace_credential', 'marketplace_inventory',
@@ -62,7 +64,7 @@ test('banco: migração completa (23 núcleo + 10 Central S09 + 5 Compliance S10
     'marketplace_sync_state', 'memory', 'mission', 'opportunity', 'product',
     'product_asset', 'product_profile', 'public_research_evidence', 'publication_history',
     'question', 'raw_marketplace_payload', 'review', 'user', 'validation_run', 'workspace'];
-  assert.deepEqual(tables, expected);
+  assert.deepEqual(tables, expected.sort());
   mos.close();
 });
 
