@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>MOS · Dev Panel</title>
+<style>
+:root{--bg:#0B0C10;--s:#12141A;--s2:#181B23;--line:#23262F;--t:#EDEEF2;--t2:#9DA1AC;--t3:#5D616C;
+  --amber:#E3A94F;--green:#58C48A;--red:#E06661;--mono:ui-monospace,Menlo,Consolas,monospace}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--t);font:13px/1.5 -apple-system,"Segoe UI",system-ui,sans-serif;padding:16px}
+h1{font-size:14px;display:flex;gap:10px;align-items:center;margin-bottom:14px}
+h1 .tag{font:600 10px var(--mono);color:var(--amber);border:1px solid rgba(227,169,79,.4);border-radius:5px;padding:3px 7px}
+h1 small{color:var(--t3);font-weight:400;margin-left:auto}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:10px;align-items:start}
+.panel{background:var(--s);border:1px solid var(--line);border-radius:10px;padding:12px}
+.panel h2{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--t3);margin-bottom:8px}
+.row{padding:5px 8px;border-radius:6px;background:var(--s2);margin-bottom:3px;font-size:12px;color:var(--t2)}
+.row b{color:var(--t)}
+.mono{font-family:var(--mono);font-size:11px}
+.kpis{display:flex;gap:8px;flex-wrap:wrap}
+.kpi{background:var(--s2);border-radius:8px;padding:8px 12px;min-width:86px}
+.kpi .n{font:700 17px var(--mono);color:var(--amber)}
+.kpi .l{font-size:10px;color:var(--t3);text-transform:uppercase;letter-spacing:.06em}
+.kpi.ok .n{color:var(--green)} .kpi.bad .n{color:var(--red)}
+.scroll{max-height:240px;overflow:auto}
+.err{color:var(--red)} .warn{color:var(--amber)}
+</style>
+</head>
+<body>
+<h1><span class="tag">MOS</span> Painel de Observabilidade — interno, desenvolvimento
+  <small id="ts">carregando…</small></h1>
+
+<div class="grid">
+  <div class="panel" style="grid-column:1/-1"><h2>Visão geral</h2><div class="kpis" id="kpis"></div></div>
+  <div class="panel"><h2>Motores (MIE)</h2><div class="scroll" id="engines"></div></div>
+  <div class="panel"><h2>Especialistas — últimos pareceres</h2><div class="scroll" id="specialists"></div></div>
+  <div class="panel"><h2>Filas</h2><div class="scroll" id="queues"></div></div>
+  <div class="panel"><h2>Eventos</h2><div class="scroll" id="events"></div></div>
+  <div class="panel"><h2>Logs estruturados</h2><div class="scroll" id="logs"></div></div>
+  <div class="panel"><h2>Missões</h2><div class="scroll" id="missions"></div></div>
+  <div class="panel"><h2>Memória</h2><div class="scroll" id="memory"></div></div>
+  <div class="panel"><h2>Execution Plans</h2><div class="scroll" id="plans"></div></div>
+  <div class="panel"><h2>Aprendizado</h2><div class="scroll" id="learning"></div></div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const j = p => fetch(p).then(r => r.json());
+
+async function refresh() {
+  try {
+    const [ov, ev, lg, qs, ms, mem, pl, lr, mie] = await Promise.all([
+      j('/__dev/overview'), j('/__dev/events?limit=25'), j('/__dev/logs?limit=25'),
+      j('/__dev/queues'), j('/__dev/missions'), j('/__dev/memory'),
+      j('/__dev/plans'), j('/__dev/learning'), j('/__dev/mie')]);
+
+    $('ts').textContent = new Date().toLocaleTimeString('pt-BR') + ' · atualiza a cada 2s';
+
+    $('kpis').innerHTML = [
+      ['decisões', ov.db.decisions], ['missões', ov.db.missions], ['anúncios', ov.db.listings],
+      ['memória', ov.db.memory], ['planos', ov.db.plans], ['auditoria', ov.db.audit],
+      ['eventos', ov.events.total], ['logs', ov.logs.total],
+    ].map(([l, n]) => `<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('')
+      + (ov.logs.errors ? `<div class="kpi bad"><div class="n">${ov.logs.errors}</div><div class="l">erros</div></div>` : '')
+      + (ov.mie ? `<div class="kpi ok"><div class="n">c${ov.mie.day}</div><div class="l">ciclo MIE</div></div>` : '');
+
+    $('engines').innerHTML = !mie.attached ? '<div class="row">nenhum MIE acoplado a esta instância</div>' :
+      `<div class="row">Investigation: <b>${mie.engines.investigation.cases.length}</b> casos recentes</div>` +
+      mie.engines.investigation.cases.map(c =>
+        `<div class="row mono">${c.id} · ${esc(c.playbook)} → ${esc(c.cause || '…')} <span class="warn">[${esc(c.confidence || '')}]</span></div>`).join('') +
+      `<div class="row">Prioritization: <b>${mie.engines.prioritization.pending.length}</b> na mesa · ${mie.engines.prioritization.watchlist} vigiadas · ${mie.engines.prioritization.interrupts} incidentes</div>` +
+      `<div class="row">Learning: <b>${mie.engines.learning.evaluations}</b> avaliações · acerto ${mie.engines.learning.accuracy == null ? '—' : Math.round(mie.engines.learning.accuracy * 100) + '%'}</div>` +
+      `<div class="row">Memory: <b>${mie.engines.memory.knowledge.length}</b> conhecimentos · ${mie.engines.memory.baselines} baselines</div>`;
+
+    $('specialists').innerHTML = !mie.attached ? '' :
+      (mie.lastPareceres.length ? mie.lastPareceres.map(p =>
+        `<div class="row"><b>${esc(p.domain)}</b> <span class="warn">[${esc(p.confianca)}]</span><br>${esc(p.constatacao)}</div>`).join('')
+        : '<div class="row">sem pareceres ainda — injete um cenário no MIE</div>');
+
+    $('queues').innerHTML = qs.items.map(q =>
+      `<div class="row mono"><b>${q.name}</b> · pend ${q.pending} · ativo ${q.active} · ok ${q.processed}` +
+      (q.deadLetter.length ? ` · <span class="err">dead ${q.deadLetter.length}</span>` : '') + '</div>').join('');
+
+    $('events').innerHTML = ev.items.map(e =>
+      `<div class="row mono">#${e.seq} ${esc(e.type)}</div>`).join('');
+
+    $('logs').innerHTML = lg.items.map(l =>
+      `<div class="row mono ${l.level === 'error' ? 'err' : l.level === 'warn' ? 'warn' : ''}">[${esc(l.level)}] ${esc(l.msg)} ${esc(JSON.stringify(Object.fromEntries(Object.entries(l).filter(([k]) => !['ts','level','msg'].includes(k)))))}</div>`).join('')
+      || '<div class="row">sem logs no nível atual</div>';
+
+    $('missions').innerHTML = ms.items.map(m =>
+      `<div class="row"><b>${esc(m.kind)}</b> ${esc(m.title)} <span class="mono">[${esc(m.status)}]</span><br><small>${esc(m.origin)}</small></div>`).join('')
+      || '<div class="row">nenhuma missão</div>';
+
+    $('memory').innerHTML = mem.items.map(k =>
+      `<div class="row"><span class="warn">${'●'.repeat(k.strength)}${'○'.repeat(3 - k.strength)}</span> <span class="mono">${esc(k.key)}</span><br>${esc(k.discovery)}</div>`).join('')
+      || '<div class="row">memória vazia</div>';
+
+    $('plans').innerHTML = pl.items.map(p =>
+      `<div class="row"><b>${esc(p.title)}</b> <span class="mono">[${esc(p.status)}]</span>` +
+      (p.prediction_json ? `<br><small class="mono">previsão: ${esc(p.prediction_json)}</small>` : '') + '</div>').join('')
+      || '<div class="row">nenhum plano</div>';
+
+    $('learning').innerHTML = lr.items.map(l =>
+      `<div class="row mono">${esc(l.strategy_type)} · previsto ${esc(l.predicted_json)} · real ${l.actual ?? '—'} · ${l.hit ? '<span style="color:var(--green)">acerto</span>' : '<span class="err">erro</span>'}</div>`).join('')
+      || '<div class="row">nenhum ciclo fechado ainda</div>';
+  } catch (e) {
+    $('ts').textContent = 'erro ao atualizar: ' + e.message;
+  }
+}
+refresh();
+setInterval(refresh, 2000);
+</script>
+</body>
+</html>

@@ -243,7 +243,7 @@ Tudo utilizando ambiente simulado.
 
 # BLOCO 12 — Observabilidade
 
-- [ ] Criar um painel interno exclusivo para desenvolvimento.
+- [x] Criar um painel interno exclusivo para desenvolvimento.
 
 Visualizar:
 

@@ -4,6 +4,7 @@
    DTOs em camelCase; linhas do banco em snake_case nunca vazam cruas. */
 'use strict';
 const { Router } = require('./router.js');
+const { mountObservability } = require('./observability.js');
 
 /* ---------- DTOs ---------- */
 const dto = {
@@ -39,9 +40,10 @@ const dto = {
 };
 
 /* ---------- rotas ---------- */
-function createApi(mos) {
+function createApi(mos, { dev = true, mie = null } = {}) {
   const router = new Router({ logger: mos.logger.child({ mod: 'http' }) });
   const { services, repos } = mos;
+  if (dev) mountObservability(router, mos, { mie });
 
   router.get('/health', { summary: 'Saúde da plataforma', tags: ['sistema'] },
     () => ({ ok: true, uptime: process.uptime() }));

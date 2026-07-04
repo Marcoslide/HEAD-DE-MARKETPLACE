@@ -46,6 +46,12 @@ class Router {
       if (route.schema) validate(body || {}, route.schema);
 
       const result = await route.handler({ params, query, body, requestId, log });
+      if (result && result._html) {
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'x-request-id': requestId });
+        res.end(result._html);
+        log.info('request', { status: 200, ms: Date.now() - started });
+        return;
+      }
       const status = result && result._status ? result._status : 200;
       if (result && result._status) delete result._status;
       send(res, status, result ?? { ok: true }, requestId);
