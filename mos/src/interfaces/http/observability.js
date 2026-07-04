@@ -8,7 +8,39 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
-function mountObservability(router, mos, { mie = null, central = null } = {}) {
+function mountObservability(router, mos, { mie = null, central = null, chat = null } = {}) {
+
+  /* ---------- Head Chat Operational Intelligence (Sprint 09.A) ---------- */
+  if (chat) {
+    router.post('/chat', { summary: 'Conversa com o Head (operacional)', tags: ['chat'] },
+      ({ body }) => {
+        if (!body || !body.text) throw new Error('body.text é obrigatório');
+        const r = chat.ask(body.text);
+        return { reply: r.reply, intent: r.intent,
+                 dataSource: r.facts ? r.facts.dataSource : null };
+      });
+    router.get('/chat/briefing', { summary: 'Briefing da manhã', tags: ['chat'] },
+      () => ({ message: chat.briefing().message }));
+    router.get('/chat/radar', { summary: 'Radar operacional', tags: ['chat'] },
+      () => ({ message: chat.radar().message }));
+    router.get('/chat/closing', { summary: 'Fechamento do dia', tags: ['chat'] },
+      () => ({ message: chat.closing().message }));
+
+    router.get('/__dev/chat', { summary: 'Debug do Head Chat: intenção, consulta, fonte', tags: ['dev'] },
+      () => ({
+        readOnly: chat.readOnly,
+        clock: { timezone: chat.clock.timezone, now: chat.clock.nowIso(), kind: chat.clock.kind },
+        dataset: { source: chat.dataset.source, isLive: chat.dataset.isLive,
+                   coverage: chat.dataset.connectedPlatforms,
+                   missingPlatforms: chat.dataset.missingPlatforms },
+        lastTrace: chat.lastTrace,                 // intenção + consulta + fonte + falhas
+        contextActive: chat.context ? {
+          metric: chat.context.metric, platforms: chat.context.platforms,
+          period: chat.context.period && chat.context.period.type } : null,
+        proposals: chat.proposals,
+        memoryNotes: chat.memoryNotes.length,
+      }));
+  }
 
   /* ---------- Integrações de Marketplace (Central, Sprint 09) ---------- */
   if (central) {

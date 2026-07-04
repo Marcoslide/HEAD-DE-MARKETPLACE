@@ -261,12 +261,17 @@ const DATA = {
 
   knowledgeCols: ["Tudo", "Palavras-chave", "Criativos vencedores", "Objeções recorrentes", "Estratégias aprovadas", "Padrões descobertos"],
 
-  /* ---------- Conversa: sugestões e respostas roteirizadas ---------- */
+  /* ---------- Conversa: sugestões (Sprint 09.A — chat operacional) ---------- */
   suggestions: [
-    "Por que minhas vendas caíram?",
-    "Crie três versões desse anúncio",
-    "Faça um anúncio para este produto",
-    "Analise este concorrente",
-    "O que devo fazer hoje?"
+    "Quanto vendi hoje?",
+    "Quantos pedidos faltam enviar?",
+    "Como está minha operação?",
+    "Quanto gastei de Ads?",
+    "Como está minha conversão?",
+    "O que está acabando?",
+    "Onde estou perdendo dinheiro?",
+    "Compare Shopee e Mercado Livre",
+    "Qual decisão precisa de mim?",
+    "Por que você priorizou isso?"
   ]
 };

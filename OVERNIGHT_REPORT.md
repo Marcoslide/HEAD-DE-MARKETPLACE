@@ -267,7 +267,32 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   validação pré-publicação); a evolução do Conselho para sinais reais se
   integra a ele, sem substituí-lo.
 
-**Suíte total: 155 testes, 155 verdes.** (133 + 22 da Central)
+- **Sprint 09.A — Head Conversational Operating Intelligence** — *concluído*:
+  o chat deixa de ser chatbot genérico e vira **Central Operacional
+  Conversacional** (`mos/src/chat/`). Trava do sprint cumprida por
+  construção: **zero respostas hardcoded, zero números inventados** — toda
+  pergunta percorre Intent Router → Context Resolver → consulta TIPADA →
+  Query Layer → fatos → Response Composer; a interpretação nunca produz
+  número; sem dado disponível a resposta é honesta ("Não vou inventar um
+  número"). 7 intenções (operacional, risco, explicação de decisão via
+  EPE com breakdown/proveniência, ação → proposta READ_ONLY, simulação
+  sempre "CENÁRIO ESTIMADO", estratégia, preferência→memória). Pergunta
+  factual NUNCA vira missão/"anotei"; no máximo UM alerta, sempre DEPOIS
+  da resposta. Contexto conversacional ("E na Shopee?", "E ontem?" →
+  compara até o MESMO horário). Métricas com as diferenças que importam
+  (bruto≠líquido≠liquidado; "quantos"=contagem; ROAS/ACOS/CPA com base
+  declarada; conversão NUNCA sem denominador; estoque
+  disponível≠reservado≠produção). Demo Operational Dataset coerente +
+  `datasetFromCentral` com o MESMO contrato (testado: mesmas chaves de
+  fatos nas duas fontes; isolamento por empresa A×B) — quando ML/Shopee
+  conectarem, a mesma conversa responde com dado real. Briefing da manhã,
+  radar, fechamento do dia e simulações. Rotas `POST /chat`,
+  `/chat/briefing|radar|closing` e `/__dev/chat` (intenção, consulta
+  estruturada, fonte, cobertura, falhas). Chips do protótipo v2
+  atualizados. +24 testes (as 28 garantias). Demo: `node mos/demo-chat.js`.
+  Doc em `docs/head-conversational-operating-intelligence.md`.
+
+**Suíte total: 179 testes, 179 verdes.** (155 + 24 do Head Chat)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*
