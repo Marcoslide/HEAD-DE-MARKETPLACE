@@ -41,6 +41,34 @@
           <td>${c.feito ? '' : `<button class="btn sm" data-act="cta" data-ref="${CTA_REF[c.cta] || 'ativacao:'}" title="${UI.esc(c.cta)}">${UI.esc(c.cta)}</button>`}</td>
         </tr>`).join('')}
       </tbody></table></div>
+      <div class="sect">
+        <div class="sect-h"><span class="h2">Dados e importação</span><span class="src">checklist do Import &amp; Sync</span></div>
+        <div class="panel">
+        ${(() => {
+          const eng = window.IMPORTAR ? IMPORTAR.eng : null;
+          const cov = eng ? V8IMP.coverage(eng) : [];
+          const temCat = eng && eng.batches.some(x => x.aplicado && x.det.perfil === 'SHOPEE_PARENT_SKU');
+          const temPerf = eng && eng.batches.some(x => x.aplicado && /TRAFFIC|OVERVIEW/.test(x.det.perfil));
+          const temVendas = eng && eng.batches.some(x => x.aplicado && x.det.perfil === 'SHOPEE_SALES_OVERVIEW');
+          const vinculos = eng ? eng.observations.filter(o => /CONFIRMADO/.test(o.vinculo)).length : 0;
+          const masters = eng ? eng.masterLinks.length : 0;
+          const conflitos = eng ? eng.conflicts.filter(c => c.estado !== 'RESOLVIDO').length : 0;
+          const item = (nome, feito, ref, extra) => `<div class="exec-li"><span class="sig ${feito ? 'pos' : ''}"></span>
+            <div class="t"><b>${nome}</b><span>${feito ? 'concluído' : (extra || 'pendente')}</span></div>
+            <button class="linklike" data-act="cta" data-ref="${ref}">${feito ? 'rever' : 'fazer'} →</button></div>`;
+          return [
+            item('Definir loja e conta', true, 'importar:'),
+            item('Importar catálogo e anúncios existentes', temCat, 'importar:'),
+            item('Vincular SKUs', vinculos > 0, 'importar:', 'vínculo por ID → SKU → nome'),
+            item('Revisar Anúncio Master', masters > 0, 'importar:'),
+            item('Importar vendas e funil', temVendas, 'importar:'),
+            item('Importar performance', temPerf, 'importar:'),
+            item('Revisar dados duplicados e conflitos', eng && eng.batches.some(b => b.aplicado) && !conflitos, 'importar:', conflitos ? conflitos + ' conflito(s) aberto(s)' : 'aguardando primeira importação'),
+            item('Validar cobertura por loja', cov.length > 0, 'importar:'),
+          ].join('');
+        })()}
+        </div>
+      </div>
       <div class="callout sect">Precisa de ajuda para ativar? <button class="linklike" data-act="assist">solicitar ativação assistida →</button> — vira solicitação interna com estado honesto (sem promessa de resposta em tempo real).</div>`;
     UI.$('#v-ativacao').onclick = e => {
       const b = e.target.closest('[data-act]');

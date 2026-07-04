@@ -249,3 +249,66 @@ Menu ganhou o grupo "conta" com as 4 áreas novas; as 8 áreas originais intacta
   onboarding completo → Ativação e `?admself=1`), landing desktop+mobile ×
   2 temas, 8 telas de estado, jornada completa com screenshots, 12 áreas ×
   3 larguras × 2 temas — zero erros de console.
+
+---
+
+# Sprint 10.I — Import & Sync Engine (porta de entrada de dados reais)
+
+**Princípio central: IMPORTAÇÃO NÃO SOMA DADOS — concilia, atualiza, versiona
+e explica.** Arquivos: `import-engine.js` (motor UMD testável) e `importar.js`
+(área "Importar e Sincronizar" no menu global).
+
+## Arquitetura
+
+- **17 perfis de importação** com status honesto (SUPPORTED /
+  PARTIALLY_SUPPORTED / REFERENCE_ONLY / UNSUPPORTED — o sistema nunca finge
+  importar o que não entende). Detecção por **assinatura de cabeçalho**
+  configurável — as planilhas Shopee reais serviram como referência de schema;
+  zero hardcode de empresa ou nicho; fixtures rotuladas.
+- **Granularidade obrigatória** (TRANSACTIONAL, STATE_SNAPSHOT, DAILY_METRIC,
+  PERIOD_METRIC, LISTING_METRIC, PROMOTION_METRIC, CHANNEL_ATTRIBUTION,
+  FINANCIAL_SUMMARY, SERVICE_METRIC): relatório agregado gera METRIC_SNAPSHOT,
+  nunca pedido individual; granularidades diferentes não se somam.
+- **Chaves naturais do contrato**: pedido (mkt+conta+order), anúncio
+  (mkt+conta+item), produto (company+SKU pai+variação), métrica diária
+  (…+data+metric_type), promoção/cupom (…+nome/código+período), lote
+  (file_hash+sheet_signature).
+- **Prevenção de duplicidade em 4 camadas**: fingerprint de arquivo (idêntico →
+  "ARQUIVO JÁ IMPORTADO"), fingerprint normalizado por linha (idêntico →
+  duplicado evitado), chave natural (existente → **atualiza e versiona**, nunca
+  soma), e sobreposição de período detectada na prévia com intervalo declarado.
+- **Fontes complementares explicam, não duplicam**: contribuição por canal,
+  promoção, cupom e financeiro são `explicativa: true` — `receitaConsolidada()`
+  só conta o funil de vendas; testes 24-26 provam que a receita não muda.
+- **Vínculo por SKU na ordem obrigatória**: ID externo → SKU variação → SKU
+  pai → nome (só sugestão de baixa confiança, nunca vincula sozinho); conflito
+  de SKU bloqueia aplicação da linha e o Anúncio Master do produto.
+- **Anúncio Master**: sugerido por vendas pagas validadas → unidades →
+  conversão → CTR → saúde operacional; estados SUGERIDO / CONFIRMADO
+  MANUALMENTE / POR REGRA / BLOQUEADO POR CONFLITO / SEM MASTER; é referência
+  estratégica — **não existe código que escreva preço/estoque/conteúdo de
+  loja** (verificado por teste estático).
+- **Rollback por lote**: remove só os efeitos do lote; registro atualizado por
+  lote posterior é preservado; rollback do lote posterior restaura a versão
+  anterior. Auditoria completa (quem, hash, perfil, escopo, contagens, mapper).
+- **Permissões**: IMPORT_VIEW/CREATE/REVIEW/APPLY/ROLLBACK/MAPPING_MANAGE +
+  MASTER_LISTING_APPROVE mapeadas nos 11 papéis do 10.V (rollback e master são
+  do OWNER; LEITURA só vê).
+- **Escopo e isolamento**: staging exige Grupo→Empresa→CNPJ→Loja→Conta;
+  demo × importado real recusado nas duas direções.
+
+## Integrações
+
+Home (última importação, cobertura, conflitos), Catálogo (drawer Relações →
+anúncios importados com vínculo), Crescimento (linha de cobertura importada com
+origem), Conexões (tabela de origens com período coberto e duplicidades
+evitadas), Ativação (checklist de dados: importar catálogo → vincular SKUs →
+revisar master → vendas → performance → conflitos → cobertura).
+
+## Validação
+
+- `mos/test/ui-v8-import.test.js`: 39 itens obrigatórios (suíte total:
+  **432, todos verdes**).
+- Headless: `?impself=1` + fluxo visual completo (detecção → prévia →
+  aplicar → duplicado recusado → vínculos → master) + integrações verificadas +
+  13 áreas × 4 larguras × 2 temas — zero erros de console.

@@ -102,6 +102,7 @@
                  <span class="fb"><span style="width:${Math.max(1, Math.round((f.valor / max) * 100))}%"></span></span>
                  <span class="fv">${num(f.valor)}</span></div>`).join('')}
           <p class="src" style="margin-top:8px">Etapas sem origem válida (carrinho, avaliação, recompra) aparecem como ${UI.esc(D.STATUS.SEM_DADOS)} — nunca estimadas.</p>
+          ${window.IMPORTAR && V8IMP.coverage(IMPORTAR.eng).length ? `<p class="src" style="margin-top:4px"><b>Cobertura importada:</b> ${V8IMP.coverage(IMPORTAR.eng).map(c => UI.esc((D.scope.lojas.find(s => s.id === c.lojaId) || {}).nome) + ' (' + c.fontes.join(', ') + ' · ' + c.ultima + ')').join(' · ')} — origem DADO IMPORTADO VIA PLANILHA, separada do simulado.</p>` : ''}
         </div>
         <div class="panel">
           <div class="sect-h" style="margin-top:0"><span class="h2">Indicadores · ${mkNome}</span>

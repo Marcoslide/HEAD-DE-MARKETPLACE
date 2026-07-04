@@ -355,6 +355,12 @@
         ${miss.length ? miss.map(m => `<div class="exec-li"><span class="sig warn"></span>
           <div class="t"><b>${UI.esc(m.titulo)}</b><span>${UI.esc(m.status)} · ${UI.esc(m.agora)}</span></div></div>`).join('')
           : '<p class="src">nenhuma missão ligada a este produto.</p>'}
+        <div class="sect-h"><span class="h2">Anúncios importados (vínculo por SKU)</span></div>
+        ${window.IMPORTAR && IMPORTAR.eng.observations.filter(o => o.produtoId === id).length
+          ? IMPORTAR.eng.observations.filter(o => o.produtoId === id).map(o => `<div class="exec-li"><span class="sig ${/CONFIRMADO/.test(o.vinculo) ? 'pos' : 'warn'}"></span>
+              <div class="t"><b>item ${UI.esc(o.item_id)} · ${UI.esc(o.nome)}</b><span>${UI.esc(o.vinculo)} · ${UI.brl(o.vendasPagas)} pagas · ${UI.esc(o.origem)}</span></div>
+              <button class="linklike" data-act="d-goimp">revisar vínculo →</button></div>`).join('')
+          : '<p class="src">nenhum anúncio importado vinculado a este produto.</p>'}
         <div class="sect-h"><span class="h2">Compliance e pendências</span></div>
         ${p.pendencias.length ? p.pendencias.map(pd => `<div class="exec-li"><span class="sig warn"></span><div class="t"><b>${UI.esc(pd)}</b></div></div>`).join('') : '<p class="src">sem pendências.</p>'}
         ${L.publicationMatrix(p).filter(r => r.motivo).map(r => `<div class="exec-li"><span class="sig neg"></span><div class="t"><b>${r.marketplace}: ${UI.esc(D.STATUS.BLOQUEADO)}</b><span>${UI.esc(r.motivo)}</span></div></div>`).join('')}`;
@@ -440,6 +446,7 @@
     const p = allProds().find(x => x.id === id);
     if (act === 'dclose') UI.closeDrawer();
     else if (act === 'd-goopp') { UI.closeDrawer(); UI.open('crescimento:' + b.dataset.id); }
+    else if (act === 'd-goimp') { UI.closeDrawer(); UI.go('importar', 'Vínculos SKU'); }
     else if (act === 'd-lojactx') {
       UI.closeDrawer();
       const s = D.scope.lojas.find(x => x.id === b.dataset.loja);

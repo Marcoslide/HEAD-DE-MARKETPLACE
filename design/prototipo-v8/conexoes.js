@@ -37,6 +37,28 @@
       </tbody></table>
       <div class="tfoot"><span>0 de ${D.conexoes.length} conectadas · OAuth real fora do escopo deste modo · nenhuma integração desconectada aparece como ativa</span></div></div>
 
+      <div class="sect">
+        <div class="sect-h"><span class="h2">Origens de importação</span>
+          <button class="linklike" data-act="goimp">importar arquivo →</button></div>
+        ${window.IMPORTAR && IMPORTAR.eng.batches.filter(b => b.aplicado).length ? `
+        <div class="tblwrap"><table class="tbl"><thead><tr>
+          <th class="nosort">Origem</th><th class="nosort">Tipo</th><th class="nosort">Loja · conta</th><th class="nosort">Última importação</th>
+          <th class="nosort">Período coberto</th><th class="nosort">Status</th><th class="nosort">Linhas</th><th class="nosort">Conflitos</th><th class="nosort">Duplicidades evitadas</th><th class="nosort"></th></tr></thead><tbody>
+          ${IMPORTAR.eng.batches.filter(b => b.aplicado).slice().reverse().map(b => `<tr>
+            <td><span class="tmain">${UI.esc(b.arquivo)}</span><span class="tsub">${UI.esc(b.sourceType)}</span></td>
+            <td><span class="kbd">${b.det.perfil}</span></td>
+            <td><span class="src">${UI.esc((D.scope.lojas.find(s => s.id === b.escopo.lojaId) || {}).nome || b.escopo.lojaId)} · ${b.escopo.contaId}</span></td>
+            <td><span class="src">${b.aplicado.em}</span></td>
+            <td><span class="src">${b.periodo ? b.periodo.ini + ' → ' + b.periodo.fim : '—'}</span></td>
+            <td>${UI.stBadge(b.estado)}</td>
+            <td>${b.aplicado.criados + b.aplicado.atualizados}</td>
+            <td>${b.aplicado.conflitos ? `<span class="st neg">${b.aplicado.conflitos}</span>` : '0'}</td>
+            <td>${b.aplicado.duplicadosEvitados}</td>
+            <td><span class="rowact"><button class="btn sm ghost" data-act="goimp">abrir →</button></span></td></tr>`).join('')}
+        </tbody></table></div>`
+        : `<div class="panel"><div class="empty"><b>Nenhuma origem de importação aplicada</b>Planilhas importadas aparecem aqui com período coberto, conflitos e duplicidades evitadas.</div></div>`}
+      </div>
+
       <div class="grid2 sect">
         <div class="panel"><span class="h2">O que a leitura oficial destrava</span>
           <div class="exec-li"><span class="sig pos"></span><div class="t"><b>Anúncios, preços e pedidos reais por canal</b><span>os painéis passam de ${D.STATUS.DADO_SIMULADO} para DADO REAL com data e origem</span></div></div>
@@ -52,7 +74,8 @@
     UI.$('#v-conexoes').onclick = e => {
       const b = e.target.closest('[data-act]');
       if (!b) return;
-      if (b.dataset.act === 'drawer') openDrawer(b.dataset.id);
+      if (b.dataset.act === 'goimp') UI.go('importar');
+      else if (b.dataset.act === 'drawer') openDrawer(b.dataset.id);
       else if (b.dataset.act === 'con') {
         const c = D.conexoes.find(x => x.key === b.dataset.id);
         UI.openModal(`<h3 class="h2">Conectar ${UI.esc(c.nome)}</h3>

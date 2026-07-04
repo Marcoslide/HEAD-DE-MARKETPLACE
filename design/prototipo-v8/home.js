@@ -106,6 +106,12 @@
             ${audit.length ? audit.map(a => `<div class="ctxitem"><span>${UI.esc(a.detalhe)}</span><span class="src">${UI.esc(a.actor)}</span></div>`).join('')
               : '<div class="ctxitem"><span class="src">nada ainda nesta sessão — cada edição, job e decisão aparece aqui com autor</span></div>'}
           </div>
+          <div class="ctxcard"><div class="h"><b>Dados e importação</b><span class="src">qualidade e cobertura</span></div>
+            ${(window.IMPORTAR && V8IMP.coverage(IMPORTAR.eng).length)
+              ? V8IMP.coverage(IMPORTAR.eng).map(c => `<div class="ctxitem"><span>última importação · ${UI.esc((D.scope.lojas.find(s => s.id === c.lojaId) || {}).nome)}</span><span class="src">${c.ultima} · ${c.fontes.length} fonte(s) · ${c.conflitos ? c.conflitos + ' conflito(s)!' : 'sem conflito'}</span></div>`).join('')
+              : '<div class="ctxitem"><span class="src">nenhuma importação aplicada — sem última importação a mostrar</span></div>'}
+            <div class="ctxitem"><span class="src">demais lojas: ${UI.esc(D.STATUS.DADO_SIMULADO)}</span><button class="linklike" data-act="open" data-ref="importar:">importar →</button></div>
+          </div>
           <div class="ctxcard"><div class="h"><b>Próximos passos</b></div>
             ${H.proximosPassos.map(p => `<div class="ctxitem"><span>${UI.esc(p.txt)}</span><button class="linklike" data-act="open" data-ref="${p.ref}">→</button></div>`).join('')}
           </div>
