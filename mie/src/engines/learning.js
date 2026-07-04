@@ -6,8 +6,9 @@
 'use strict';
 
 class LearningEngine {
-  constructor(bus, memory, world) {
+  constructor(bus, memory, world, graph = null) {
     this.bus = bus; this.memory = memory; this.world = world;
+    this.graph = graph; // o grafo se popula pelos eventos que este motor emite (Sprint 07)
     this.evaluations = [];
     bus.on('result.measured', ({ plan, prediction, result }) => this.evaluate(plan, prediction, result));
     bus.on('decision.refused', item => this.learnFromRefusal(item));

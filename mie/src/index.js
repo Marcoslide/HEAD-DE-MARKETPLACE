@@ -7,6 +7,8 @@ require('./core/config.js');
 require('./core/audit-log.js');
 require('./core/event-bus.js');
 require('./sim/world.js');
+require('./graph/knowledge-graph.js');
+require('./graph/ingestor.js');
 require('./engines/memory.js');
 require('./specialists/roster.js');
 require('./specialists/council.js');

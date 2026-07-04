@@ -47,6 +47,15 @@ function drift(memory, world, pid, metric, days = 3) {
 }
 const pctLabel = x => `${(x * 100).toFixed(0)}%`;
 
+/* evidência do Knowledge Graph: o que já funcionou para este produto
+   (Sprint 07). Especialista que se apoia em precedente ganha confiança. */
+function graphReuse(ctx) {
+  if (!ctx.graph || !ctx.productId) return { labels: [], boost: 0 };
+  const worked = ctx.graph.whatWorkedForProduct(ctx.productId) || [];
+  const labels = worked.slice(0, 3).map(w => w.label);
+  return { labels, boost: labels.length ? Math.min(0.1, 0.04 * labels.length) : 0 };
+}
+
 /* ============================================================
    01 · CONVERSÃO — CTR, conversão, funil, criativos, título, provas
    ============================================================ */
@@ -69,15 +78,22 @@ function conversion(ctx) {
       recommendationType: null, urgencia: 'média', stance: 'alert',
       riscos: ['trocar o criativo agora não resolve um problema de tráfego'],
     });
-  if (dConv.pct < -0.1 && dCtr.pct < -0.05)
+  if (dConv.pct < -0.1 && dCtr.pct < -0.05) {
+    const g = graphReuse(ctx);
     return parecer('conversion', 'Especialista em Conversão', {
-      diagnostico: 'Queda composta: o anúncio perdeu atratividade na lista E dentro da página.',
-      evidencias: ev, hipoteses: ['oferta concorrente melhorou em termos relativos', 'preço percebido piorou'],
-      confidence: strong ? 0.9 : 0.7, recomendacao: 'reposicionar pelo diferencial (a queda é relativa ao mercado)',
+      diagnostico: 'Queda composta: o anúncio perdeu atratividade na lista E dentro da página.'
+        + (g.labels.length ? ` Já funcionou aqui antes: ${g.labels.join(', ')}.` : ''),
+      evidencias: g.labels.length ? [...ev, { fato: 'precedente no grafo', valor: g.labels }] : ev,
+      hipoteses: g.labels.length
+        ? ['oferta concorrente melhorou em termos relativos', `reaproveitar o que já funcionou (${g.labels[0]})`]
+        : ['oferta concorrente melhorou em termos relativos', 'preço percebido piorou'],
+      confidence: Math.min(0.95, (strong ? 0.9 : 0.7) + g.boost),
+      recomendacao: 'reposicionar pelo diferencial (a queda é relativa ao mercado)',
       recommendationType: 'reposition', impacto: { metric: 'conv', estimatePct: [0.08, 0.12] },
       urgencia: strong ? 'alta' : 'média', stance: 'alert',
       riscos: ['tráfego novo entra mais frio: medir o funil inteiro, não só o CTR'],
     });
+  }
   if (dConv.pct < -0.1)
     return parecer('conversion', 'Especialista em Conversão', {
       diagnostico: 'CTR estável com conversão em queda: o comprador clica e desiste dentro da página.',

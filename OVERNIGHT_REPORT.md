@@ -184,6 +184,18 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
     especialistas nomeados ao usuário exigiria emendar o Art. 11 (cláusula pétrea 5).
 
 **Suíte total após a continuação: 96 testes, 96 verdes.**
+
+- **Sprint 07 — Knowledge Graph**: o cérebro associativo do Head. Grafo tipado,
+  ponderado e com decaimento por desuso, populado pelos eventos dos motores.
+  17 tipos de nó e 12 relações (produto→categoria, concorrente→produto,
+  avaliação→objeção, decisão→experimento, experimento→aprendizado,
+  estratégia→categoria, criativo→CTR, preço→conversão, aprendizado→reuso).
+  7 consultas internas ("o que já funcionou aqui?"). Integrado a Memory,
+  Specialists, Investigation (etapa consultar_grafo — reuso antes de agir),
+  Learning e MieBridge. É interno: o usuário nunca vê o grafo. +10 testes.
+  Documentado em `docs/knowledge-graph.md`; demo em `mie/demo-graph.js`.
+
+**Suíte total: 106 testes, 106 verdes.**
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

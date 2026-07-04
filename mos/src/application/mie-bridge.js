@@ -104,6 +104,9 @@ class MieBridge {
         steps: d.proposal.steps || [],
         mieProductRef: item.productId, // referência do mundo do MIE preservada
         caseId: item.caseId,
+        /* Knowledge Graph (Sprint 07): aprendizados anteriores que
+           informaram esta decisão — o Head reusou memória contextual */
+        reusedLearnings: (d.graph && d.graph.reused ? d.graph.reused.map(r => r.label) : []),
       },
       impactMin: Math.round(item.impactMonthly * 0.85),
       impactMax: Math.round(item.impactMonthly * 1.15),

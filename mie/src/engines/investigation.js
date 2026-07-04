@@ -18,8 +18,9 @@ const MANDATORY_STEPS = [
 ];
 
 class InvestigationEngine {
-  constructor(bus, memory, specialists, world) {
+  constructor(bus, memory, specialists, world, graph = null) {
     this.bus = bus; this.memory = memory; this.specialists = specialists; this.world = world;
+    this.graph = graph; // cérebro associativo (Sprint 07)
     this.cases = [];
     this._counter = 0;
     bus.on('anomaly.detected', a => this.open(a));
@@ -82,12 +83,27 @@ class InvestigationEngine {
       ownerPreferences: this.memory.preferences.map(p => p.proposalType),
     });
 
+    /* 3.5 GRAFO: o cérebro associativo — o que já funcionou aqui ANTES de
+       recomendar algo novo (Sprint 07). Reuso de aprendizado precede ação. */
+    let graphContext = null;
+    if (this.graph) {
+      const reused = this.graph.reusableLearnings(pid);
+      const competitors = this.graph.competitorsImpacting(pid);
+      const objections = this.graph.topObjections(pid);
+      graphContext = { reused, competitors, objections };
+      this.step(c, 'consultar_grafo', {
+        aprendizadosReaproveitaveis: reused.map(r => r.label),
+        concorrentesQueImpactaram: competitors.map(x => x.label),
+        objecoesRecorrentes: objections.map(o => o.label),
+      });
+    }
+
     /* 4. conselho de especialistas (Art. 10-11; Specialists Engine, Sprint 06)
        Consulta os 7 especialistas E delibera: consenso, conflitos e
        divergências. O parecer consolidado é do Conselho; a decisão final
        continua sendo dos motores (Priorização + Constituição + MIF). */
     const deliberation = this.specialists.council(
-      { world: this.world, memory: this.memory, productId: pid, anomaly: c.anomaly },
+      { world: this.world, memory: this.memory, productId: pid, anomaly: c.anomaly, graph: this.graph },
       { memory: this.memory, problemType: c.anomaly.kind });
     c.pareceres = deliberation.pareceres;
     c.council = deliberation;
@@ -150,6 +166,7 @@ class InvestigationEngine {
       evidence: c.steps.filter(s => s.findings && s.findings.note).map(s => s.findings.note),
       pareceres: c.pareceres,
       council: c.council, // parecer consolidado + concordâncias/conflitos/divergentes
+      graph: graphContext, // aprendizados reaproveitados + concorrentes + objeções (Sprint 07)
       proposal,
       recurrence: similar.length,
     };

@@ -82,6 +82,11 @@ function mountObservability(router, mos, { mie = null } = {}) {
       },
       specialists: mie.specialists.domains,
       specialistScores: mie.memory.specialistsSnapshot ? mie.memory.specialistsSnapshot() : [],
+      knowledgeGraph: mie.graph ? {
+        ...mie.graph.stats(),
+        whatWorkedForCategory: mie.graph.whatWorkedForCategory('Quadros').slice(0, 5),
+        topObjections: mie.graph.topObjections().slice(0, 5),
+      } : null,
       lastPareceres: (mie.investigation.cases.at(-1) || { pareceres: [] }).pareceres
         .map(p => ({ domain: p.domain, constatacao: p.constatacao, confianca: p.confianca,
           urgencia: p.urgencia, recommendationType: p.recommendationType })),

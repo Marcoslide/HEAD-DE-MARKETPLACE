@@ -8,18 +8,20 @@ NS.createMIE = function createMIE(options = {}) {
   const audit = new NS.AuditLog();
   const bus = new NS.EventBus(audit);
   const world = NS.Sim.createWorld({ seed: options.seed ?? 42 });
-  const memory = new NS.MemoryEngine(bus);
+  const graph = new NS.KnowledgeGraph();               // cérebro associativo (Sprint 07)
+  NS.wireGraph(graph, bus, world);                     // popula-se a partir dos eventos
+  const memory = new NS.MemoryEngine(bus, graph);
   const specialists = NS.Specialists.createRegistry();
   const observation = new NS.ObservationEngine(bus, world, memory);
-  const investigation = new NS.InvestigationEngine(bus, memory, specialists, world);
+  const investigation = new NS.InvestigationEngine(bus, memory, specialists, world, graph);
   const prioritization = new NS.PrioritizationEngine(bus, memory, world);
   const execution = new NS.ExecutionEngine(bus, world, memory);
-  const learning = new NS.LearningEngine(bus, memory, world);
+  const learning = new NS.LearningEngine(bus, memory, world, graph);
   const head = new NS.HeadReporter(bus, { world, memory, prioritization, investigation, learning });
   const scheduler = new NS.ObservationScheduler(bus, { world, observation, execution, prioritization, memory, head });
 
   return {
-    audit, bus, world, memory, specialists,
+    audit, bus, world, graph, memory, specialists,
     observation, investigation, prioritization, execution, learning, scheduler, head,
     tick: () => scheduler.tick(),
     runDays: n => scheduler.runDays(n),

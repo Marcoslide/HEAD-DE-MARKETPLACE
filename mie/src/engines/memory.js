@@ -14,8 +14,9 @@
 'use strict';
 
 class MemoryEngine {
-  constructor(bus) {
+  constructor(bus, graph = null) {
     this.bus = bus;
+    this.graph = graph;             // cérebro associativo (Sprint 07) — consultável pelos especialistas
     this.baselines = new Map();     // `${productId}.${metric}` → {mean, std, n}
     this.weekday = new Map();       // `${productId}.dow${d}` → índice EWMA (sazonalidade semanal)
     this.seasonality = new Map();   // mês → índice EWMA (sazonalidade anual)
