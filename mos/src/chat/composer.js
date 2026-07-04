@@ -6,8 +6,9 @@
 
    Regra de ouro: este módulo NÃO cria números — só formata os que vieram
    da Query Layer. Sem fato = resposta honesta de ausência de dado. */
+(function (NS) {
 'use strict';
-const { localTime } = require('./period.js');
+const localTime = (...a) => NS.localTime(...a);
 
 const PLATFORM_LABEL = {
   shopee: 'Shopee', mercado_livre: 'Mercado Livre', tiktok: 'TikTok Shop', magalu: 'Magalu',
@@ -158,6 +159,15 @@ function compose(facts, { clock, alert = null, question = null } = {}) {
       lines.push('', `Plano gerado em ${facts.planGeneratedAt}.`);
       break;
     }
+    case 'PENDING_DECISIONS': {
+      if (!facts.items.length) { lines.push('Nenhuma decisão esperando você agora. Eu cuido do resto.'); break; }
+      lines.push(`${facts.items.length} decis${facts.items.length > 1 ? 'ões esperam' : 'ão espera'} você hoje:`, '');
+      facts.items.forEach((d, i) =>
+        lines.push(`${i + 1}. ${d.title}`,
+          `   ${d.level}${d.impactMonthly ? ` · impacto ~${money(d.impactMonthly)}/mês` : ''} · score ${d.score}`));
+      lines.push('', 'Elas estão priorizadas no seu Plano do Dia — posso explicar o raciocínio de qualquer uma.');
+      break;
+    }
     case 'BRIEFING': {
       const s = facts.sales, f = facts.fulfillment, r = facts.risks;
       lines.push('Bom dia. Situação até agora:', '');
@@ -186,4 +196,10 @@ function compose(facts, { clock, alert = null, question = null } = {}) {
   return lines.join('\n');
 }
 
-module.exports = { compose, footer, noData, money, PLATFORM_LABEL, SOURCE_LABEL };
+NS.compose = compose;
+NS.footer = footer;
+NS.noData = noData;
+NS.money = money;
+NS.PLATFORM_LABEL = PLATFORM_LABEL;
+NS.SOURCE_LABEL = SOURCE_LABEL;
+})(typeof module !== 'undefined' && module.exports ? require('./_ns.js') : (globalThis.HEADCHAT = globalThis.HEADCHAT || {}));

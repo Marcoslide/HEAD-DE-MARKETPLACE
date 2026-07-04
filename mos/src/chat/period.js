@@ -2,6 +2,7 @@
    (America/Sao_Paulo). "Hoje" é o dia operacional LOCAL; "até agora" é o
    instante do Clock; comparações parciais são hora-contra-hora (nunca dia
    parcial contra dia inteiro sem avisar). */
+(function (NS) {
 'use strict';
 
 const DAY = 86400000;
@@ -92,4 +93,6 @@ function localTime(clock) {
     { timeZone: clock.timezone, hour: '2-digit', minute: '2-digit' }).format(clock.now());
 }
 
-module.exports = { resolvePeriod, localTime };
+NS.resolvePeriod = resolvePeriod;
+NS.localTime = localTime;
+})(typeof module !== 'undefined' && module.exports ? require('./_ns.js') : (globalThis.HEADCHAT = globalThis.HEADCHAT || {}));

@@ -1,24 +1,22 @@
-/* HEAD CHAT (Sprint 09.A) — composição.
-
-   createHeadChat({ clock, mie, mos, companyId }):
-   - com MOS + empresa sincronizada pela Central → dados NORMALIZADOS;
-   - sem dados reais → Demo Operational Dataset (fixtures coerentes).
-   O chat não muda entre os dois — só a fonte (e o rodapé diz qual é). */
+/* HEAD CHAT (Sprint 09.A) — ponto de entrada Node.
+   No navegador, carregar os MESMOS arquivos como <script> nesta ordem
+   (ver design/prototipo-v3/index.html) — globalThis.HEADCHAT.
+   Uma implementação só: API, testes e protótipo v3 consomem a mesma. */
 'use strict';
-const { HeadChat } = require('./head-chat.js');
-const { createDemoDataset, datasetFromCentral } = require('./demo-dataset.js');
-const { QueryLayer } = require('./query-layer.js');
-const interpreter = require('./interpreter.js');
+const NS = require('./_ns.js');
+require('./interpreter.js');
+require('./period.js');
+require('./demo-dataset.js');
+require('./query-layer.js');
+require('./composer.js');
+require('./head-chat.js');
 
-function createHeadChat({ clock, mie = null, mos = null, companyId = null, dataset = null } = {}) {
-  if (!clock) throw new Error('createHeadChat exige o Clock injetado');
-  let data = dataset;
-  if (!data && mos && companyId)
-    data = datasetFromCentral(mos.repos, companyId, clock);   // dados normalizados, se houver
-  if (!data)
-    data = createDemoDataset(clock);                           // preview: fixtures coerentes
-  return new HeadChat({ dataset: data, clock, mie, companyId,
-    logger: mos ? mos.logger.child({ mod: 'head-chat' }) : null });
-}
-
-module.exports = { createHeadChat, HeadChat, QueryLayer, createDemoDataset, datasetFromCentral, interpreter };
+module.exports = {
+  createHeadChat: NS.createHeadChat,
+  HeadChat: NS.HeadChat,
+  QueryLayer: NS.QueryLayer,
+  createDemoDataset: NS.createDemoDataset,
+  datasetFromCentral: NS.datasetFromCentral,
+  interpreter: NS,      // classify/extract/norm/PLATFORMS/METRICS
+  NS,
+};

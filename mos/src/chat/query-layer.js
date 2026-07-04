@@ -7,8 +7,9 @@
    - quando não há dado, devolve NO_DATA — a camada de cima é honesta.
 
    A interpretação (IA) escolhe o serviço; NUNCA produz número. */
+(function (NS) {
 'use strict';
-const { resolvePeriod } = require('./period.js');
+const resolvePeriod = (...a) => NS.resolvePeriod(...a);
 
 const r2 = v => Math.round(v * 100) / 100;
 const r1 = v => Math.round(v * 10) / 10;
@@ -283,6 +284,21 @@ class QueryLayer {
     };
   }
 
+  /* lista das decisões que esperam o dono (Plano do Dia) */
+  getPendingDecisions() {
+    if (!this.mie) return this._noData('decisões (EPE não acoplado)');
+    const plan = this.mie.epe.lastPlan || this.mie.planDay();
+    if (!plan.decisions.length)
+      return { kind: 'PENDING_DECISIONS', items: [], planGeneratedAt: plan.generatedAtIso, ...this._meta() };
+    return {
+      kind: 'PENDING_DECISIONS',
+      items: plan.decisions.map(d => ({ title: d.title, level: d.level, score: d.score,
+        reason: d.reason, impactMonthly: d.impactMonthly })),
+      planGeneratedAt: plan.generatedAtIso,
+      ...this._meta(),
+    };
+  }
+
   /* ---------- BRIEFING / FECHAMENTO ---------- */
   getOperationBriefing() {
     return {
@@ -298,4 +314,5 @@ class QueryLayer {
   }
 }
 
-module.exports = { QueryLayer };
+NS.QueryLayer = QueryLayer;
+})(typeof module !== 'undefined' && module.exports ? require('./_ns.js') : (globalThis.HEADCHAT = globalThis.HEADCHAT || {}));

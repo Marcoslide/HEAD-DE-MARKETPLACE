@@ -152,6 +152,42 @@ fonte, cobertura, timestamp, serviço acionado, alerta gerado, contexto
 ativo, propostas pendentes, READ_ONLY e falhas (NO_DATA). Essencial para
 depurar resposta errada.
 
+## A experiência principal: a área OPERAÇÃO no v3
+
+O chat operacional vive na **experiência principal do produto**
+(`design/prototipo-v3` — o Plano do Dia), como área própria do menu:
+
+```
+Home · Operação · A Missão · Silêncio · Conhecimento
+```
+
+- **Home** mostra o que merece sua atenção (Plano do Dia) e mantém só uma
+  entrada discreta — "Pergunte ao Head" — que leva à Operação já
+  respondendo;
+- **Operação** responde qualquer coisa agora: conversa, chips, atalhos por
+  tema (Vendas/Pedidos/Expedição/Ads/Estoque/Conversão/Risco), briefing,
+  radar e fechamento;
+- nenhuma UX concorrente: o chat hardcoded antigo do v3 foi REMOVIDO e o v2
+  deixou de ser a única interface.
+
+**Decisão técnica**: a camada de chat virou UMD (padrão do MIE) — os
+MESMOS arquivos de `mos/src/chat/` rodam em Node (API/testes) e no
+navegador (`globalThis.HEADCHAT`), carregados por `<script>` no v3. O glue
+`design/prototipo-v3/chat-operacao.js` é só apresentação: zero lógica de
+resposta, zero número fixo (testado por varredura).
+
+Integração com o Plano do Dia: perguntas de decisão consultam **o mesmo
+plano exibido na Home** (adapter sobre `data.js` no shape do EPE
+`lastPlan`) — o score respondido no chat é o score do card; "ver no Plano
+do Dia →" é opcional e reversível. Comandos "Ajustar/Perguntar" dos cards
+navegam para a Operação e passam pela mesma camada. O contexto herdado é
+sinalizado na UI ("↳ usei o contexto da pergunta anterior"); propostas
+READ_ONLY levam o selo "MODO LEITURA"; nenhum botão simula execução real.
+
+Validação: `mos/test/chat-v3.test.js` (10 testes, incluindo navegador
+headless: roteiro completo de conversa sem erros, desktop e largura
+reduzida). `?chatself=1` roda o roteiro de validação visual.
+
 ## Relação com o resto do organismo
 
 - **Central de Marketplace (S09)**: fornece o dataset normalizado — o chat

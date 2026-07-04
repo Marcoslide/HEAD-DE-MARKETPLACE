@@ -292,7 +292,24 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   atualizados. +24 testes (as 28 garantias). Demo: `node mos/demo-chat.js`.
   Doc em `docs/head-conversational-operating-intelligence.md`.
 
-**Suíte total: 179 testes, 179 verdes.** (155 + 24 do Head Chat)
+- **Sprint 09.A (correção final) — Chat na experiência principal v3 + área
+  OPERAÇÃO** — *concluído*: o chat operacional saiu do protótipo v2 e virou
+  **área principal do produto** no v3 (menu: Home · **Operação** · A Missão ·
+  Silêncio · Conhecimento). Home mostra o que merece atenção e mantém só a
+  entrada discreta "Pergunte ao Head"; Operação responde qualquer coisa
+  agora (conversa + chips + atalhos por tema + briefing/radar/fechamento).
+  ZERO reconstrução: a camada de chat virou UMD (padrão do MIE) — os MESMOS
+  arquivos de `mos/src/chat` rodam em Node e no navegador; o glue do v3
+  (`chat-operacao.js`) é só apresentação (varredura prova: nenhum número
+  fixo, nenhuma resposta roteirizada; o chatbot hardcoded antigo foi
+  REMOVIDO). Decisões consultam o MESMO plano exibido na Home (adapter
+  data.js → shape do EPE) — o score do chat é o score do card; "ver no
+  Plano do Dia →" opcional; contexto herdado sinalizado na UI; propostas
+  com selo "MODO LEITURA"; nenhum botão simula execução real. Validação
+  headless (Chromium): roteiro completo de conversa sem erros, desktop e
+  largura reduzida; screenshots gerados. +10 testes.
+
+**Suíte total: 189 testes, 189 verdes.** (179 + 10 da integração v3)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

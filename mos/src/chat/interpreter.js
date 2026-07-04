@@ -7,6 +7,7 @@
 
    Tolerante a variações naturais, informais e com erro de português:
    normaliza acentos/caixa e casa por radicais, não por frases exatas. */
+(function (NS) {
 'use strict';
 
 const norm = s => String(s || '').toLowerCase()
@@ -58,9 +59,9 @@ const ORDER_STATUS = [
 /* ---------------- classificação de intenção ---------------- */
 const INTENTS = [
   { id: 'ACTION_REQUEST',
-    rx: /^(baixe|baixa|abaixe|pause|pausa|publique|publica|aumente|aumenta|altere|altera|crie|cria|suba|sobe|reduza|reduz|desative|desativa|ative|ativa|cancele|cancela|envie para|mude|muda|reposicione)\b/ },
+    rx: /^(baixe|baixa|abaixe|pause|pausa|publique|publica|aumente|aumenta|altere|altera|crie|cria|suba|sobe|reduza|reduz|desative|desativa|ative|ativa|cancele|cancela|envie para|mude|muda|reposicione|ajuste|ajusta)\b/ },
   { id: 'DECISION_EXPLANATION',
-    rx: /por ?que voce (prioriz|nao me mostr|ignor)|por ?que (isso|iss[oa]) (entrou|esta urgente|e urgente)|raciocinio|mostra o raciocinio|o que voce ignorou|qual risco voce encontrou|por ?que .* (priorizad|urgente|no plano)/ },
+    rx: /qual decisao precisa de mim|decisao precisa de mim|o que preciso decidir|preciso decidir algo|por ?que voce (prioriz|nao me mostr|ignor)|por ?que (isso|iss[oa]) (entrou|esta urgente|e urgente)|raciocinio|mostra o raciocinio|o que voce ignorou|qual risco voce encontrou|por ?que .* (priorizad|urgente|no plano)/ },
   { id: 'SIMULATION',
     rx: /^e se\b|\be se eu\b|da para fazer promocao|se eu (aumentar|baixar|investir|aceitar|subir)/ },
   { id: 'STRATEGY_OR_PLANNING',
@@ -145,4 +146,9 @@ function extract(text, { context = null, clock, companyId = null, products = [] 
   return q;
 }
 
-module.exports = { classify, extract, norm, PLATFORMS, METRICS };
+NS.classify = classify;
+NS.extract = extract;
+NS.norm = norm;
+NS.PLATFORMS = PLATFORMS;
+NS.METRICS = METRICS;
+})(typeof module !== 'undefined' && module.exports ? require('./_ns.js') : (globalThis.HEADCHAT = globalThis.HEADCHAT || {}));

@@ -13,7 +13,6 @@ const state = {
   funnel: { ...DATA.funnel },
   history: [],
   refusedTypes: new Set(),
-  chatStarted: false,
 };
 const levelClass = { interrupt: "interrupt", approve: "approve", auto: "auto", mission: "mission", observe: "observe", ignore: "ignore" };
 const levelLabel = {
@@ -27,7 +26,6 @@ function go(v) {
   $("#v-" + v).classList.add("on");
   $$("#nav button").forEach(b => b.classList.toggle("active", b.dataset.v === v));
   window.scrollTo({ top: 0 });
-  if (v === "ia" && !state.chatStarted) startChat();
 }
 $$("#nav button").forEach(b => b.addEventListener("click", () => go(b.dataset.v)));
 $$("[data-go]").forEach(b => b.addEventListener("click", () => go(b.dataset.go)));
@@ -35,7 +33,7 @@ const pb = $("#pulseBox");
 pb.addEventListener("click", () => go("missoes"));
 pb.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go("missoes"); } });
 document.addEventListener("keydown", e => {
-  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); go("ia"); $("#composerInput").focus(); }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); go("operacao"); $("#opInput").focus(); }
 });
 
 /* ---------------- toast ---------------- */
@@ -170,7 +168,12 @@ window.decide = function (id, action) {
       <button class="btn" onclick="refuse('${id}','causa')">Não concordo com a causa</button>
       <button class="btn" onclick="refuse('${id}','depois')">Agora não</button>`;
   }
-  if (action === "adjust" || action === "ask") { go("ia"); askAbout(d, action); }
+  if (action === "adjust" || action === "ask") {
+    go("operacao");
+    window.HeadOps.ask(action === "adjust"
+      ? `Ajuste a proposta do ${d.product}`
+      : `Por que você priorizou o ${d.product}?`);
+  }
 };
 
 window.refuse = function (id, motive) {
@@ -230,43 +233,10 @@ function renderSilence() {
   $("#silenceFull").innerHTML = DATA.silence.map(row).join("");
 }
 
-/* ---------------- Conversa ---------------- */
-function addUser(t) { $("#chat").insertAdjacentHTML("beforeend", `<div class="msg user"><div class="who">${DATA.user}</div><div class="bubble"></div></div>`); $("#chat").lastElementChild.querySelector(".bubble").textContent = t; scroll(); }
-function addHead(html, delay = 1000) {
-  $("#chat").insertAdjacentHTML("beforeend", `<div class="msg head"><div class="who">Head</div><div class="typing"><i></i><i></i><i></i></div></div>`);
-  scroll(); const node = $("#chat").lastElementChild;
-  setTimeout(() => { node.querySelector(".typing").outerHTML = html; scroll(); }, reduced ? 0 : delay);
-}
-function scroll() { requestAnimationFrame(() => window.scrollTo({ top: document.body.scrollHeight })); }
-function startChat() {
-  state.chatStarted = true;
-  addHead(`<p class="say">Oi, ${DATA.user}. Posso te explicar por que priorizei o que priorizei hoje — ou por que ignorei alguma coisa. É só perguntar.</p>`, 500);
-  $("#suggest").innerHTML = DATA.suggestions.map(s => `<button class="chip" onclick="askFree('${s.replace(/'/g, "\\'")}')">${s}</button>`).join("");
-}
-window.askFree = function (t) {
-  if (!state.chatStarted) startChat();
-  go("ia"); addUser(t);
-  const q = t.toLowerCase();
-  if (q.includes("priorizou") && q.includes("paisagem"))
-    addHead(`<p class="say">Score executivo 6863 — o mais alto de hoje. Impacto de ~R$ 5.900/mês, urgência alta (janela curta: os concorrentes acabaram de cortar preço) e um precedente no grafo: reposicionar já funcionou nesta categoria. Impacto × confiança × urgência, com bônus de janela e de aprendizado anterior. Por isso interrompi, em vez de deixar para o briefing.</p>`);
-  else if (q.includes("ignorou") || q.includes("não te"))
-    addHead(`<p class="say">Segurei 302 sinais. Os principais: a flutuação de CTR do Espelho (ruído, conversão estável), o corte de 2% do GoldFrame (impacto baixo demais) e uma tendência ainda sem confiança suficiente. Nenhum merecia sua atenção — mas está tudo auditável na aba Silêncio.</p>`);
-  else if (q.includes("raciocínio") || q.includes("decisão 1") || q.includes("decisao 1"))
-    addHead(`<p class="say">Abra "Como o EPE priorizou" no card da decisão 1: você vê impacto, urgência, confiança, esforço, risco de esperar e o score final — a fórmula inteira, sem caixa-preta.</p>`);
-  else if (q.includes("operação") || q.includes("como está"))
-    addHead(`<p class="say">Sob controle. 8 missões rodando, 5 já resolvidas hoje, e só 2 decisões precisaram de você — uma já é urgente (Quadro Paisagem). Comece por ela.</p>`);
-  else addHead(`<p class="say">Anotei. Levo isso em conta na próxima rodada de priorização e te trago no briefing.</p>`);
-};
-function askAbout(d, action) {
-  addUser(action === "adjust" ? `Quero ajustar a proposta do ${d.product}.` : `Me explica melhor a decisão do ${d.product}.`);
-  addHead(action === "adjust"
-    ? `<p class="say">Claro. O que muda — o foco, a foto ou o texto? Recalibro e recoloco na fila, já reordenada pelo EPE.</p>`
-    : `<p class="say">${d.causa} Score ${d.breakdown.score}: ${d.breakdown.factors.map(f => f[0]).join(", ")}. É por isso que ficou no topo. Reversível — se em 7 dias não reagir, trago o plano B.</p>`);
-}
-const input = $("#composerInput");
-$("#composerSend").addEventListener("click", send);
-input.addEventListener("keydown", e => { if (e.key === "Enter") send(); });
-function send() { const v = input.value.trim(); if (!v) return; input.value = ""; askFree(v); }
+/* ---------------- Conversa ----------------
+   A conversa vive na área OPERAÇÃO (chat-operacao.js), usando a camada
+   compartilhada do Sprint 09.A (mos/src/chat). Nada de resposta
+   hardcoded aqui — este arquivo cuida só do Plano do Dia. */
 
 /* ---------------- boot ---------------- */
 renderBriefing(); renderFunnel(); renderAttention(); renderDecisions();

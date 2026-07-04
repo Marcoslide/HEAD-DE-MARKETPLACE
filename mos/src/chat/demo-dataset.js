@@ -7,6 +7,7 @@
    A forma é a MESMA que o adaptador da Central produz a partir dos dados
    normalizados (datasetFromCentral): o chat não sabe se está falando com
    fixture ou integração real — só o campo `source` muda. */
+(function (NS) {
 'use strict';
 
 const DAY = 86400000;
@@ -169,4 +170,7 @@ function datasetFromCentral(repos, companyId, clock) {
   };
 }
 
-module.exports = { createDemoDataset, datasetFromCentral, PRODUCTS };
+NS.createDemoDataset = createDemoDataset;
+NS.datasetFromCentral = datasetFromCentral;
+NS.PRODUCTS = PRODUCTS;
+})(typeof module !== 'undefined' && module.exports ? require('./_ns.js') : (globalThis.HEADCHAT = globalThis.HEADCHAT || {}));

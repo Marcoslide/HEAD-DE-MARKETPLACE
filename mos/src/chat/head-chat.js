@@ -11,11 +11,13 @@
    - sem dado disponível → resposta honesta (NO_DATA), nunca improviso;
    - READ_ONLY: pedido de ação vira proposta com impacto e aprovação;
    - no máximo UM alerta por resposta, e ele nunca rouba a resposta. */
+(function (NS) {
 'use strict';
-const { classify, extract } = require('./interpreter.js');
-const { QueryLayer } = require('./query-layer.js');
-const { compose, money } = require('./composer.js');
-const { localTime } = require('./period.js');
+const extract = (...a) => NS.extract(...a);
+const compose = (...a) => NS.compose(...a);
+const money = v => NS.money(v);
+const localTime = (...a) => NS.localTime(...a);
+const QueryLayer = function (...a) { return new NS.QueryLayer(...a); };
 
 class HeadChat {
   constructor({ dataset, clock, mie = null, companyId = null, logger = null }) {
@@ -29,7 +31,7 @@ class HeadChat {
     this.memoryNotes = [];        // preferências persistentes do dono
   }
 
-  ask(text) {
+  ask(text, { surface = 'api' } = {}) {
     const query = extract(text, {
       context: this.context, clock: this.clock,
       companyId: this.companyId, products: this.dataset.products || [],
@@ -50,11 +52,15 @@ class HeadChat {
         break;
       }
       case 'DECISION_EXPLANATION': {
-        const idx = (text.match(/decis[aã]o (\d+)/i) || [])[1];
-        facts = this.q.getDecisionExplanation({
-          index: idx ? Number(idx) - 1 : 0,
-          term: this._decisionTerm(text),
-        });
+        if (/precisa de mim|preciso decidir/i.test(text)) {
+          facts = this.q.getPendingDecisions();
+        } else {
+          const idx = (text.match(/decis[aã]o (\d+)/i) || [])[1];
+          facts = this.q.getDecisionExplanation({
+            index: idx ? Number(idx) - 1 : 0,
+            term: this._decisionTerm(text),
+          });
+        }
         reply = compose(facts, { clock: this.clock });
         break;
       }
@@ -82,6 +88,7 @@ class HeadChat {
 
     this.lastTrace = {
       at: this.clock.nowIso(),
+      surface,                     // api | v3 | demo — onde a pergunta nasceu
       input: text,
       intent: query.intent,
       structuredQuery: { ...query, raw: undefined },
@@ -133,8 +140,10 @@ class HeadChat {
   }
 
   _decisionTerm(text) {
-    const m = text.match(/por ?que (?:o |a )?(.+?) (?:esta|está|é|e) urgente/i);
-    return m ? m[1] : null;
+    const m = text.match(/por ?que (?:o |a )?(.+?) (?:esta|está|é|e) urgente/i)
+      || text.match(/priorizou (?:o |a |isso[:,]? )?(.+?)\??$/i);
+    const term = m ? m[1].trim() : null;
+    return term && term.length > 3 && !/isso|isto/.test(term) ? term : null;
   }
 
   /* ---------- READ_ONLY: ação vira proposta com aprovação ---------- */
@@ -238,4 +247,17 @@ class HeadChat {
   }
 }
 
-module.exports = { HeadChat };
+NS.HeadChat = HeadChat;
+
+/* composição — dados normalizados da Central quando houver; fixtures no preview */
+NS.createHeadChat = function createHeadChat({ clock, mie = null, mos = null, companyId = null, dataset = null } = {}) {
+  if (!clock) throw new Error('createHeadChat exige o Clock injetado');
+  let data = dataset;
+  if (!data && mos && companyId)
+    data = NS.datasetFromCentral(mos.repos, companyId, clock);  // fonte real, se sincronizada
+  if (!data)
+    data = NS.createDemoDataset(clock);                          // preview: fixtures coerentes
+  return new HeadChat({ dataset: data, clock, mie, companyId,
+    logger: mos && mos.logger ? mos.logger.child({ mod: 'head-chat' }) : null });
+};
+})(typeof module !== 'undefined' && module.exports ? require('./_ns.js') : (globalThis.HEADCHAT = globalThis.HEADCHAT || {}));
