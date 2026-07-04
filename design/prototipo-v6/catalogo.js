@@ -7,6 +7,16 @@
    Nenhum resultado hardcoded. Nenhum botão publica nada.
    ============================================================= */
 (function () {
+  /* Data Completion (10.B): pendências de dado por produto — pergunta no
+     WhatsApp, resposta natural, atualização com fonte e revalidação */
+  const dataAsk = new Map();   // sku → { asked, answered, at }
+  function missingData(p) {
+    const out = [];
+    if (!p.profile.packedWeightG) out.push({ f: "packedWeightG", label: "peso embalado" });
+    if (!(p.profile.techSheet || {}).material) out.push({ f: "material", label: "material principal" });
+    if (p.profile.fragile && !p.profile.specialPackaging) out.push({ f: "specialPackaging", label: "proteção da embalagem" });
+    return out;
+  }
   "use strict";
   const CE = HEADCOMPLIANCE;
   const catClock = MIE.createClock();
@@ -127,6 +137,25 @@
         ${group("WARNING").length ? `<div class="cat-group">Alertas</div>${group("WARNING").map(findRow).join("")}` : ""}
         ${!r.findings.length ? `<p class="mmeta" style="margin-top:10px">nenhuma pendência conhecida.</p>` : ""}
 
+        ${(() => {
+          const miss = missingData(p);
+          const st = dataAsk.get(p.master.sku) || {};
+          if (!miss.length && !st.answered) return "";
+          if (st.answered) return `<div class="cat-group">Pendências de dados</div>
+            <div class="cat-find info"><b>✓</b> Respondido via WhatsApp pelo responsável de produção (${st.at}): <i>peso 14,2 kg | material vidro 4 mm | embalagem caixa reforçada com cantoneiras e isopor</i>
+            <div class="cat-src">campos atualizados com fonte WHATSAPP_COMMAND · nova versão da ficha · drafts revalidados automaticamente</div></div>`;
+          return `<div class="cat-group">Pendências de dados (Data Completion)</div>
+            ${miss.map(m => `<div class="cat-find unknown"><b>?</b> ${m.label} — necessário para a ficha e o frete do anúncio</div>`).join("")}
+            ${st.asked ? `<div class="cat-find info"><b>➤</b> Perguntado no WhatsApp (${st.at}) ao responsável de produção/expedição:
+              <div class="cat-src">"Para liberar o rascunho Shopee do ${esc(p.master.name)}, faltam: ${miss.map(x => x.label).join("; ")}. Pode responder assim: \`peso 14,2 kg | material vidro 4 mm | embalagem caixa reforçada\`."</div></div>
+              <div class="actions" style="margin-top:10px"><button class="btn" onclick="Catalogo.simAnswer()">Simular resposta do responsável</button></div>`
+            : `<div class="actions" style="margin-top:10px">
+                <button class="btn primary" onclick="Catalogo.askWhats()">Perguntar no WhatsApp</button>
+                <button class="btn" onclick="Catalogo.answerManually()">Responder manualmente</button>
+                <button class="btn ghost" onclick="Catalogo.reassign()">Reatribuir responsável</button>
+              </div>`}`;
+        })()}
+
         <div class="cat-group">Checklist de revisão</div>
         <div class="cat-check">${r.checklist.map(c =>
           `<div class="${c.ok ? "ok" : "no"}">${c.ok ? "✓" : "○"} ${esc(c.item)}</div>`).join("")}</div>
@@ -197,6 +226,28 @@
       toast(`Rascunho interno v${d._v} gerado (${d.status}). MODO LEITURA — nada foi publicado.`);
     },
     toggleEvidence() { showEvidence = !showEvidence; renderDetail(); },
+    askWhats() {
+      dataAsk.set(current.master.sku, { asked: true, at: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) });
+      toast("Pergunta objetiva enviada no WhatsApp para o responsável de produção — agrupada, com produto, praça e formato de resposta.");
+      renderDetail();
+    },
+    answerManually() { toast("Responder manualmente: preencha os campos na ficha — a fonte fica registrada como MANUAL."); },
+    reassign() { toast("Reatribuição: escolha o papel responsável (produção · financeiro · gestor marketplace)."); },
+    simAnswer() {
+      const p = current;
+      p.profile.packedWeightG = 14200;
+      p.profile.techSheet = { ...(p.profile.techSheet || {}), material: "vidro 4 mm" };
+      p.profile.specialPackaging = "caixa reforçada com cantoneiras e isopor";
+      if (p.byPlatform.shopee) p.byPlatform.shopee.attributes = { ...(p.byPlatform.shopee.attributes || {}), material: "vidro 4 mm" };
+      results.delete(`${p.master.sku}|${currentPlat}`);
+      dataAsk.set(p.master.sku, { answered: true, at: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) });
+      renderOverview(); renderList(); renderDetail();
+      const r = evaluate(p, currentPlat);
+      const left = r.findings.filter(f => ["BLOCKER", "UNKNOWN"].includes(f.severity)).map(f => f.message);
+      toast(left.length
+        ? `Ficha atualizada (fonte WHATSAPP_COMMAND) e draft revalidado. Ainda falta: ${left[0]}. Nenhum anúncio foi publicado.`
+        : "Ficha atualizada e draft Shopee revalidado: pronto para revisão. Nenhum anúncio foi publicado.");
+    },
     internalMission() {
       toast(`Missão interna criada: completar pendências de ${current.master.sku} no ${PLAT[currentPlat]} — acompanhe em A Missão.`);
     },

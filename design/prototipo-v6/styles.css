@@ -461,3 +461,14 @@ button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 .gro-sim span{display:block;font-size:10.5px;color:var(--text-3);letter-spacing:.06em;text-transform:uppercase}
 .gro-sim b{font:600 16px var(--serif);color:var(--text)}
 .gro-sim b.neg{color:#e06661}
+
+/* criação de anúncio pela conversa */
+.an-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:14px;
+  padding:10px;border:1px dashed var(--hairline);border-radius:12px}
+.btn.amberish{border-color:var(--amber);color:var(--amber);background:var(--amber-soft)}
+.an-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.an-photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.an-photo{width:74px;height:74px;border-radius:10px;border:1px solid var(--hairline);
+  background:var(--surface);display:flex;flex-direction:column;align-items:center;justify-content:center;
+  font-size:10px;color:var(--text-3);gap:4px}
+.an-photo b{font-size:16px;color:var(--amber)}

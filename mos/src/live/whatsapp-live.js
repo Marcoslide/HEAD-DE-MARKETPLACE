@@ -111,14 +111,19 @@ class WhatsAppLive {
     if (!this.flags.isEnabled('WHATSAPP_HEAD_PILOT_REPLY_ENABLED', { companyId })) return null;
     if (!this.cfg.allowlist.includes(msg.from)) return null;      // só administrador
     if (!companyId || !this.chatFactory) return null;
-    const text = msg.text ? msg.text.body : '';
-    if (!text) return null;
+    /* foto/documento: a legenda vira texto; a mídia vai ao gateway (intake) */
+    const media = msg.image || msg.document || null;
+    const text = msg.text ? msg.text.body : (media && media.caption) || '';
+    if (!text && !media) return null;
 
     let reply;
-    /* Sprint 10.B: comandos internos (drafts/promoções) passam pelo gateway,
-       que usa o MESMO Adaptation Engine da tela — nunca automação paralela */
+    /* Sprint 10.B: comandos internos (drafts/promoções/intake/pendências)
+       passam pelo gateway, que usa os MESMOS serviços da tela */
     const gw = this.commandGateway
-      ? await this.commandGateway.handle({ companyId, from: msg.from, text }) : null;
+      ? await this.commandGateway.handle({ companyId, from: msg.from, text,
+          kind: msg.type || 'text', mediaId: media ? media.id : null,
+          messageId: msg.id }) : null;
+    if (!gw && !text) return null;      // mídia sem gateway: nada a responder
     if (gw) {
       reply = gw.reply;
     } else {

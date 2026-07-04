@@ -388,6 +388,26 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   growth-commercial-engine.md. Protótipo v6 = experiência principal.
 
 **Suíte total: 251 testes, 251 verdes.** (230 + 21 do growth)
+
+### Sprint 10.B (complementos) — anúncio nasce na conversa + Data Completion
+
+  Operação vira porta de entrada: texto/foto/link → identifica produto
+  (nunca duplica Master) → existente = drafts por praça via o MESMO
+  Adaptation Engine; novo = PRODUCT_INTAKE com perguntas objetivas —
+  nunca vira Master sem dados mínimos + revisão. Foto registra
+  origem/autor/hash; referência nunca vira oficial; link é Source
+  Reference com content_copied=0 sempre. Data Completion Engine:
+  pendência → DataRequest (produto+draft+praça, criticidade, roteada ao
+  papel certo) → pergunta agrupada no WhatsApp → resposta natural
+  ("peso 14,2 kg | material vidro 4 mm") normalizada → atualiza só o
+  campo certo (fonte WHATSAPP_COMMAND, proveniência, valor anterior) →
+  revalida drafts (nova versão) → retorno honesto. Ambíguo → confirmação;
+  já preenchido → não pergunta; empresas isoladas; WhatsApp jamais
+  publica. +4 tabelas; +17 testes; v6 com "Criar anúncio" na Operação e
+  card de Pendências no Catálogo. Docs:
+  conversational-intake-and-data-completion.md.
+
+**Suíte total: 268 testes, 268 verdes.** (251 + 17 do intake)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

@@ -464,3 +464,104 @@ CREATE INDEX IF NOT EXISTS idx_lead_followup ON lead_follow_up(company_id, due_a
 CREATE INDEX IF NOT EXISTS idx_aff_conv_company ON affiliate_conversion(company_id, affiliate_id);
 CREATE INDEX IF NOT EXISTS idx_promo_company ON promotion(company_id, status);
 CREATE INDEX IF NOT EXISTS idx_job_company ON internal_job(company_id, status);
+
+-- ---------------------------------------------------------------------------
+-- CRIAÇÃO PELA CONVERSA + DATA COMPLETION (complementos do Sprint 10.B)
+-- ---------------------------------------------------------------------------
+
+-- entrada provisória de produto: NUNCA vira Product Master sem revisão
+CREATE TABLE IF NOT EXISTS product_intake (
+  id            TEXT PRIMARY KEY,
+  company_id    TEXT NOT NULL REFERENCES company(id),
+  status        TEXT NOT NULL DEFAULT 'NEW' CHECK (status IN
+    ('NEW','AWAITING_PRODUCT_DATA','AWAITING_IMAGES','AWAITING_MEASUREMENTS',
+     'AWAITING_COST','AWAITING_MARKETPLACE','READY_TO_CREATE_PRODUCT_MASTER',
+     'REJECTED_DUPLICATE','ARCHIVED')),
+  provisional_name TEXT,
+  sku           TEXT,
+  data_json     TEXT,            -- material, medidas, peso, custo, preço, estoque, prazo…
+  marketplaces_json TEXT,
+  origin        TEXT NOT NULL,
+  message_id    TEXT,
+  link_id       TEXT,
+  product_id    TEXT,            -- preenchido se casar com produto existente
+  duplicate_of  TEXT,
+  responsible   TEXT,
+  notes         TEXT,
+  created_by    TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT
+);
+
+-- upload vindo da conversa: origem, hash, tipo e uso permitido SEMPRE gravados
+CREATE TABLE IF NOT EXISTS intake_asset (
+  id            TEXT PRIMARY KEY,
+  company_id    TEXT NOT NULL,
+  intake_id     TEXT,
+  product_id    TEXT,
+  kind          TEXT NOT NULL CHECK (kind IN ('OFFICIAL','REFERENCE','CREATIVE_REF','UNCLASSIFIED')),
+  asset_type    TEXT NOT NULL DEFAULT 'image',
+  url           TEXT,
+  hash          TEXT NOT NULL,
+  origin        TEXT NOT NULL,
+  uploaded_by   TEXT,
+  message_id    TEXT,
+  review_status TEXT NOT NULL DEFAULT 'PENDING_REVIEW',
+  allowed_use   TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- link colado na conversa: registrado como referência — NUNCA copiado
+CREATE TABLE IF NOT EXISTS source_reference (
+  id            TEXT PRIMARY KEY,
+  company_id    TEXT NOT NULL,
+  url           TEXT NOT NULL,
+  domain        TEXT,
+  link_kind     TEXT NOT NULL DEFAULT 'UNKNOWN' CHECK (link_kind IN
+    ('OWN_LISTING','OWN_PRODUCT','SUPPLIER','REFERENCE','COMPETITOR','MARKETPLACE','EXTERNAL_CATALOG','UNKNOWN')),
+  purpose       TEXT,            -- confirmado pelo usuário; sem confirmação = referência
+  intake_id     TEXT,
+  product_id    TEXT,
+  content_copied INTEGER NOT NULL DEFAULT 0,   -- SEMPRE 0: nunca copiamos conteúdo de terceiros
+  insights_json TEXT,
+  registered_by TEXT,
+  origin        TEXT NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- Data Completion Engine: pendência de dado vira pergunta, não alerta parado
+CREATE TABLE IF NOT EXISTS data_request (
+  id            TEXT PRIMARY KEY,
+  company_id    TEXT NOT NULL REFERENCES company(id),
+  product_id    TEXT,
+  variation_id  TEXT,
+  listing_draft_id TEXT,
+  marketplace   TEXT,
+  field         TEXT NOT NULL,
+  label         TEXT NOT NULL,
+  motive        TEXT,
+  criticality   TEXT NOT NULL DEFAULT 'MEDIUM' CHECK (criticality IN ('BLOCKER','HIGH','MEDIUM','LOW')),
+  rule_source   TEXT,
+  rule_pack     TEXT,
+  status        TEXT NOT NULL DEFAULT 'OPEN' CHECK (status IN
+    ('OPEN','ASKED','ANSWERED','NEEDS_CONFIRMATION','RESOLVED','EXPIRED','CANCELLED','SUPERSEDED')),
+  responsible_role TEXT,
+  responsible_user TEXT,
+  responsible_ref  TEXT,          -- telefone allowlisted quando canal = whatsapp
+  unassigned    INTEGER NOT NULL DEFAULT 0,
+  channel       TEXT,
+  question_text TEXT,
+  expected_format TEXT,
+  answer_raw    TEXT,
+  answer_normalized TEXT,
+  previous_value TEXT,
+  confidence    TEXT,
+  source        TEXT,
+  answered_by   TEXT,
+  audit_json    TEXT,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  asked_at      TEXT,
+  answered_at   TEXT,
+  resolved_at   TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_datareq ON data_request(company_id, status, product_id);

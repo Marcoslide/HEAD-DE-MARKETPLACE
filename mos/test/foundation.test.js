@@ -49,7 +49,7 @@ test('queue: concorrência limitada, retry com backoff e dead-letter', async () 
 
 /* ================= BANCO (Bloco 03) ================= */
 
-test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 31 S10.B)', () => {
+test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 35 S10.B)', () => {
   const mos = createMOS();
   const tables = mos.db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`)
     .map(r => r.name).sort();
@@ -72,7 +72,8 @@ test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 31 S10
     'affiliate_attribution_event', 'affiliate_conversion', 'affiliate_commission',
     'affiliate_payout_batch', 'promotion', 'promotion_target', 'promotion_marketplace_profile',
     'promotion_eligibility', 'promotion_margin_simulation', 'promotion_inventory_cap',
-    'campaign', 'campaign_target', 'campaign_performance_snapshot'];
+    'campaign', 'campaign_target', 'campaign_performance_snapshot',
+    'product_intake', 'intake_asset', 'source_reference', 'data_request'];
   assert.deepEqual(tables, expected.sort());
   mos.close();
 });

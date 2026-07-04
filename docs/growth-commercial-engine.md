@@ -132,7 +132,8 @@ existe nas entidades para o vínculo futuro.
 ```
 mos/src/growth/  permissions.js · jobs.js · margin.js · provenance.js
                  · adaptation.js · leads.js · affiliates.js · promotions.js
-                 · results.js · command-gateway.js · demo-growth.js (UMD) · index.js
+                 · results.js · intake.js · data-completion.js
+                 · command-gateway.js · demo-growth.js (UMD) · index.js
 mos/src/infrastructure/db/schema-growth.sql   (31 tabelas aditivas)
 mos/test/growth.test.js                       (21 testes)
 design/prototipo-v6/                          (área Crescimento; demo declarada)

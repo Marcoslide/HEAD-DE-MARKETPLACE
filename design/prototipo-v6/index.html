@@ -92,6 +92,17 @@
       <div class="op-shortcuts" id="opShortcuts" aria-label="Atalhos de consulta"></div>
       <div class="chat" id="opChat" style="margin-top:18px" aria-live="polite"></div>
       <div class="suggest" id="opSuggest"></div>
+      <!-- criação de anúncio pela conversa (Sprint 10.B) -->
+      <div class="an-toolbar" id="anToolbar">
+        <button class="btn amberish" id="anStart">Criar anúncio</button>
+        <button class="gro-mini" onclick="Anuncio.addPhoto(1)">Adicionar foto</button>
+        <button class="gro-mini" onclick="Anuncio.addPhoto(4)">Adicionar várias fotos</button>
+        <button class="gro-mini" onclick="Anuncio.addLink()">Adicionar link</button>
+        <button class="gro-mini" onclick="Anuncio.addFile()">Adicionar arquivo</button>
+        <button class="gro-mini" onclick="Anuncio.pickProduct()">Selecionar produto existente</button>
+        <button class="gro-mini" onclick="Anuncio.pickMarketplace()">Escolher marketplace</button>
+        <button class="gro-mini" onclick="Anuncio.createDraft()">Criar rascunho</button>
+      </div>
       <div class="composer">
         <input id="opInput" placeholder="Pergunte ao Head… (⌘K)" aria-label="Pergunte ao Head" autocomplete="off">
         <button class="send" id="opSend" aria-label="Enviar">→</button>
@@ -187,6 +198,7 @@
 <script src="chat-operacao.js"></script>
 <script src="catalogo.js"></script>
 <script src="crescimento.js"></script>
+<script src="anuncio.js"></script>
 <script src="conexoes.js"></script>
 </body>
 </html>

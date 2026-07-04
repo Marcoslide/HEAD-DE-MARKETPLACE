@@ -14,6 +14,8 @@ const { LeadService, LEAD_STATUSES, LEAD_ORIGINS } = require('./leads.js');
 const { AffiliateService, AFFILIATE_STATUSES } = require('./affiliates.js');
 const { PromotionService, PROMOTION_STATUSES, ExternalWriteError } = require('./promotions.js');
 const { ResultsService } = require('./results.js');
+const { IntakeService, INTAKE_ORIGINS } = require('./intake.js');
+const { DataCompletionEngine, FIELD_MAP, ROUTING } = require('./data-completion.js');
 const { GrowthCommandGateway } = require('./command-gateway.js');
 
 function createGrowth({ mos, clock, catalog }) {
@@ -32,14 +34,19 @@ function createGrowth({ mos, clock, catalog }) {
   const affiliates = new AffiliateService({ repos, permissions, approvals, clock, bus });
   const promotions = new PromotionService({ repos, margin, permissions, approvals, clock, bus });
   const results = new ResultsService({ repos, clock });
+  const intake = new IntakeService({ repos, catalog, adaptation, permissions,
+    jobs, bus, clock });
+  const dataCompletion = new DataCompletionEngine({ repos, catalog, provenance,
+    permissions, clock, bus });
   const gateway = new GrowthCommandGateway({ repos, adaptation, jobs, promotions,
-    permissions, clock });
+    permissions, clock, intake, dataCompletion });
 
   return { permissions, approvals, jobs, margin, provenance, adaptation,
-           leads, affiliates, promotions, results, gateway };
+           leads, affiliates, promotions, results, intake, dataCompletion, gateway };
 }
 
 module.exports = { createGrowth, ROLES, ACTION_ORIGINS, FIELD_SOURCES,
                    LEAD_STATUSES, LEAD_ORIGINS, AFFILIATE_STATUSES,
-                   PROMOTION_STATUSES, PermissionError, ExternalWriteError,
+                   PROMOTION_STATUSES, INTAKE_ORIGINS, FIELD_MAP, ROUTING,
+                   PermissionError, ExternalWriteError,
                    assertOrigin, computeMargin };
