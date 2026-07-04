@@ -40,13 +40,15 @@ async function main() {
 
   console.log('\n' + line());
   console.log('  CENTRAL DE MARKETPLACE — conexão → sync → sinais → Plano do Dia');
+  console.log('  MODO: FIXTURES/MOCK — integração real pendente de ativação');
+  console.log('  (OAuth real + transporte HTTP oficial entram com a 1ª loja real)');
   console.log(line());
 
-  /* 2. conexão autenticada (mock/fixtures — nunca conta real) */
+  /* 2. conector ativado em modo fixture (mock) — nunca conta real */
   for (const conn of connections) {
     const r = await central.connections.connectMock(conn.id);
     const st = central.connections.status(conn.id);
-    console.log(`  ✓ ${r.platform.padEnd(14)} conectado · conta ${r.accountId} · loja ${r.storeId}` +
+    console.log(`  ✓ ${r.platform.padEnd(14)} conector ativado (fixture) · conta ${r.accountId} · loja ${r.storeId}` +
       ` · token ${st.credential.tokenMasked} · READ_ONLY=${st.readOnly}`);
   }
 
@@ -83,9 +85,13 @@ async function main() {
     if (d.provenance)
       console.log(`      origem: ${d.provenance.platform} · conta ${d.provenance.accountId} · entidade ${d.provenance.entityId} · evento ${d.provenance.eventId}`);
   }
-  console.log('\n  MISSÕES (o Head toca sozinho):');
-  for (const m of plan.missions)
-    console.log(`    ▸ [${m.level}] ${m.title}${m.provenance ? ` (via ${m.provenance.platform})` : ''}`);
+  console.log('\n  MISSÕES:');
+  for (const m of plan.missions) {
+    const label = m.executionScope === 'INTERNAL_ONLY' ? 'EXECUÇÃO INTERNA DO HEAD' : m.level;
+    console.log(`    ▸ [${label}] ${m.title}${m.provenance ? ` (via ${m.provenance.platform})` : ''}`);
+    if (m.executionScope === 'INTERNAL_ONLY')
+      console.log('      → ação interna: priorizar fila/alertar responsável — NADA é alterado no marketplace (READ_ONLY)');
+  }
   if (plan.investigations.length) {
     console.log('\n  INVESTIGAÇÕES ABERTAS:');
     for (const i of plan.investigations) console.log(`    ▸ ${i.title}`);

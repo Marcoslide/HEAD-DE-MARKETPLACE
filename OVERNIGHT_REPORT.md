@@ -227,10 +227,13 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   garante que nenhum arquivo em `mie/src` usa `Date` fora do Clock). Doc em
   `docs/clock-and-temporal-context.md`.
 
-- **Sprint 09 — Central de Marketplace** — *concluído*: integrações oficiais,
-  dados unificados e inteligência operacional para Mercado Livre, Shopee,
-  TikTok Shop e Magalu — em **uma Central única** (`mos/src/central/`),
-  construída sobre a base auditada (Fase 1: mapa REUTILIZAR/ADAPTAR/
+- **Sprint 09 — Central de Marketplace** — *concluído: "Central de
+  Marketplace pronta para ativação real"*. A Central única
+  (`mos/src/central/`) para Mercado Livre, Shopee, TikTok Shop e Magalu,
+  com conectores **estruturados, validados por fixtures e preparados para
+  ativação — integração real pendente de credencial e transporte oficial**
+  (nenhuma loja real conectada ainda, por decisão de segurança). Construída
+  sobre a base auditada (Fase 1: mapa REUTILIZAR/ADAPTAR/
   COMPLETAR/MIGRAR/CRIAR em `docs/sprint-09-auditoria-central-marketplace.md`).
   O que nasceu: contrato único de conector (capability matrix; capability
   inexistente = erro claro; **toda escrita bloqueada tecnicamente** —
@@ -254,11 +257,17 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   estruturado + fixtures + testes, conexão REAL bloqueada até validar
   credenciais oficiais (nada inventado). Demo: `node mos/demo-central.js`
   — o cenário do sprint vira INTERROMPER (estoque do campeão) + 2
-  aprovações (margem/expansão) + 2 execuções automáticas (pedidos no
-  prazo) + 1 investigação (vídeo TikTok). +21 testes.
-  Doc em `docs/marketplace-central.md`.
+  aprovações (margem/expansão) + 2 **EXECUÇÕES INTERNAS DO HEAD**
+  (destacar pedido crítico e priorizar a fila interna — `executionScope:
+  INTERNAL_ONLY`; nada é alterado no marketplace) + 1 investigação (vídeo
+  TikTok). +22 testes. Doc em `docs/marketplace-central.md`.
+  **Próximo sprint principal: Sprint 10 — Marketplace Rule, Catalog &
+  Compliance Engine** (categoria, atributos, ficha técnica, imagem,
+  peso/dimensões, frete, prazo, fiscal, personalizados, risco de bloqueio,
+  validação pré-publicação); a evolução do Conselho para sinais reais se
+  integra a ele, sem substituí-lo.
 
-**Suíte total: 154 testes, 154 verdes.** (133 + 21 da Central)
+**Suíte total: 155 testes, 155 verdes.** (133 + 22 da Central)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

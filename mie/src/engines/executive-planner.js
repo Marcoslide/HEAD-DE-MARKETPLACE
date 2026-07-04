@@ -115,6 +115,9 @@ class ExecutivePlanningEngine {
          entidade/evento — segue junto até o Plano do Dia */
       provenance: c.provenance ?? null,
       playbook: c.playbook ?? null,
+      /* INTERNAL_ONLY: a "execução" é interna ao Head (alerta, fila,
+         missão, registro) — nenhuma escrita em marketplace (READ_ONLY) */
+      executionScope: c.executionScope ?? null,
     };
   }
 
@@ -328,7 +331,8 @@ class ExecutivePlanningEngine {
       impactMonthly: f.impactMonthly, confidence: f.confidenceLabel, urgency: f.urgency,
       effort: f.effort, score: x.score, reason: x.reason,
       proposalType: f.proposalType, class: f.class,
-      ...(f.provenance ? { provenance: f.provenance, playbook: f.playbook } : {}),
+      ...(f.provenance ? { provenance: f.provenance, playbook: f.playbook,
+                           executionScope: f.executionScope } : {}),
       breakdown: { impact: f.impactMonthly, urgency: f.urgency, confidence: f.confidenceLabel,
         effort: f.effort, riskOfWaiting: x.breakdown.riskOfWaiting, riskOfActingEarly: x.breakdown.riskOfActingEarly,
         base: x.breakdown.base, mult: x.breakdown.mult, factors: x.breakdown.factors, score: x.score },

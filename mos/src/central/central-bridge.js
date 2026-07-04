@@ -44,7 +44,11 @@ class CentralBridge {
       this.stats.graphNodes++;
     }
 
-    /* 2. EPE: candidato executivo normalizado (o EPE valida que não há bruto) */
+    /* 2. EPE: candidato executivo normalizado (o EPE valida que não há bruto).
+       executionScope INTERNAL_ONLY (Sprint 09): READ_ONLY é absoluto para
+       marketplaces — qualquer "execução" derivada de sinal da Central é
+       INTERNA ao Head (alerta, missão interna, priorização de fila,
+       registro, notificação). NUNCA chamada de escrita em praça externa. */
     const accepted = this.mie.epe.addExternalSignal({
       signalKey: s.signalKey, playbook: s.playbook,
       id: s.signalKey, productId: s.productId, title: s.title,
@@ -55,6 +59,7 @@ class CentralBridge {
       window: !!s.window, autoAuthorized: !!s.autoAuthorized,
       recommendation: s.recommendation ?? null,
       provenance: s.provenance,
+      executionScope: 'INTERNAL_ONLY',
     });
     if (accepted) {
       this.stats.signals++;

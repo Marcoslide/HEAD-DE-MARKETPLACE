@@ -1,9 +1,28 @@
-# Central de Marketplace — integrações oficiais, dados unificados
+# Central de Marketplace — pronta para ativação real
 
 > Sprint 09. Camada de Execução (`mos/src/central/`), alimentando a Camada
 > Cognitiva (MIE). **Uma Central única**: cada plataforma entra como um
 > conector com suas capacidades, mas todos os dados chegam ao Head em um
 > padrão comum. Nenhum "sistema Shopee" ou "sistema ML" separado.
+
+## Estado atual — comunicação honesta
+
+**O Sprint 09 entregou a Central de Marketplace: conectores estruturados,
+segurança de tokens, normalização e o pipeline completo validado com
+fixtures e mocks. A conexão real de loja é a próxima etapa de ativação.**
+
+Nenhum conector está "integrado em produção": não há OAuth real, transporte
+HTTP real nem leitura de loja real ainda — por decisão de segurança. Os
+conectores são descritos sempre como: **estruturados · validados por
+fixture · preparados para ativação · integração real pendente de credencial
+e transporte oficial**. Quando a primeira loja real for conectada, troca-se
+o transporte; pipeline, normalização, eventos e sinais não mudam.
+
+**READ_ONLY é absoluto para marketplaces** — inclusive depois da ativação
+real, neste estágio o Head apenas **lê, entende e organiza**. Toda
+"execução automática" derivada da Central é **EXECUÇÃO INTERNA DO HEAD**
+(ver seção abaixo): nada é alterado em Shopee, Mercado Livre, TikTok Shop
+ou Magalu.
 
 ## Como rodar
 
@@ -147,6 +166,25 @@ tecnicamente qualquer campo `payload`/`raw`** — só sinal normalizado entra.
 Cada item do plano carrega `provenance` (plataforma, conta, loja, entidade,
 evento) — rastreável até o payload bruto.
 
+### EXECUÇÃO INTERNA DO HEAD (`executionScope: 'INTERNAL_ONLY'`)
+
+Todo sinal da Central chega ao EPE marcado como `INTERNAL_ONLY`, e a marca
+segue até o Plano do Dia (testado). Quando o EPE classifica um desses
+sinais como "executar", isso significa APENAS ações dentro do próprio
+sistema:
+
+- criar alerta interno · destacar pedido crítico · priorizar a fila
+  operacional · registrar evento · abrir missão interna · atualizar o
+  Plano do Dia · notificar o responsável · marcar risco · recomendar ação.
+
+O que ele **não pode** (e o código impede em três camadas): alterar preço,
+estoque ou anúncio; publicar; pausar; criar/alterar campanha; mexer em
+pedido; responder cliente; chamar QUALQUER endpoint de escrita. As camadas:
+(1) toda ação de escrita do conector lança `ReadOnlyViolationError`;
+(2) a capability matrix declara `*Write: false` nas 4 praças;
+(3) o transporte não possui superfície de escrita (só `fetch`/`validate` —
+testado). **Nunca comunicar que o Head "agiu sozinho dentro da praça".**
+
 ## /__dev — Integrações de Marketplace
 
 `GET /__dev/central`: plataformas + status de integração, conexões por
@@ -176,14 +214,19 @@ outra linha muda.
 
 ## Limitações conhecidas (honestas)
 
-- Transporte real HTTP ainda não existe (propositalmente): entra quando o
-  usuário conectar a primeira loja real, com as URLs oficiais no deploy.
+- Transporte real HTTP ainda não existe (propositalmente): entra na etapa
+  de ativação, quando o usuário conectar a primeira loja real, com as URLs
+  oficiais no deploy.
 - Webhooks: contrato pronto (`stampEvent` + idempotência), recepção real
-  vem com a integração real.
+  vem com a ativação.
 - Ads/campanhas de TikTok: fora da matriz até confirmação de parceria.
-- Council/playbooks do MIE: sinais reais entram no EPE com consenso neutro;
-  a deliberação do Conselho sobre sinais reais é a evolução natural do
-  Sprint 10.
+- Council/playbooks do MIE: sinais da Central entram no EPE com consenso
+  neutro por enquanto. **O Sprint 10 continua sendo o Marketplace Rule,
+  Catalog & Compliance Engine** (categoria correta, atributos obrigatórios,
+  ficha técnica, códigos MLB e equivalentes, peso/dimensões, regras de
+  imagem, frete, prazo, personalizados, estoque, fiscal, risco de bloqueio,
+  validação pré-publicação) — a evolução do Conselho para sinais reais se
+  integra a ele, sem substituí-lo.
 
 ## Arquivos
 

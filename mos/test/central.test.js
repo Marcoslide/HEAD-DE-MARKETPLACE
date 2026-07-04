@@ -378,6 +378,37 @@ test('fixtures das 4 praças alimentam sinais do EPE', async () => {
   mos.close();
 });
 
+/* 4b — "execução automática" de sinal da Central é SEMPRE interna ao Head:
+   nenhuma chamada externa de escrita existe em todo o fluxo */
+test('execuções de sinais da Central são INTERNAL_ONLY — zero escrita externa', async () => {
+  const { mos, mie, central, company, transport } = await world({});
+  central.orchestrator.refreshSignals(company.id);
+  mie.runDays(MIE.WARMUP_DAYS + 2);
+  const plan = mie.planDay();
+
+  /* todo item vindo da Central carrega o escopo interno */
+  const fromCentral = [...plan.decisions, ...plan.missions, ...plan.investigations]
+    .filter(x => x.provenance);
+  assert.ok(fromCentral.length > 0);
+  for (const item of fromCentral)
+    assert.equal(item.executionScope, 'INTERNAL_ONLY',
+      `"${item.title}" deve ser execução interna do Head (READ_ONLY absoluto)`);
+
+  /* o transporte só tem superfície de LEITURA — não existe método de escrita */
+  const surface = Object.getOwnPropertyNames(Object.getPrototypeOf(transport))
+    .concat(Object.keys(transport));
+  for (const m of surface)
+    assert.ok(!/publish|update|create|cancel|pause|delete|write|post|put/i.test(m),
+      `transporte não pode ter método de escrita: ${m}`);
+  /* e todas as chamadas feitas foram recursos de leitura */
+  const READ = new Set(['listings', 'orders', 'inventory', 'prices', 'metrics',
+                        'logistics', 'returns', 'ads', 'finance']);
+  assert.ok(transport.calls.length > 0);
+  for (const c of transport.calls)
+    assert.ok(READ.has(c.resource), `chamada não-leitura detectada: ${c.resource}`);
+  mos.close();
+});
+
 /* extra — startConnect não finge integração de TikTok/Magalu */
 test('TikTok/Magalu: conexão REAL bloqueada até validar credenciais oficiais', async () => {
   const { mos, central, connections } = await world({ marketplaces: ['tiktok', 'magalu'], connect: false });

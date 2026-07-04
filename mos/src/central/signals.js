@@ -176,7 +176,10 @@ function generateSignals({ repos, companyId, clock, operation = {} }) {
     });
   }
 
-  /* PLAYBOOK pedido-perto-de-atrasar: prazo de expedição a menos de 36h */
+  /* PLAYBOOK pedido-perto-de-atrasar: prazo de expedição a menos de 36h.
+     Classe A = execução INTERNA do Head: destacar o pedido, priorizar a
+     fila interna de produção/expedição e alertar o responsável.
+     NADA é alterado no marketplace (READ_ONLY absoluto). */
   for (const o of v.orders) {
     if (!o.deadline_at || !/ready|await|paid/i.test(o.status || '')) continue;
     const hoursLeft = (new Date(o.deadline_at).getTime() - clock.nowMs()) / 3600000;
@@ -188,10 +191,10 @@ function generateSignals({ repos, companyId, clock, operation = {} }) {
         title: `Pedido ${o.external_id} (${o.platform}) com coleta em ~${Math.round(hoursLeft)}h`,
         impactMonthly: Math.round((o.total || 0) * 3),
         confidenceLabel: 'alta', urgency: 'alta', severity: 'attention',
-        effort: 1, reversible: true, class: 'A', proposalType: 'expedite-order',
+        effort: 1, reversible: true, class: 'A', proposalType: 'prioritize-internal-queue',
         hasProposal: true, window: true, autoAuthorized: true,
         evidence: { deadlineAt: o.deadline_at, hoursLeft: Math.round(hoursLeft), isCustom: !!o.is_custom },
-        recommendation: 'antecipar produção/expedição deste pedido na fila de hoje',
+        recommendation: 'EXECUÇÃO INTERNA: destacar o pedido, priorizar a fila interna de produção/expedição e alertar o responsável — nenhuma ação no marketplace',
         provenance: provenance({ ...o, entityType: 'MARKETPLACE_ORDER' }),
       });
     }
