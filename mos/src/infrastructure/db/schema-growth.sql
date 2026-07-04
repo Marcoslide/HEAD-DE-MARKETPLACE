@@ -1,4 +1,4 @@
--- CRESCIMENTO (Sprint 10.B) — leads, afiliados, promoções, campanhas,
+-- CRESCIMENTO (Sprint 10.B) — afiliados, promoções, campanhas,
 -- jobs internos, aprovações, conflitos de dados e taxas por praça.
 -- Regra de ouro: NADA aqui nasce solto — tudo vincula produto, anúncio,
 -- marketplace, campanha, origem, venda e margem. Nenhuma escrita externa.
@@ -113,62 +113,12 @@ CREATE TABLE IF NOT EXISTS marketplace_fee_profile (
 -- LEADS E OPORTUNIDADES
 -- ---------------------------------------------------------------------------
 
-CREATE TABLE IF NOT EXISTS lead_source (
-  id          TEXT PRIMARY KEY,
-  company_id  TEXT NOT NULL REFERENCES company(id),
-  kind        TEXT NOT NULL,
-  label       TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
 
-CREATE TABLE IF NOT EXISTS lead (
-  id            TEXT PRIMARY KEY,
-  company_id    TEXT NOT NULL REFERENCES company(id),
-  name          TEXT NOT NULL,
-  phone         TEXT,
-  email         TEXT,
-  origin        TEXT NOT NULL DEFAULT 'DESCONHECIDA' CHECK (origin IN
-    ('WHATSAPP','FORMULARIO','INSTAGRAM','MARKETPLACE_PERGUNTAS','MARKETPLACE_CHAT',
-     'INDICACAO','AFILIADO','IMPORTACAO_MANUAL','ANUNCIO','CAMPANHA','DESCONHECIDA')),
-  source_id     TEXT,
-  status        TEXT NOT NULL DEFAULT 'NOVO' CHECK (status IN
-    ('NOVO','EM_ATENDIMENTO','QUALIFICANDO','OPORTUNIDADE','PROPOSTA_ENVIADA',
-     'GANHO','PERDIDO','SEM_RESPOSTA','ARQUIVADO')),
-  owner_user_id TEXT,
-  estimated_value REAL,
-  product_id    TEXT,
-  marketplace   TEXT,
-  affiliate_id  TEXT,
-  campaign_id   TEXT,
-  tags_json     TEXT,
-  priority      TEXT DEFAULT 'normal',
-  data_source   TEXT NOT NULL DEFAULT 'MANUAL'
-    CHECK (data_source IN ('DEMO','MANUAL','IMPORTACAO','REAL')),
-  notes         TEXT,
-  dedup_key     TEXT NOT NULL,
-  entered_at    TEXT,
-  last_interaction_at TEXT,
-  next_follow_up_at   TEXT,
-  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at    TEXT,
-  UNIQUE (company_id, dedup_key)
-);
 
-CREATE TABLE IF NOT EXISTS lead_interaction (
-  id          TEXT PRIMARY KEY,
-  lead_id     TEXT NOT NULL REFERENCES lead(id),
-  company_id  TEXT NOT NULL,
-  kind        TEXT NOT NULL,
-  note        TEXT,
-  by_user     TEXT,
-  occurred_at TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
 
 CREATE TABLE IF NOT EXISTS conversation (
   id          TEXT PRIMARY KEY,
   company_id  TEXT NOT NULL,
-  lead_id     TEXT REFERENCES lead(id),
   channel     TEXT NOT NULL,
   status      TEXT NOT NULL DEFAULT 'open',
   started_at  TEXT,
@@ -176,62 +126,10 @@ CREATE TABLE IF NOT EXISTS conversation (
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- "opportunity" já existe no domínio de decisões (S05) — esta é comercial
-CREATE TABLE IF NOT EXISTS lead_opportunity (
-  id          TEXT PRIMARY KEY,
-  company_id  TEXT NOT NULL,
-  lead_id     TEXT NOT NULL REFERENCES lead(id),
-  title       TEXT NOT NULL,
-  value       REAL,
-  stage       TEXT NOT NULL DEFAULT 'ABERTA'
-    CHECK (stage IN ('ABERTA','PROPOSTA','GANHA','PERDIDA')),
-  product_id  TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at  TEXT
-);
 
-CREATE TABLE IF NOT EXISTS lead_assignment (
-  id          TEXT PRIMARY KEY,
-  lead_id     TEXT NOT NULL REFERENCES lead(id),
-  company_id  TEXT NOT NULL,
-  user_id     TEXT NOT NULL,
-  assigned_by TEXT,
-  assigned_at TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
 
-CREATE TABLE IF NOT EXISTS lead_follow_up (
-  id          TEXT PRIMARY KEY,
-  lead_id     TEXT NOT NULL REFERENCES lead(id),
-  company_id  TEXT NOT NULL,
-  due_at      TEXT NOT NULL,
-  note        TEXT,
-  done_at     TEXT,
-  created_by  TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
 
-CREATE TABLE IF NOT EXISTS lead_status_history (
-  id          TEXT PRIMARY KEY,
-  lead_id     TEXT NOT NULL REFERENCES lead(id),
-  company_id  TEXT NOT NULL,
-  from_status TEXT,
-  to_status   TEXT NOT NULL,
-  reason      TEXT,
-  by_user     TEXT,
-  at          TEXT,
-  created_at  TEXT NOT NULL DEFAULT (datetime('now'))
-);
 
-CREATE TABLE IF NOT EXISTS customer_link (
-  id           TEXT PRIMARY KEY,
-  company_id   TEXT NOT NULL,
-  lead_id      TEXT NOT NULL REFERENCES lead(id),
-  customer_ref TEXT NOT NULL,
-  marketplace  TEXT,
-  linked_at    TEXT,
-  created_at   TEXT NOT NULL DEFAULT (datetime('now'))
-);
 
 -- ---------------------------------------------------------------------------
 -- AFILIADOS (Affiliate Intelligence)
@@ -287,7 +185,7 @@ CREATE TABLE IF NOT EXISTS affiliate_attribution_event (
   id           TEXT PRIMARY KEY,
   company_id   TEXT NOT NULL,
   affiliate_id TEXT NOT NULL REFERENCES affiliate_partner(id),
-  kind         TEXT NOT NULL CHECK (kind IN ('click','sale','lead')),
+  kind         TEXT NOT NULL CHECK (kind IN ('click','sale')),
   order_ref    TEXT,
   product_id   TEXT,
   marketplace  TEXT,
@@ -459,8 +357,6 @@ CREATE TABLE IF NOT EXISTS campaign_performance_snapshot (
   created_at   TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_lead_company_status ON lead(company_id, status);
-CREATE INDEX IF NOT EXISTS idx_lead_followup ON lead_follow_up(company_id, due_at);
 CREATE INDEX IF NOT EXISTS idx_aff_conv_company ON affiliate_conversion(company_id, affiliate_id);
 CREATE INDEX IF NOT EXISTS idx_promo_company ON promotion(company_id, status);
 CREATE INDEX IF NOT EXISTS idx_job_company ON internal_job(company_id, status);

@@ -43,11 +43,6 @@ class RadarEngine {
       signals.push({ kind: 'promocao-margem-ruim', title: `Promoção "${p.name}" com margem ruim em ${p.marketplace}`,
         financialImpact: 2, urgency: 2, operationalRisk: 1, trend: 1, confidence: 3,
         entity: 'promotion', entityId: p.id, marketplace: p.marketplace });
-    /* leads sem resposta (Crescimento) */
-    const leads = this.growth.leads.summary({ companyId });
-    if (leads.real.unanswered > 0)
-      signals.push({ kind: 'leads-sem-resposta', title: `${leads.real.unanswered} lead(s) sem resposta`,
-        financialImpact: 1, urgency: 2, operationalRisk: 1, trend: 1, confidence: 3 });
     /* pendências de dado travando drafts (Data Completion) */
     const blockers = this.growth.dataCompletion.board(companyId, { status: 'OPEN' })
       .concat(this.growth.dataCompletion.board(companyId, { status: 'ASKED' }));

@@ -36,7 +36,7 @@ function createQueue(db, audit) {
             escopo.storeId || null, escopo.accountId || null, createdBy || null, maxAttempts || 3,
             idemKey || null, now());
       } catch (e) {
-        if (/UNIQUE.*idem_key/.test(e.message)) { /* idempotente: job igual já existe */
+        if (/idem_key/i.test(e.message) && /UNIQUE|duplicate/i.test(e.message)) { /* idempotente: job igual já existe */
           return db.prepare('SELECT id FROM jobs WHERE idem_key = ?').get(idemKey).id;
         }
         throw e;
@@ -44,14 +44,20 @@ function createQueue(db, audit) {
       db.prepare('INSERT INTO job_events(job_id, evento, em) VALUES(?,?,?)').run(id, 'QUEUED', now());
       return id;
     },
-    claim() { /* reivindica atomicamente o próximo job QUEUED (ou RUNNING órfão) */
+    claim(workerId) { /* ATÔMICO entre N workers: só um vence o UPDATE condicional */
       const stale = new Date(Date.now() - 120000).toISOString();
-      const j = db.prepare(`SELECT * FROM jobs WHERE status = 'QUEUED'
-        OR (status = 'RUNNING' AND (heartbeat_at IS NULL OR heartbeat_at < ?)) ORDER BY criado_em LIMIT 1`).get(stale);
-      if (!j) return null;
-      db.prepare(`UPDATE jobs SET status='RUNNING', attempt = attempt + 1, started_at = COALESCE(started_at, ?),
-        heartbeat_at = ? WHERE id = ?`).run(now(), now(), j.id);
-      return db.prepare('SELECT * FROM jobs WHERE id = ?').get(j.id);
+      for (let tent = 0; tent < 3; tent++) {
+        const j = db.prepare(`SELECT id FROM jobs WHERE (status = 'QUEUED' AND (next_retry_at IS NULL OR next_retry_at <= ?))
+          OR (status = 'RUNNING' AND (heartbeat_at IS NULL OR heartbeat_at < ?)) ORDER BY criado_em LIMIT 1`).get(now(), stale);
+        if (!j) return null;
+        const won = db.prepare(`UPDATE jobs SET status='RUNNING', attempt = attempt + 1,
+          started_at = COALESCE(started_at, ?), heartbeat_at = ?, lock_owner = ?, lock_expires_at = ?
+          WHERE id = ? AND (status = 'QUEUED' OR (status = 'RUNNING' AND (heartbeat_at IS NULL OR heartbeat_at < ?)))`)
+          .run(now(), now(), workerId || 'worker', new Date(Date.now() + 120000).toISOString(), j.id, stale).changes;
+        if (won === 1) return db.prepare('SELECT * FROM jobs WHERE id = ?').get(j.id);
+        /* outro worker venceu — tenta o próximo */
+      }
+      return null;
     },
     finish(id, status, extra) {
       extra = extra || {};
@@ -120,13 +126,20 @@ function createImportService(db, audit) {
       audit.record({ ...escopo, action: 'staging_concluido', detalhe: `${batchId}: ${parsed.rows.length} linha(s), ${jaExistem} já existente(s)` });
       return { aplicavel: true, registros: parsed.rows.length, jaExistem, perfil: det.perfil, granularidade: gran };
     },
-    /* APPLY — idempotente, nunca soma; grava apply_log p/ rollback */
-    apply({ batchId, usuario }) {
-      const batch = db.prepare('SELECT * FROM import_batches WHERE id = ?').get(batchId);
-      if (!batch || batch.estado !== 'AGUARDANDO_REVISÃO') {
-        const e = new Error('lote não está pronto para aplicar: ' + (batch ? batch.estado : 'inexistente'));
+    /* APPLY — idempotente, nunca soma; grava apply_log p/ rollback.
+       Dois usuários não aplicam o mesmo lote: transição de estado é atômica. */
+    apply({ batchId, usuario, locks }) {
+      const ganhou = db.prepare(`UPDATE import_batches SET estado = 'APLICANDO'
+        WHERE id = ? AND estado = 'AGUARDANDO_REVISÃO'`).run(batchId).changes;
+      if (ganhou !== 1) {
+        const atual = db.prepare('SELECT estado FROM import_batches WHERE id = ?').get(batchId);
+        audit.record({ action: 'IMPORT_LOCK_DENIED', status: 'blocked',
+          detalhe: batchId + ' já em ' + (atual ? atual.estado : 'inexistente') + ' — aplicação dupla recusada' });
+        const e = new Error('lote não está pronto para aplicar: ' + (atual ? atual.estado : 'inexistente'));
         e.permanent = true; throw e;
       }
+      const batch = db.prepare('SELECT * FROM import_batches WHERE id = ?').get(batchId);
+      audit.record({ action: 'IMPORT_LOCK_ACQUIRED', detalhe: batchId + ' por ' + (usuario || '?') });
       const escopo = JSON.parse(batch.escopo);
       const rows = db.prepare('SELECT * FROM import_rows WHERE batch_id = ?').all(batchId);
       let criados = 0, atualizados = 0, duplicadosEvitados = 0, ordem = 0;
@@ -154,6 +167,31 @@ function createImportService(db, audit) {
       audit.record({ ...escopo, userId: usuario, action: 'lote_aplicado', detalhe: `${batchId}: ${JSON.stringify(resultado)}` });
       return resultado;
     },
+    /* ANÚNCIO MASTER — nunca dois masters ativos para o mesmo produto/variação.
+       Atômico: o UNIQUE de master_links decide quem vence; troca é explícita. */
+    approveMaster({ produtoKey, itemId, usuario, force }) {
+      if (db.prepare('SELECT 1 FROM import_rows WHERE natural_key LIKE ? AND vinculo LIKE ?').get('%' + produtoKey + '%', '%CONFLITO%'))
+        { audit.record({ action: 'MASTER_LINK_LOCKED', status: 'blocked', detalhe: produtoKey + ': conflito de SKU aberto' });
+          return { blocked: true, reason: 'conflito de SKU aberto — master bloqueado' }; }
+      try {
+        db.prepare('INSERT INTO master_links(produto_key, item_id, estado, aprovado_por, em) VALUES(?,?,?,?,?)')
+          .run(produtoKey, itemId, 'MASTER CONFIRMADO MANUALMENTE', usuario || null, now());
+        audit.record({ action: 'MASTER_LINK_UPDATED', detalhe: produtoKey + ' → ' + itemId + ' (novo)' });
+        return { ok: true, itemId };
+      } catch (e) {
+        const atual = db.prepare('SELECT * FROM master_links WHERE produto_key = ?').get(produtoKey);
+        if (!force) {
+          audit.record({ action: 'MASTER_LINK_LOCKED', status: 'blocked',
+            detalhe: produtoKey + ' já tem master ' + atual.item_id + ' — segunda aprovação recusada' });
+          return { blocked: true, reason: 'já existe UM master ativo (' + atual.item_id + ') — troque explicitamente com force', atual: atual.item_id };
+        }
+        db.prepare('UPDATE master_links SET item_id = ?, aprovado_por = ?, em = ? WHERE produto_key = ?')
+          .run(itemId, usuario || null, now(), produtoKey);
+        audit.record({ action: 'MASTER_LINK_UPDATED', detalhe: produtoKey + ' → ' + itemId + ' (troca explícita)' });
+        return { ok: true, itemId, trocado: true };
+      }
+    },
+
     /* ROLLBACK persistente — preserva atualização posterior */
     rollback({ batchId, usuario }) {
       const logs = db.prepare('SELECT * FROM apply_log WHERE batch_id = ? ORDER BY ordem DESC').all(batchId);
@@ -162,7 +200,12 @@ function createImportService(db, audit) {
       for (const l of logs) {
         const snap = db.prepare('SELECT * FROM metric_snapshots WHERE natural_key = ?').get(l.natural_key);
         if (!snap) continue;
-        if (snap.batch_id !== batchId) { preservados++; continue; } /* lote posterior mexeu — intocável */
+        if (snap.batch_id !== batchId) {
+          preservados++;
+          audit.record({ action: 'ROLLBACK_BLOCKED_BY_NEWER_VERSION',
+            detalhe: l.natural_key + ' preservado: atualizado pelo lote ' + snap.batch_id });
+          continue; /* lote posterior mexeu — intocável */
+        }
         if (l.valor_anterior === null) {
           db.prepare('DELETE FROM metric_snapshots WHERE natural_key = ?').run(l.natural_key);
           removidos++;

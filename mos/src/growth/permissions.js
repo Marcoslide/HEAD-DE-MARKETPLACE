@@ -21,15 +21,15 @@ const MATRIX = {
   ADMIN: ['*'],
   GESTOR_MARKETPLACE: ['catalog.view', 'catalog.edit', 'draft.create', 'draft.approve',
     'job.execute', 'job.control', 'promotion.view', 'promotion.manage', 'promotion.approve',
-    'lead.view', 'approval.decide', 'results.view', 'export'],
+    'approval.decide', 'results.view', 'export'],
   OPERADOR_CATALOGO: ['catalog.view', 'catalog.edit', 'draft.create', 'job.execute',
     'promotion.view', 'results.view'],
-  COMERCIAL: ['lead.view', 'lead.manage', 'lead.export', 'affiliate.view',
+  COMERCIAL: ['affiliate.view',
     'affiliate.manage', 'promotion.view', 'promotion.manage', 'catalog.view',
     'results.view', 'export'],
   FINANCEIRO: ['results.view', 'commission.view', 'commission.approve',
-    'lead.view', 'promotion.view', 'catalog.view', 'approval.decide'],
-  LEITURA: ['catalog.view', 'promotion.view', 'lead.view', 'affiliate.view', 'results.view'],
+    'promotion.view', 'catalog.view', 'approval.decide'],
+  LEITURA: ['catalog.view', 'promotion.view', 'affiliate.view', 'results.view'],
 };
 
 /* quem pode DECIDIR cada tipo de aprovação */

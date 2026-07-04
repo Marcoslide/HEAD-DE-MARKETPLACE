@@ -284,7 +284,7 @@ test('relatório diário e semanal: fontes declaradas, áreas cruzadas, sem spam
   assert.equal(d2.deduplicated, true);
   assert.equal(w.mos.repos.intelReport.count(`WHERE kind = 'DAILY_BRIEF'`), 1);
   const wk = rid.reports.weeklyReview(company.id);
-  assert.match(wk.report.text, /Vendas:.*Leads:.*Afiliados:/s, 'semanal cruza áreas');
+  assert.match(wk.report.text, /Vendas:.*Afiliados:/s, 'semanal cruza áreas (sem CRM)');
   assert.match(wk.report.text, /Conflitos estratégicos/);
 });
 

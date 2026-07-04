@@ -31,8 +31,17 @@ function envConfig(env, baseDir) {
     backupDir: path.join(root, 'backups'),
     secret: process.env['HEAD_SECRET_' + env] || null, /* obrigatório fora de LOCAL */
     baseUrl: process.env['HEAD_BASE_URL_' + env] || 'http://localhost:3080',
+    databaseUrl: process.env.DATABASE_URL || process.env['HEAD_DATABASE_URL_' + env] || null,
+    redisUrl: process.env.REDIS_URL || process.env['HEAD_REDIS_URL_' + env] || null,
   };
   if (env !== 'LOCAL' && !cfg.secret) throw new Error('HEAD_SECRET_' + env + ' ausente — secrets vivem fora do código');
+  /* 10.D.1 — staging e produção NUNCA rodam em SQLite nem sem Redis */
+  if (env !== 'LOCAL') {
+    if (!cfg.databaseUrl || !/^postgres(ql)?:\/\//.test(cfg.databaseUrl))
+      throw new Error(env + ' exige PostgreSQL real: defina DATABASE_URL (postgres://…) — SQLite é recusado fora de LOCAL');
+    if (!cfg.redisUrl || !/^redis(s)?:\/\//.test(cfg.redisUrl))
+      throw new Error(env + ' exige Redis real: defina REDIS_URL (redis://…)');
+  }
   if (!cfg.secret) cfg.secret = 'local-dev-secret-nao-usar-em-producao';
   for (const d of [root, cfg.storageDir, cfg.logDir, cfg.backupDir]) fs.mkdirSync(d, { recursive: true });
   return cfg;
@@ -97,7 +106,7 @@ const MIGRATIONS = [
         'marketplace_accounts', 'stores', 'legal_entities', 'companies', 'grupos', 'rate_limits',
         'auth_tokens', 'sessions', 'users']) db.exec('DROP TABLE IF EXISTS ' + t);
     },
-    validate(db) { return db.prepare("SELECT count(*) c FROM sqlite_master WHERE type='table' AND name='users'").get().c === 1; },
+    validate(db) { try { db.prepare('SELECT count(*) c FROM users').get(); return true; } catch (e) { return false; } },
   },
   {
     id: '002-notifications-support',
@@ -111,13 +120,40 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_snap_batch ON metric_snapshots(batch_id);`);
     },
     down(db) { db.exec('DROP TABLE IF EXISTS notifications; DROP TABLE IF EXISTS support_requests;'); },
-    validate(db) { return db.prepare("SELECT count(*) c FROM sqlite_master WHERE name='notifications'").get().c === 1; },
+    validate(db) { try { db.prepare('SELECT count(*) c FROM notifications').get(); return true; } catch (e) { return false; } },
+  },
+  {
+    id: '003-hardening',
+    up(db) {
+      db.exec(`
+      CREATE TABLE IF NOT EXISTS locks(chave TEXT PRIMARY KEY, owner TEXT NOT NULL, expires_at_ms BIGINT NOT NULL);
+      CREATE TABLE IF NOT EXISTS master_links(produto_key TEXT PRIMARY KEY, item_id TEXT NOT NULL,
+        estado TEXT NOT NULL, aprovado_por TEXT, em TEXT);
+      CREATE UNIQUE INDEX IF NOT EXISTS uq_files_hash_scope
+        ON files(sha256, group_id, company_id, store_id, account_id);
+      CREATE INDEX IF NOT EXISTS idx_snapshots_escopo ON metric_snapshots(granularidade, batch_id);`);
+      /* idempotente nos dois dialetos: coluna pode já existir após rollback parcial */
+      for (const col of ['next_retry_at TEXT', 'lock_owner TEXT', 'lock_expires_at TEXT']) {
+        try { db.exec('ALTER TABLE jobs ADD COLUMN ' + col + ';'); }
+        catch (e) { if (!/already exists|duplicate column/i.test(e.message)) throw e; }
+      }
+    },
+    down(db) { db.exec('DROP TABLE IF EXISTS locks; DROP TABLE IF EXISTS master_links;'); },
+    validate(db) { try { db.prepare('SELECT count(*) c FROM locks').get(); return true; } catch (e) { return false; } },
   },
 ];
 
 function openDb(cfg) {
-  const db = new DatabaseSync(cfg.dbPath);
-  db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+  let db;
+  if (cfg.databaseUrl && /^postgres/.test(cfg.databaseUrl)) {
+    const { PgDb } = require('./drivers.js');
+    db = new PgDb(cfg.databaseUrl);
+  } else {
+    if (cfg.env !== 'LOCAL') throw new Error(cfg.env + ' não pode abrir SQLite');
+    db = new DatabaseSync(cfg.dbPath);
+    db.exec('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
+    db.kind = 'sqlite';
+  }
   db.exec('CREATE TABLE IF NOT EXISTS _migrations(id TEXT PRIMARY KEY, aplicada_em TEXT)');
   return db;
 }

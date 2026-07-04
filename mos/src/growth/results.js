@@ -29,14 +29,6 @@ class ResultsService {
       : m(null, 'SEM_DADO', 'nenhuma praça sincronizada',
           'conecte um marketplace (Conexões) para ver vendas reais');
 
-    /* leads: separação demo × real embutida */
-    const leads = this.r.lead.db.all('SELECT * FROM lead WHERE company_id = ?', companyId);
-    const realLeads = leads.filter(l => l.data_source !== 'DEMO');
-    const demoLeads = leads.filter(l => l.data_source === 'DEMO');
-    const byOrigin = rows => rows.reduce((acc, l) =>
-      (acc[l.origin] = (acc[l.origin] || 0) + 1, acc), {});
-    const won = realLeads.filter(l => l.status === 'GANHO').length;
-
     /* afiliados */
     const convs = this.r.affiliateConversion.db.all(
       `SELECT * FROM affiliate_conversion WHERE company_id = ? AND status = 'APROVADA'`, companyId);
@@ -56,16 +48,6 @@ class ResultsService {
     return {
       companyId, period: p, asOf: this.clock.nowIso(),
       salesByMarketplace,
-      leadsByOrigin: m({ real: byOrigin(realLeads), demo: byOrigin(demoLeads) },
-        realLeads.some(l => l.data_source === 'IMPORTACAO') ? 'IMPORTADO'
-          : realLeads.length ? 'REAL' : demoLeads.length ? 'DEMONSTRATIVO' : 'SEM_DADO',
-        'leads registrados internamente (CRM externo não conectado)',
-        demoLeads.length ? `${demoLeads.length} leads demonstrativos rotulados separadamente` : null),
-      leadConversion: m(realLeads.length
-          ? { won, total: realLeads.length,
-              pct: Math.round(won / realLeads.length * 1000) / 10 }
-          : null,
-        realLeads.length ? 'REAL' : 'SEM_DADO', 'sobre leads reais/importados apenas'),
       affiliateRevenue: m(convs.length
           ? Math.round(convs.reduce((a, c) => a + c.amount, 0) * 100) / 100 : null,
         affKind, 'conversões atribuídas registradas',

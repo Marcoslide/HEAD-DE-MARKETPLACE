@@ -103,3 +103,28 @@ vendas, margem e operação."* Os testes de contrato do 10.B foram atualizados
 para o novo contrato (não preservados artificialmente). O funil canônico é:
 Impressão → Clique → Visita → Carrinho → Pedido Criado → Pedido Não Pago →
 Pedido Pago → Preparação → Envio → Entrega → Avaliação → Recompra.
+
+
+## Hardening 10.D.1 — PostgreSQL/Redis reais e concorrência
+
+- **Guards de ambiente**: `HEAD_ENV=STAGING|PRODUCTION` recusa iniciar sem
+  `DATABASE_URL` PostgreSQL e `REDIS_URL` — SQLite fica restrito a LOCAL/testes.
+- **Driver PG real** (`mos/src/production/drivers.js`): pool `pg` num worker
+  thread com ponte síncrona (Atomics) — mesma interface `prepare/run/get/all`;
+  constraints e índices reais (PK de natural_key, UNIQUE de idem_key, hash+escopo).
+- **Redis real**: fila distribuída (LMOVE atômico), locks com dono e expiração
+  (SET NX PX), heartbeat de worker com TTL. Fallback em banco só em LOCAL.
+- **Concorrência provada em PG real** (mos/test/hardening.test.js sobe
+  initdb/pg_ctl/redis-server): dois workers não pegam o mesmo job (UPDATE
+  condicional), dois usuários não aplicam o mesmo lote (transição de estado
+  atômica + IMPORT_LOCK_DENIED auditado), sobreposição não duplica, escopos
+  não se misturam, UM master por produto (constraint + troca só com force +
+  MASTER_LINK_LOCKED/UPDATED), rollback preserva versão nova
+  (ROLLBACK_BLOCKED_BY_NEWER_VERSION).
+- **Backup/restore PG**: pg_dump com sha256 registrado + restore em banco
+  isolado conferindo DADOS (nunca schema vazio).
+- **smoke:staging**: falha se SQLite, Redis off, dupla aplicação passar ou
+  segredo aparecer em log.
+- **Excisão total de CRM**: LeadService apagado do disco; schema sem tabelas
+  de lead; RID sem sinal de lead; relatórios sem leadsByOrigin; permissões sem
+  lead.*; testes de contrato do 10.B atualizados (não preservados com código morto).

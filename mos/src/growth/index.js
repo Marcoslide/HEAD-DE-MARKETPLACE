@@ -10,7 +10,6 @@ const { JobService, ACTION_ORIGINS, assertOrigin } = require('./jobs.js');
 const { MarginService, computeMargin } = require('./margin.js');
 const { ProvenanceService, FIELD_SOURCES } = require('./provenance.js');
 const { AdaptationEngine } = require('./adaptation.js');
-const { LeadService, LEAD_STATUSES, LEAD_ORIGINS } = require('./leads.js');
 const { AffiliateService, AFFILIATE_STATUSES } = require('./affiliates.js');
 const { PromotionService, PROMOTION_STATUSES, ExternalWriteError } = require('./promotions.js');
 const { ResultsService } = require('./results.js');
@@ -30,7 +29,6 @@ function createGrowth({ mos, clock, catalog }) {
   const provenance = new ProvenanceService({ repos, clock });
   const adaptation = new AdaptationEngine({ repos, catalog, jobs, permissions,
     approvals, margin, bus, clock });
-  const leads = new LeadService({ repos, permissions, bus, clock });
   const affiliates = new AffiliateService({ repos, permissions, approvals, clock, bus });
   const promotions = new PromotionService({ repos, margin, permissions, approvals, clock, bus });
   const results = new ResultsService({ repos, clock });
@@ -42,11 +40,11 @@ function createGrowth({ mos, clock, catalog }) {
     permissions, clock, intake, dataCompletion });
 
   return { permissions, approvals, jobs, margin, provenance, adaptation,
-           leads, affiliates, promotions, results, intake, dataCompletion, gateway };
+           affiliates, promotions, results, intake, dataCompletion, gateway };
 }
 
 module.exports = { createGrowth, ROLES, ACTION_ORIGINS, FIELD_SOURCES,
-                   LEAD_STATUSES, LEAD_ORIGINS, AFFILIATE_STATUSES,
+                   AFFILIATE_STATUSES,
                    PROMOTION_STATUSES, INTAKE_ORIGINS, FIELD_MAP, ROUTING,
                    PermissionError, ExternalWriteError,
                    assertOrigin, computeMargin };

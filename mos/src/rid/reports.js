@@ -87,7 +87,6 @@ class ReportEngine {
     const results = this.growth.results.consolidated({ companyId });
     const dataKinds = {
       vendas: results.salesByMarketplace.source,
-      leads: results.leadsByOrigin.source,
       afiliados: results.affiliateRevenue.source,
       radar: dataset ? 'DEMONSTRATIVO' : 'REAL',
     };
@@ -111,7 +110,7 @@ class ReportEngine {
       ...(body.exigeDecisao.length ? [`Exige sua decisão: ${body.exigeDecisao.join('; ')}.`] : []),
       ...(body.bloqueado.length ? [`Bloqueado: ${body.bloqueado.join('; ')}.`] : []),
       '', 'Prioridades recomendadas:', ...body.prioridades,
-      '', `Fontes: vendas ${dataKinds.vendas} · leads ${dataKinds.leads} · afiliados ${dataKinds.afiliados}` +
+      '', `Fontes: vendas ${dataKinds.vendas} · afiliados ${dataKinds.afiliados}` +
         ` · período ${day} · nenhum dado demo é apresentado como real`,
     ].join('\n');
     const report = this.r.intelReport.insert({ company_id: companyId,
@@ -138,7 +137,7 @@ class ReportEngine {
       'SELECT * FROM operational_intervention WHERE company_id = ?', companyId);
     const body = {
       comercial: { vendas: results.salesByMarketplace, afiliados: results.affiliateRevenue,
-        leads: results.leadsByOrigin, promocoes: results.promotionCost },
+        promocoes: results.promotionCost },
       intervencoes: interventions.map(i => ({ desc: i.description.slice(0, 60), result: i.result })),
       aprendizados: learnings.map(l => l.discovery.slice(0, 80)),
       conflitosEstrategicos: dialogs.map(d => ({ subject: d.subject, status: d.status })),
@@ -148,7 +147,7 @@ class ReportEngine {
          AND status IN ('RECOMMENDED','IN_EXECUTION','MONITORING')`, companyId).map(p => p.title),
     };
     const text = `Revisão semanal (${week}):\n` +
-      `• Vendas: ${body.comercial.vendas.source} · Leads: ${body.comercial.leads.source}` +
+      `• Vendas: ${body.comercial.vendas.source}` +
       ` · Afiliados: ${body.comercial.afiliados.source}\n` +
       `• Intervenções: ${body.intervencoes.length} · Aprendizados: ${body.aprendizados.length}\n` +
       `• Conflitos estratégicos: ${body.conflitosEstrategicos.length} (${body.decisoesPendentes} aguardando você)\n` +
@@ -157,7 +156,7 @@ class ReportEngine {
     const report = this.r.intelReport.insert({ company_id: companyId,
       kind: 'WEEKLY_REVIEW', period: week, dedup_key: dedup, body_json: body, text,
       data_kinds_json: { vendas: body.comercial.vendas.source,
-        leads: body.comercial.leads.source, afiliados: body.comercial.afiliados.source },
+        afiliados: body.comercial.afiliados.source },
       coverage: 'todas as áreas com dado disponível', confidence: 'MEDIUM',
       created_at: this.clock.nowIso() });
     return { report, deduplicated: false };

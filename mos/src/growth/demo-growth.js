@@ -2,7 +2,7 @@
 
    Dados DEMONSTRATIVOS coerentes para o protótipo v6 e para o preview do
    chat. dataSource: DEMO_GROWTH_FIXTURE — o composer sempre imprime o
-   rótulo. Nenhum lead, afiliado ou promoção aqui é real; nenhum CRM está
+   rótulo. Nenhum afiliado ou promoção aqui é real; nenhuma integração está
    conectado; nada parece real: nomes e números são claramente de
    demonstração. No Node, o mesmo contrato pode ser servido pelos
    serviços reais (repos) — o chat não muda. */

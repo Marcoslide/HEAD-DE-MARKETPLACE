@@ -3,7 +3,9 @@
   "version": "0.10.0",
   "private": true,
   "description": "Head Marketplace OS — inteligência, operação, crescimento e decisão para marketplaces",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node --test mie/test/*.test.js mos/test/*.test.js",
     "lint": "node --check apps/api/server.js && node --check apps/worker/main.js && node --check mos/src/production/core.js && node --check mos/src/production/security.js && node --check mos/src/production/storage.js && node --check mos/src/production/jobs.js",
@@ -13,6 +15,11 @@
     "db:rollback": "node infrastructure/scripts/db.js rollback",
     "db:status": "node infrastructure/scripts/db.js status",
     "backup": "node infrastructure/scripts/db.js backup",
-    "smoke": "bash infrastructure/scripts/smoke.sh"
+    "smoke": "bash infrastructure/scripts/smoke.sh",
+    "smoke:staging": "HEAD_ENV=STAGING node --test --test-name-pattern='11-13|22-23|24-28|36-38' mos/test/hardening.test.js"
+  },
+  "dependencies": {
+    "ioredis": "^5.11.1",
+    "pg": "^8.16.3"
   }
 }

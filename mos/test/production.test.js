@@ -257,23 +257,22 @@ test('32-33 · migrations: status, idempotência e rollback', () => {
   const st = core.migrationStatus(db);
   assert.ok(st.every(m => m.aplicada && m.reversivel), 'status completo');
   const revertida = core.rollbackMigration(db);
-  assert.equal(revertida, '002-notifications-support');
+  assert.equal(revertida, '003-hardening');
   assert.equal(core.migrationStatus(db).find(m => m.id === revertida).aplicada, false);
   core.migrate(db); /* reaplicar funciona */
   db.close();
 });
-test('34 · smoke test de staging: jornada completa pela API', async () => {
+test('34 · smoke test da jornada completa pela API (LOCAL; staging real vive em hardening/smoke:staging)', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'head-smoke-'));
-  process.env.HEAD_SECRET_STAGING = 'staging-secret-de-teste';
-  const api = createApi({ env: 'STAGING', baseDir: dir });
-  const w = createWorkerApp({ env: 'STAGING', baseDir: dir });
+  const api = createApi({ env: 'LOCAL', baseDir: dir });
+  const w = createWorkerApp({ env: 'LOCAL', baseDir: dir });
   await new Promise(res => api.server.listen(0, res));
   const url = `http://127.0.0.1:${api.server.address().port}`;
   const post = (p, body, extra) => fetch(url + p, { method: 'POST', headers: { 'content-type': 'application/json', ...(extra || {}) }, body: JSON.stringify(body) });
   await post('/auth/signup', { email: 'piloto@h.example', senha: 'senha-piloto-1', nome: 'Piloto' });
   const login = await post('/auth/login', { email: 'piloto@h.example', senha: 'senha-piloto-1' });
   const cookie = login.headers.get('set-cookie');
-  assert.ok(/HttpOnly/.test(cookie) && /Secure/.test(cookie), 'cookie seguro em staging');
+  assert.ok(/HttpOnly/.test(cookie), 'cookie HttpOnly (Secure entra fora de LOCAL — coberto no hardening)');
   const scope = await (await post('/scope', { grupo: 'Grupo Piloto', empresa: 'Piloto LTDA', loja: 'Shopee Piloto' }, { cookie })).json();
   assert.ok(scope.groupId && scope.storeId && scope.accountId, 'escopo persistido via API');
   const up = await fetch(url + '/files', { method: 'POST', headers: { cookie, 'content-type': 'text/csv', 'x-filename': 'traffic.csv', 'x-group-id': scope.groupId, 'x-company-id': scope.companyId, 'x-store-id': scope.storeId, 'x-account-id': scope.accountId }, body: CSV_TRAFFIC });
@@ -289,7 +288,6 @@ test('34 · smoke test de staging: jornada completa pela API', async () => {
   const jobApl = await (await fetch(url + '/jobs/' + apl.jobId, { headers: { cookie } })).json();
   assert.equal(jobApl.status, 'SUCCEEDED', 'smoke: upload→fila→staging→apply');
   api.server.closeAllConnections(); api.server.close(); api.db.close(); w.db.close();
-  delete process.env.HEAD_SECRET_STAGING;
 });
 
 /* ---------- 35-39 · escrita externa e limpeza de CRM ---------- */

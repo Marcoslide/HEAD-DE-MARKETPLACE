@@ -49,7 +49,7 @@ test('queue: concorrência limitada, retry com backoff e dead-letter', async () 
 
 /* ================= BANCO (Bloco 03) ================= */
 
-test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 35 S10.B)', () => {
+test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 27 S10.B — CRM excisado no 10.D.1)', () => {
   const mos = createMOS();
   const tables = mos.db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`)
     .map(r => r.name).sort();
@@ -66,8 +66,7 @@ test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 35 S10
     'question', 'raw_marketplace_payload', 'review', 'user', 'validation_run', 'workspace',
     /* Crescimento (Sprint 10.B) */
     'user_role', 'approval_request', 'internal_job', 'data_conflict', 'marketplace_fee_profile',
-    'lead_source', 'lead', 'lead_interaction', 'conversation', 'lead_opportunity',
-    'lead_assignment', 'lead_follow_up', 'lead_status_history', 'customer_link',
+    'conversation',
     'affiliate_partner', 'affiliate_code', 'affiliate_link', 'affiliate_campaign',
     'affiliate_attribution_event', 'affiliate_conversion', 'affiliate_commission',
     'affiliate_payout_batch', 'promotion', 'promotion_target', 'promotion_marketplace_profile',

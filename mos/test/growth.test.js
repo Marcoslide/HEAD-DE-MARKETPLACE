@@ -139,58 +139,6 @@ test('WhatsApp não executa escrita externa: recusa honesta + conectores READ_ON
       ReadOnlyViolationError);
 });
 
-/* 5 — lead manual possui histórico e auditoria */
-test('lead manual: histórico de status, interações e auditoria completos', () => {
-  const w = world();
-  const { growth, company, owner } = w;
-  const { lead } = growth.leads.create({ companyId: company.id, userId: owner.id,
-    origin: 'INDICACAO', name: 'Maria Compradora', phone: '5511911112222' });
-  growth.leads.interact(lead.id, { kind: 'contato', note: 'primeiro contato', byUser: owner.id });
-  growth.leads.setStatus(lead.id, 'EM_ATENDIMENTO', { userId: owner.id });
-  growth.leads.setStatus(lead.id, 'OPORTUNIDADE', { userId: owner.id, reason: 'quer 2 quadros' });
-  const h = growth.leads.history(lead.id);
-  assert.equal(h.status.length, 3, 'NOVO + 2 mudanças');
-  assert.deepEqual(h.status.map(s => s.to_status), ['NOVO', 'EM_ATENDIMENTO', 'OPORTUNIDADE']);
-  assert.equal(h.interactions.length, 1);
-  const audit = w.mos.repos.audit.tail(50).filter(a => a.actor === 'lead');
-  assert.ok(audit.some(a => a.action === 'created'));
-  assert.ok(audit.some(a => a.action === 'status_changed'));
-  assert.throws(() => growth.leads.setStatus(lead.id, 'STATUS_FALSO'), /status inválido/);
-});
-
-/* 6 — lead vinculado a produto, marketplace e afiliado */
-test('lead vincula produto, marketplace, afiliado e campanha', () => {
-  const w = world();
-  const { growth, company, owner, products } = w;
-  const aff = growth.affiliates.createPartner({ companyId: company.id, userId: owner.id,
-    name: 'Parceira Influencer', commissionPct: 10, code: 'PARC10' });
-  const { lead } = growth.leads.create({ companyId: company.id, userId: owner.id,
-    origin: 'AFILIADO', name: 'João Interessado', email: 'joao@x.y' });
-  growth.leads.link(lead.id, { productId: products['QDR-SER'].id,
-    marketplace: 'mercado_livre', affiliateId: aff.id, byUser: owner.id });
-  const row = w.mos.repos.lead.byId(lead.id);
-  assert.equal(row.product_id, products['QDR-SER'].id);
-  assert.equal(row.marketplace, 'mercado_livre');
-  assert.equal(row.affiliate_id, aff.id);
-});
-
-/* 7 — dados de lead demo e reais são diferenciados (nunca misturados) */
-test('leads demo × reais: rotulados e contados separadamente', () => {
-  const w = world();
-  const { growth, company, owner } = w;
-  growth.leads.create({ companyId: company.id, userId: owner.id, origin: 'WHATSAPP',
-    name: 'Lead Demonstrativo X', dataSource: 'DEMO' });
-  growth.leads.create({ companyId: company.id, userId: owner.id, origin: 'FORMULARIO',
-    name: 'Lead Real Y', phone: '5511933334444' });
-  const s = growth.leads.summary({ companyId: company.id });
-  assert.equal(s.demo.total, 1);
-  assert.equal(s.real.total, 1);
-  assert.match(s.demo.label, /demonstrativos/);
-  assert.match(s.real.label, /CRM externo não conectado/);
-  assert.equal(s.crmConnected, false, 'nunca finge CRM conectado');
-});
-
-/* 8 — afiliado recebe dados manuais/importados com fonte identificada */
 test('importação manual de afiliado: fonte gravada e rótulo honesto', () => {
   const w = world();
   const { growth, company, owner } = w;
@@ -253,13 +201,6 @@ test('atribuição: uma venda = um afiliado; clique não gera comissão; regra+j
     `SELECT * FROM affiliate_attribution_event WHERE kind = 'sale' AND order_ref = 'PED-3001'`);
   assert.equal(ev.rule, 'last-click'); assert.equal(ev.window_days, 7);
   assert.equal(ev.confidence, 'ESTIMADA');
-  /* lead duplicado pelo mesmo telefone */
-  const l1 = growth.leads.create({ companyId: company.id, userId: owner.id,
-    origin: 'WHATSAPP', name: 'Dup', phone: '5511955556666' });
-  const l2 = growth.leads.create({ companyId: company.id, userId: owner.id,
-    origin: 'FORMULARIO', name: 'Duplicada', phone: '5511955556666' });
-  assert.equal(l1.duplicate, false);
-  assert.equal(l2.duplicate, true, 'dedup por telefone');
 });
 
 /* 10 — promoção é entidade compartilhada Catálogo ↔ Crescimento */
@@ -325,10 +266,9 @@ test('ativação externa de promoção é bloqueada; status máximo AGUARDANDO_A
 test('Resultados: todo número com período, fonte, cobertura e atualização', () => {
   const w = world();
   const { growth, company, owner } = w;
-  growth.leads.create({ companyId: company.id, userId: owner.id,
-    origin: 'FORMULARIO', name: 'L', phone: '5511900001111' });
+  /* 10.D.1 — contrato sem CRM: resultados são vendas, afiliados e promoções */
   const r = growth.results.consolidated({ companyId: company.id });
-  for (const key of ['salesByMarketplace', 'leadsByOrigin', 'leadConversion',
+  for (const key of ['salesByMarketplace',
                      'affiliateRevenue', 'commissions', 'promotionCost', 'stockCommitted', 'roi']) {
     const m = r[key];
     assert.ok(m.period, `${key}: período`);
@@ -346,10 +286,9 @@ test('Resultados: todo número com período, fonte, cobertura e atualização', 
 test('demo nunca vira real: resumos separam e rotulam; chat imprime o rótulo', () => {
   const w = world();
   const { growth, company, owner, c } = w;
-  growth.leads.create({ companyId: company.id, userId: owner.id, origin: 'WHATSAPP',
-    name: 'Demo Lead', dataSource: 'DEMO' });
-  const summary = growth.leads.summary({ companyId: company.id });
-  assert.equal(summary.real.total, 0, 'demo não conta como real');
+  /* 10.D.1 — sem leads: a separação demo × real é provada nos resultados */
+  const r0 = growth.results.consolidated({ companyId: company.id });
+  assert.equal(r0.salesByMarketplace.source, 'SEM_DADO', 'nada sincronizado → nunca inventa');
   /* chat com adapter demo: rodapé rotulado */
   const chat = createHeadChat({ clock: c, companyId: company.id,
     growth: HG.createGrowthAdapter(HG.createDemoGrowthDataset(c), c) });
@@ -444,32 +383,6 @@ test('job em massa: contadores, cancelar só antes de executar, rollback interno
     assert.equal(w.mos.repos.listingDraft.byId(id).status, 'ARCHIVED');
 });
 
-/* extra — privacidade: mascaramento por papel + auditoria de acesso + isolamento */
-test('privacidade: contato mascarado fora do comercial, acesso auditado, empresas isoladas', () => {
-  const w = world();
-  const { growth, company, owner, mos } = w;
-  growth.leads.create({ companyId: company.id, userId: owner.id, origin: 'WHATSAPP',
-    name: 'Sigiloso', phone: '5511987654321', email: 'sigiloso@x.y' });
-  const op = mos.repos.user.insert({ workspace_id: company.workspace_id,
-    name: 'op2', email: 'op2@x.y', role: 'operator' });
-  growth.permissions.grant(op.id, company.id, 'LEITURA');
-  const rows = growth.leads.list({ companyId: company.id, userId: op.id });
-  assert.ok(rows[0].contactMasked);
-  assert.ok(!rows[0].phone.includes('87654'), `mascarado: ${rows[0].phone}`);
-  const admin = growth.leads.list({ companyId: company.id, userId: owner.id });
-  assert.equal(admin[0].phone, '5511987654321', 'ADMIN vê contato');
-  const audits = mos.repos.audit.tail(30).filter(a =>
-    a.actor === 'lead' && a.action === 'list_accessed');
-  assert.equal(audits.length, 2, 'todo acesso à lista é auditado');
-  /* isolamento: empresa B não vê leads da empresa A */
-  const { company: b } = mos.services.workspace.bootstrap({
-    workspaceName: 'W2', email: 'b@x.y', companyName: 'B', marketplaces: ['shopee'] });
-  const ownerB = mos.repos.user.db.get(
-    'SELECT u.* FROM user u JOIN company c ON c.workspace_id = u.workspace_id WHERE c.id = ?', b.id);
-  assert.equal(growth.leads.list({ companyId: b.id, userId: ownerB.id }).length, 0);
-});
-
-/* extra — chat: gap de catálogo, risco de promoção e giro sem promoção */
 test('chat de Crescimento: gap entre praças, promoções de risco, alto giro e plano de ação', () => {
   const w = world();
   const c = w.c;
