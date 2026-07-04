@@ -6,6 +6,7 @@ const { createMOS } = require('./src/index.js');
 const { createApi } = require('./src/interfaces/http/api.js');
 const { Collector } = require('./src/collector/index.js');
 const { ConversationEngine, SimulatedChannel } = require('./src/whatsapp/index.js');
+const { MieBridge } = require('./src/application/mie-bridge.js');
 const MIE = require('../mie/src/index.js');
 
 async function main() {
@@ -26,19 +27,16 @@ async function main() {
 
   /* MIE acoplado (motores + especialistas visíveis no painel) */
   const mie = MIE.createMIE({ seed: 42 });
+
+  /* MIE → plataforma: a ponte formal espelha investigações, decisões e
+     incidentes nos repositórios persistentes (recomendação nº 1 do CTO). */
+  const products = mos.repos.product.page({ limit: 10 }).items;
+  const productMap = { p1: products[0]?.id, p3: products[1]?.id };
+  new MieBridge({ mieBus: mie.bus, mos, companyId: company.id, productMap, logger: mos.logger });
+
   mie.runDays(MIE.WARMUP_DAYS + 2);
   mie.world.applyScenario('price-war', { productId: 'p1' });
   mie.runDays(3);
-
-  /* MIE → plataforma: decisões da mesa viram registros persistidos */
-  for (const d of mie.prioritization.pendingDecisions().slice(0, 3)) {
-    mos.services.decision.create(company.id, {
-      title: d.title, discovery: d.diagnosis.causeLabel,
-      proposal: { type: d.diagnosis.proposal.type },
-      impactMin: d.impactMonthly * 0.8, impactMax: d.impactMonthly * 1.2,
-      confidence: d.confidenceLabel, class: d.diagnosis.proposal.class || 'C',
-    });
-  }
 
   /* collector vigiando um concorrente */
   const product = mos.repos.product.page({ limit: 1 }).items[0];
