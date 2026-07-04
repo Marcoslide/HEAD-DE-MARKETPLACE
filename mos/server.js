@@ -20,6 +20,7 @@ const path = require('node:path');
 const { createMOS } = require('./src/index.js');
 const { createCentral } = require('./src/central/index.js');
 const { CatalogService } = require('./src/catalog/catalog-service.js');
+const { createGrowth } = require('./src/growth/index.js');
 const { createLive } = require('./src/live/index.js');
 const { createHeadChat } = require('./src/chat/index.js');
 const { MLAuthHttp } = require('./src/live/ml-live.js');
@@ -64,6 +65,9 @@ async function main() {
     authTransport: mlAuthHttp, credentialKey: env('MOS_CREDENTIAL_KEY') });
   const catalog = new CatalogService({ repos: mos.repos, bus: mos.bus,
     providers: mos.providers, clock, logger: mos.logger });
+  /* Crescimento (10.B): leads, afiliados, promoções + gateway de comando —
+     o WhatsApp usa o MESMO Adaptation Engine da tela */
+  const growth = createGrowth({ mos, clock, catalog });
 
   const live = createLive({
     mos, clock, credentials: central.credentials,
@@ -71,7 +75,8 @@ async function main() {
     chatFactory: cid => createHeadChat({ clock, mos, companyId: cid }),
     /* config vem TODA do ambiente (os módulos leem process.env pelos
        mesmos nomes) — nunca de arquivo no Git */
-    transports: mlAuthHttp ? { mlAuthHttp } : {},
+    transports: { commandGateway: growth.gateway,
+                  ...(mlAuthHttp ? { mlAuthHttp } : {}) },
   });
   liveRef.transport = live.mlTransport;
 

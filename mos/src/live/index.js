@@ -20,7 +20,9 @@ function createLive({ mos, clock, credentials, orchestrator, catalog,
 
   const flags = new FeatureFlags({ repos, clock });
   const whatsapp = new WhatsAppLive({ repos, bus, clock, flags, chatFactory,
-    sender: transports.whatsappSender || null, config: config.whatsapp || {},
+    sender: transports.whatsappSender || null,
+    commandGateway: transports.commandGateway || null,   // Sprint 10.B
+    config: config.whatsapp || {},
     logger: logger.child({ mod: 'whatsapp-live' }) });
   const mlTransport = transports.mlTransport
     || new MLLiveTransport({ credentials, clock });

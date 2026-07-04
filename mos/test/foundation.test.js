@@ -49,7 +49,7 @@ test('queue: concorrência limitada, retry com backoff e dead-letter', async () 
 
 /* ================= BANCO (Bloco 03) ================= */
 
-test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A)', () => {
+test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 31 S10.B)', () => {
   const mos = createMOS();
   const tables = mos.db.all(`SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'`)
     .map(r => r.name).sort();
@@ -63,7 +63,16 @@ test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A)', () =>
     'marketplace_price', 'marketplace_product_profile', 'marketplace_sync_log',
     'marketplace_sync_state', 'memory', 'mission', 'opportunity', 'product',
     'product_asset', 'product_profile', 'public_research_evidence', 'publication_history',
-    'question', 'raw_marketplace_payload', 'review', 'user', 'validation_run', 'workspace'];
+    'question', 'raw_marketplace_payload', 'review', 'user', 'validation_run', 'workspace',
+    /* Crescimento (Sprint 10.B) */
+    'user_role', 'approval_request', 'internal_job', 'data_conflict', 'marketplace_fee_profile',
+    'lead_source', 'lead', 'lead_interaction', 'conversation', 'lead_opportunity',
+    'lead_assignment', 'lead_follow_up', 'lead_status_history', 'customer_link',
+    'affiliate_partner', 'affiliate_code', 'affiliate_link', 'affiliate_campaign',
+    'affiliate_attribution_event', 'affiliate_conversion', 'affiliate_commission',
+    'affiliate_payout_batch', 'promotion', 'promotion_target', 'promotion_marketplace_profile',
+    'promotion_eligibility', 'promotion_margin_simulation', 'promotion_inventory_cap',
+    'campaign', 'campaign_target', 'campaign_performance_snapshot'];
   assert.deepEqual(tables, expected.sort());
   mos.close();
 });

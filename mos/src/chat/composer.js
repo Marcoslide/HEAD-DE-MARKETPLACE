@@ -19,6 +19,9 @@ const SOURCE_LABEL = {
   LIVE_MARKETPLACE_DATA: 'Dados ao vivo das integrações',
   PUBLIC_RESEARCH: 'Pesquisa pública de mercado',
   DEMO_RULE_FIXTURE: 'Rule Pack Demo (regras demonstrativas — não são política oficial)',
+  DEMO_GROWTH_FIXTURE: 'Dados demonstrativos de Crescimento — nenhum CRM ou afiliado real conectado',
+  INTERNAL_RECORDS: 'Registros internos',
+  IMPORTACAO_MANUAL: 'Dados importados manualmente',
   NO_DATA: 'Sem dados',
 };
 const READINESS_LABEL = {
@@ -229,6 +232,88 @@ function compose(facts, { clock, alert = null, question = null } = {}) {
       if (r && r.top) lines.push('', `Maior risco: ${r.top.title}.`);
       if (facts.decisions && facts.decisions.length)
         lines.push('', `Decisões aguardando você: ${facts.decisions.length}.`);
+      break;
+    }
+    /* ---------- Crescimento (Sprint 10.B) ---------- */
+    case 'LEADS_SUMMARY': {
+      const r = facts.real, d = facts.demo;
+      if (!r.total && !d.total) { lines.push('Nenhum lead registrado ainda. Você pode criar manualmente ou importar uma lista na área Crescimento — nenhum CRM externo está conectado.'); break; }
+      if (!r.total && d.total) {
+        lines.push(`Hoje chegaram ${d.today} lead(s) — todos DEMONSTRATIVOS (${d.unanswered} sem resposta). Nenhum lead real registrado; nenhum CRM externo conectado.`);
+        const org = Object.entries(d.byOrigin).sort((a, b) => b[1] - a[1]);
+        if (org.length) lines.push('', ...org.map(([o, n]) => `• ${o}: ${n}`));
+        break;
+      }
+      if (r.total) {
+        lines.push(`Você tem ${r.total} lead(s) registrados (${r.label}): ${r.today} chegaram hoje, ${r.unanswered} sem resposta.`);
+        const org = Object.entries(r.byOrigin).sort((a, b) => b[1] - a[1]);
+        if (org.length) lines.push('', ...org.map(([o, n]) => `• ${o}: ${n}`));
+      }
+      if (d.total) lines.push('', `Além disso, ${d.total} lead(s) DEMONSTRATIVOS (rotulados, nunca misturados aos reais).`);
+      break;
+    }
+    case 'LEADS_LIST': {
+      if (!facts.items.length) { lines.push(`Nenhum lead ${facts.scope || 'nesse recorte'}.`); break; }
+      lines.push(`${facts.items.length} lead(s) ${facts.scope || ''}:`, '');
+      for (const l of facts.items.slice(0, 8))
+        lines.push(`• ${l.name} · ${l.origin}${l.productName ? ` · interesse: ${l.productName}` : ''} · ${l.status}${l.enteredAt ? ` · entrou ${l.enteredAt.slice(0, 10)}` : ''}`);
+      break;
+    }
+    case 'FOLLOWUPS_DUE': {
+      if (!facts.items.length) { lines.push('Nenhuma oportunidade precisa de follow-up hoje.'); break; }
+      lines.push(`${facts.items.length} follow-up(s) vencem hoje:`, '');
+      for (const f of facts.items.slice(0, 8))
+        lines.push(`• ${f.leadName}${f.note ? ` — ${f.note}` : ''}`);
+      break;
+    }
+    case 'AFFILIATE_PANEL': {
+      if (!facts.partners.length) { lines.push('Nenhum afiliado cadastrado. Cadastre parceiros e importe resultados na área Crescimento — nenhuma atribuição é inventada.'); break; }
+      lines.push(facts.view === 'RANKING' ? 'Seus afiliados por receita atribuída:' : 'Desempenho dos afiliados:', '');
+      for (const a of facts.partners.slice(0, 6)) {
+        lines.push(`${a.rank}. ${a.name}: ${money(a.revenue)} em ${a.orders} pedido(s)` +
+          `${a.commission ? ` · comissão estimada ${money(a.commission.estimada + a.commission.pendente)}` : ''}` +
+          ` · ${a.attribution.note}`);
+        if (facts.view === 'BY_MARKETPLACE' && a.byMarketplace)
+          for (const [mp, v] of Object.entries(a.byMarketplace)) lines.push(`   · ${plat(mp)}: ${money(v)}`);
+      }
+      lines.push('', 'Comissões são ESTIMADAS — nenhum pagamento real é criado automaticamente.');
+      break;
+    }
+    case 'PROMOTION_RISK': {
+      if (!facts.items.length) { lines.push('Nenhuma promoção está derrubando sua margem nas simulações atuais.'); break; }
+      lines.push(`${facts.items.length} promoção(ões) com risco de margem:`, '');
+      for (const p of facts.items.slice(0, 6))
+        lines.push(`• ${p.name} (${plat(p.marketplace)}): ${p.marginPct != null ? `margem simulada ${dec(p.marginPct)}%` : `margem não computável — ${p.reason}`}`);
+      lines.push('', 'Nada disso está ativo externamente — são promoções internas em preparação/revisão.');
+      break;
+    }
+    case 'PROMOTION_OPPORTUNITY': {
+      if (!facts.items.length) { lines.push('Nenhum produto de alto giro está sem promoção nesse recorte.'); break; }
+      lines.push(`${facts.items.length} produto(s) de alto giro SEM promoção:`, '');
+      for (const p of facts.items.slice(0, 6))
+        lines.push(`• ${p.name}${p.orders ? ` — ${p.orders} pedidos no período` : ''}${p.marginPct != null ? ` · margem ~${dec(p.marginPct)}%` : ''}`);
+      lines.push('', 'Posso preparar uma promoção interna para revisão — nada é ativado externamente.');
+      break;
+    }
+    case 'CATALOG_GAP': {
+      if (!facts.gap) { lines.push('Preciso de duas praças para comparar (ex.: "vendem na Shopee e não estão no Mercado Livre").'); break; }
+      if (!facts.items.length) { lines.push(`Nenhum produto vende na ${plat(facts.gap.source)} sem presença na ${plat(facts.gap.target)}.`); break; }
+      lines.push(`${facts.items.length} produto(s) vendem na ${plat(facts.gap.source)} e ainda não estão na ${plat(facts.gap.target)}:`, '');
+      for (const p of facts.items.slice(0, 8))
+        lines.push(`• ${p.sku} — ${p.name}${p.marginPct != null ? ` (margem estimada ${dec(p.marginPct)}% na ${plat(facts.gap.target)})` : ''}`);
+      lines.push('', `Quer que eu crie os rascunhos internos para a ${plat(facts.gap.target)}? (nada é publicado sem sua revisão)`);
+      break;
+    }
+    case 'GROWTH_ACTION_PLAN': {
+      lines.push(facts.summaryText);
+      if (facts.items && facts.items.length) {
+        lines.push('');
+        for (const i of facts.items.slice(0, 6))
+          lines.push(`• ${i.sku} — ${i.name}${i.marginPct != null ? ` (margem ~${dec(i.marginPct)}%)` : ' (margem a revisar)'}`);
+      }
+      lines.push('', facts.requiresConfirmation
+        ? 'Ação em massa: confirme para eu criar os registros INTERNOS — nada é publicado no marketplace.'
+        : 'Registro interno criado — revise na área correspondente. Nada foi publicado no marketplace.');
       break;
     }
     default:

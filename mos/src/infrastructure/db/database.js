@@ -24,11 +24,17 @@ class Database {
     /* Conexões reais e piloto (Sprint 10.A) — aditivo */
     const live = fs.readFileSync(path.join(__dirname, 'schema-live.sql'), 'utf8');
     this.db.exec(live);
+    /* Crescimento (Sprint 10.B) — leads, afiliados, promoções, jobs */
+    const growth = fs.readFileSync(path.join(__dirname, 'schema-growth.sql'), 'utf8');
+    this.db.exec(growth);
     this._addColumns('marketplace_connection', {
       account_id: 'TEXT', store_id: 'TEXT',
       auth_type: 'TEXT', read_only: 'INTEGER NOT NULL DEFAULT 1',
       connected_at: 'TEXT', revoked_at: 'TEXT',
     });
+    /* proveniência por campo: MANUAL | IA | IMPORTACAO | MARKETPLACE_SYNC |
+       WHATSAPP_COMMAND | SISTEMA — sync nunca apaga edição manual em silêncio */
+    this._addColumns('product_profile', { field_sources_json: 'TEXT' });
     return this;
   }
   /* migração aditiva de colunas: só ALTER quando a coluna não existe */

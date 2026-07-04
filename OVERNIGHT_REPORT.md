@@ -369,6 +369,25 @@ Após o relatório, o desenvolvimento seguiu (fora do loop autônomo, sob direç
   live-activation-checklist.md.
 
 **Suíte total: 230 testes, 230 verdes.** (212 + 18 do live)
+
+### Sprint 10.B — Crescimento: WhatsApp controle remoto, leads, afiliados, promoções
+
+  UM motor, nunca automação paralela: comando do WhatsApp passa pelo
+  GrowthCommandGateway → MESMO AdaptationEngine da tela → job interno
+  auditável (origem WHATSAPP_COMMAND, confirmação obrigatória em massa)
+  → drafts do CatalogService (S10) → resultado no WhatsApp e no
+  Catálogo. Nova área CRESCIMENTO (v6): Visão Geral · Leads e
+  Oportunidades · Afiliados · Promoções e Campanhas · Resultados ·
+  Pendências Comerciais. Estruturais: papéis + Approval Flow;
+  proveniência por campo (sync nunca apaga edição manual — conflito
+  com revisão); margem por praça (sem margem → revisão); atribuição
+  com dedup (1 venda = 1 afiliado; clique nunca vira comissão; comissão
+  ESTIMADA, pagar = fluxo futuro); jobs com contadores/pausa/cancel/
+  rollback interno; privacidade (mascaramento por papel, acesso
+  auditado, isolamento). 31 tabelas aditivas; +21 testes. Docs:
+  growth-commercial-engine.md. Protótipo v6 = experiência principal.
+
+**Suíte total: 251 testes, 251 verdes.** (230 + 21 do growth)
 ---
 
 *Relatório gerado sob solicitação do dono. Loop pausado; retomada do desenvolvimento a seguir.*

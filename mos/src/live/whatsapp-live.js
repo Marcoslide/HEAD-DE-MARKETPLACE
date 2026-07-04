@@ -17,9 +17,10 @@ const crypto = require('node:crypto');
 
 class WhatsAppLive {
   constructor({ repos, bus, clock, flags, chatFactory = null, sender = null,
-                config = {}, logger = null }) {
+                commandGateway = null, config = {}, logger = null }) {
     this.r = repos; this.bus = bus; this.clock = clock; this.flags = flags;
     this.chatFactory = chatFactory;   // companyId → HeadChat (mesma Query Layer)
+    this.commandGateway = commandGateway; // Sprint 10.B: MESMO motor da tela
     this.sender = sender;             // transporte de saída oficial (injetável); null = outbox
     this.log = logger;
     this.cfg = {
@@ -114,13 +115,21 @@ class WhatsAppLive {
     if (!text) return null;
 
     let reply;
-    const chat = this.chatFactory(companyId);
-    const r = chat.ask(text, { surface: 'whatsapp' });
-    if (r.intent === 'ACTION_REQUEST') {
-      /* WhatsApp NUNCA executa nem dispara piloto */
-      reply = 'Preparei uma proposta de rascunho. A criação real exige revisão e confirmação na área Conexões.';
+    /* Sprint 10.B: comandos internos (drafts/promoções) passam pelo gateway,
+       que usa o MESMO Adaptation Engine da tela — nunca automação paralela */
+    const gw = this.commandGateway
+      ? await this.commandGateway.handle({ companyId, from: msg.from, text }) : null;
+    if (gw) {
+      reply = gw.reply;
     } else {
-      reply = r.reply;                 // mesma Query Layer: fonte/hora/cobertura já inclusos
+      const chat = this.chatFactory(companyId);
+      const r = chat.ask(text, { surface: 'whatsapp' });
+      if (r.intent === 'ACTION_REQUEST') {
+        /* WhatsApp NUNCA executa nem dispara piloto */
+        reply = 'Preparei uma proposta de rascunho. A criação real exige revisão e confirmação na área Conexões.';
+      } else {
+        reply = r.reply;               // mesma Query Layer: fonte/hora/cobertura já inclusos
+      }
     }
     this.r.waEvent.update(msg.id, { replied: 1, reply_text: reply });
     if (this.sender) await this.sender.send(msg.from, reply);

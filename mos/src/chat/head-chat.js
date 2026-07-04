@@ -20,9 +20,11 @@ const localTime = (...a) => NS.localTime(...a);
 const QueryLayer = function (...a) { return new NS.QueryLayer(...a); };
 
 class HeadChat {
-  constructor({ dataset, clock, mie = null, companyId = null, logger = null, compliance = null }) {
+  constructor({ dataset, clock, mie = null, companyId = null, logger = null,
+                compliance = null, growth = null }) {
     this.clock = clock; this.mie = mie; this.companyId = companyId; this.log = logger;
     this.compliance = compliance;   // adapter do Compliance Engine (Sprint 10)
+    this.growth = growth;           // adapter do Crescimento (Sprint 10.B)
     this.q = new QueryLayer({ dataset, clock, mie });
     this.dataset = dataset;
     this.context = null;          // consulta anterior (para "e na Shopee?", "e ontem?")
@@ -54,6 +56,18 @@ class HeadChat {
       }
       case 'RISK_OR_EXCEPTION_QUERY': {
         facts = this.q.getRiskSummary();
+        reply = compose(facts, { clock: this.clock });
+        this.context = query;
+        break;
+      }
+      /* ---------- Crescimento (Sprint 10.B) ---------- */
+      case 'LEADS_QUERY':
+      case 'AFFILIATE_QUERY':
+      case 'PROMOTION_RISK_QUERY':
+      case 'PROMOTION_OPPORTUNITY_QUERY':
+      case 'CATALOG_GAP_QUERY':
+      case 'GROWTH_ACTION': {
+        facts = this._growth(text, query);
         reply = compose(facts, { clock: this.clock });
         this.context = query;
         break;
@@ -181,6 +195,24 @@ class HeadChat {
              missingPlatforms: [], confidence: 0.9, asOf: this.clock.nowIso() };
   }
 
+  /* ---------- Crescimento: consulta o adapter REAL (nunca inventa) ---------- */
+  _growth(text, query) {
+    if (!this.growth)
+      return { kind: 'NO_DATA', what: 'Crescimento (motor não acoplado)',
+               dataSource: 'NO_DATA', coverage: [], missingPlatforms: [],
+               confidence: 0, asOf: this.clock.nowIso() };
+    switch (query.intent) {
+      case 'LEADS_QUERY': return this.growth.leads(query, text);
+      case 'AFFILIATE_QUERY': return this.growth.affiliates(query, text);
+      case 'PROMOTION_RISK_QUERY': return this.growth.promotionRisk(query);
+      case 'PROMOTION_OPPORTUNITY_QUERY': return this.growth.promotionOpportunity(query);
+      case 'CATALOG_GAP_QUERY': return this.growth.catalogGap(query);
+      case 'GROWTH_ACTION': return this.growth.planAction(query, text);
+      default: return { kind: 'NO_DATA', what: 'consulta de crescimento',
+                        dataSource: 'NO_DATA', missingPlatforms: [], asOf: this.clock.nowIso() };
+    }
+  }
+
   _decisionTerm(text) {
     const m = text.match(/por ?que (?:o |a )?(.+?) (?:esta|está|é|e) urgente/i)
       || text.match(/priorizou (?:o |a |isso[:,]? )?(.+?)\??$/i);
@@ -292,14 +324,14 @@ class HeadChat {
 NS.HeadChat = HeadChat;
 
 /* composição — dados normalizados da Central quando houver; fixtures no preview */
-NS.createHeadChat = function createHeadChat({ clock, mie = null, mos = null, companyId = null, dataset = null, compliance = null } = {}) {
+NS.createHeadChat = function createHeadChat({ clock, mie = null, mos = null, companyId = null, dataset = null, compliance = null, growth = null } = {}) {
   if (!clock) throw new Error('createHeadChat exige o Clock injetado');
   let data = dataset;
   if (!data && mos && companyId)
     data = NS.datasetFromCentral(mos.repos, companyId, clock);  // fonte real, se sincronizada
   if (!data)
     data = NS.createDemoDataset(clock);                          // preview: fixtures coerentes
-  return new HeadChat({ dataset: data, clock, mie, companyId, compliance,
+  return new HeadChat({ dataset: data, clock, mie, companyId, compliance, growth,
     logger: mos && mos.logger ? mos.logger.child({ mod: 'head-chat' }) : null });
 };
 })(typeof module !== 'undefined' && module.exports ? require('./_ns.js') : (globalThis.HEADCHAT = globalThis.HEADCHAT || {}));

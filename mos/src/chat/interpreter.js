@@ -60,6 +60,19 @@ const ORDER_STATUS = [
 const INTENTS = [
   { id: 'CATALOG_COMPLIANCE_QUERY',
     rx: /pronto (para|pra) (anunciar|publicar|vender|o |a )?|pode ir (para|pra) |o que falta (para|pra) (publicar|anunciar|criar o anuncio)|qual categoria|codigo de categoria|risco de bloqueio|ficha tecnica|atributos? obrigatori|(esta|estao|itens?) bloquead|prontos (para|pra)|posso (levar|anunciar|publicar)|preciso corrigir (antes|primeiro)|suporta personalizado|anuncios? (incompletos|com risco)|virar (um )?rascunho|gerar rascunho|dentro das regras|peso e (as )?medidas/ },
+  /* Crescimento (Sprint 10.B) — leads, afiliados, promoções, gap, ação em massa */
+  { id: 'CATALOG_GAP_QUERY',
+    rx: /vendem n[oa] .*(ainda )?nao estao|estao n[oa] .* e nao n[oa]|falta(m)? (anunciar|levar) n[oa]/ },
+  { id: 'PROMOTION_RISK_QUERY',
+    rx: /promoc\w* .*(prejudic|derrub|margem)|(derrubar|prejudicando) (minha |a )?margem|margem .*promoc/ },
+  { id: 'PROMOTION_OPPORTUNITY_QUERY',
+    rx: /(alto giro|mais vend\w+|giro alto) .*sem promoc|sem promoc\w*$/ },
+  { id: 'AFFILIATE_QUERY',
+    rx: /afiliad/ },
+  { id: 'LEADS_QUERY',
+    rx: /\bleads?\b|oportunidades? .*(follow ?-? ?up|precisam)/ },
+  { id: 'GROWTH_ACTION',
+    rx: /^(cria|criar|gera|gerar)r? (os |uns |uma |um )?(drafts?|rascunhos?|promocao|campanha)/ },
   { id: 'ACTION_REQUEST',
     rx: /^(baixe|baixa|abaixe|pause|pausa|publique|publica|aumente|aumenta|altere|altera|crie|cria|suba|sobe|reduza|reduz|desative|desativa|ative|ativa|cancele|cancela|envie para|mude|muda|reposicione|ajuste|ajusta)\b/ },
   { id: 'DECISION_EXPLANATION',
@@ -123,6 +136,32 @@ function extract(text, { context = null, clock, companyId = null, products = [] 
     asOf: clock.nowIso(),
     raw: text,
   };
+
+  /* ---- Crescimento: campos estruturados das novas intenções ---- */
+  if (intent === 'LEADS_QUERY') {
+    q.leadsView = /follow ?-? ?up|precisam/.test(t) ? 'FOLLOWUPS'
+      : /sem resposta/.test(t) ? 'UNANSWERED' : 'SUMMARY';
+    if (/pelo whats|vieram pelo|do whats/.test(t)) q.leadOrigin = 'WHATSAPP';
+  }
+  if (intent === 'AFFILIATE_QUERY') {
+    q.affiliateView = /melhores|ranking|top/.test(t) ? 'RANKING'
+      : /por afiliado e marketplace|por marketplace|e marketplace/.test(t) ? 'BY_MARKETPLACE'
+      : 'PERFORMANCE';
+  }
+  if (intent === 'CATALOG_GAP_QUERY') {
+    /* ordem NO TEXTO define origem → destino */
+    const found = PLATFORMS.map(p => ({ id: p.id, at: t.search(p.rx) }))
+      .filter(p => p.at >= 0).sort((a, b) => a.at - b.at);
+    q.gap = found.length >= 2 ? { source: found[0].id, target: found[1].id } : null;
+  }
+  if (intent === 'GROWTH_ACTION') {
+    const marginMatch = t.match(/margem (?:acima de|maior que|>) ?(\d+(?:[.,]\d+)?)\s*%/);
+    q.growthAction = {
+      kind: /campanha/.test(t) ? 'campaign' : /promocao/.test(t) ? 'promotion' : 'drafts',
+      targetPlatform: platforms[0] || null,
+      marginAbovePct: marginMatch ? Number(marginMatch[1].replace(',', '.')) : null,
+    };
+  }
 
   /* ---- Context Resolver: follow-ups herdam métrica/período/filtros ---- */
   const isFollowup = context && FOLLOWUP_RX.test(t) && t.length <= 40;
