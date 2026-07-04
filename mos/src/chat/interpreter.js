@@ -69,8 +69,10 @@ const INTENTS = [
     rx: /(alto giro|mais vend\w+|giro alto) .*sem promoc|sem promoc\w*$/ },
   { id: 'AFFILIATE_QUERY',
     rx: /afiliad/ },
-  { id: 'LEADS_QUERY',
-    rx: /\bleads?\b|oportunidades? .*(follow ?-? ?up|precisam)/ },
+  /* 10.D - marketplace nao trabalha com pipeline de leads/CRM: o termo e
+     contextualizado para o funil real (trafego -> pedidos -> pagamento). */
+  { id: 'FUNIL_MARKETPLACE_CONTEXT',
+    rx: /\bleads?\b|pipeline (comercial|de vendas)|funil de leads/ },
   { id: 'GROWTH_ACTION',
     rx: /^(cria|criar|gera|gerar)r? (os |uns |uma |um )?(drafts?|rascunhos?|promocao|campanha)/ },
   /* RID / Head Intelligence OS (Sprint 10.C) */
@@ -143,11 +145,6 @@ function extract(text, { context = null, clock, companyId = null, products = [] 
   };
 
   /* ---- Crescimento: campos estruturados das novas intenções ---- */
-  if (intent === 'LEADS_QUERY') {
-    q.leadsView = /follow ?-? ?up|precisam/.test(t) ? 'FOLLOWUPS'
-      : /sem resposta/.test(t) ? 'UNANSWERED' : 'SUMMARY';
-    if (/pelo whats|vieram pelo|do whats/.test(t)) q.leadOrigin = 'WHATSAPP';
-  }
   if (intent === 'AFFILIATE_QUERY') {
     q.affiliateView = /melhores|ranking|top/.test(t) ? 'RANKING'
       : /por afiliado e marketplace|por marketplace|e marketplace/.test(t) ? 'BY_MARKETPLACE'

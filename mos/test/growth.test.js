@@ -353,10 +353,12 @@ test('demo nunca vira real: resumos separam e rotulam; chat imprime o rótulo', 
   /* chat com adapter demo: rodapé rotulado */
   const chat = createHeadChat({ clock: c, companyId: company.id,
     growth: HG.createGrowthAdapter(HG.createDemoGrowthDataset(c), c) });
+  /* 10.D — contrato atualizado: "lead" no chat contextualiza o funil de
+     marketplace; o produto não tem pipeline de leads/CRM. */
   const r = chat.ask('Quantos leads chegaram hoje?');
-  assert.equal(r.intent, 'LEADS_QUERY');
-  assert.match(r.reply, /demonstrativos/i, 'rótulo DEMO visível na resposta');
-  assert.match(r.reply, /CRM externo não conectado|nenhum CRM/i);
+  assert.equal(r.intent, 'FUNIL_MARKETPLACE_CONTEXT');
+  assert.match(r.reply, /nao trabalhamos com pipeline de leads/i);
+  assert.match(r.reply, /pedidos criados, pedidos nao pagos/i);
   const r2 = chat.ask('Quem são meus melhores afiliados?');
   assert.equal(r2.intent, 'AFFILIATE_QUERY');
   assert.match(r2.reply, /importados manualmente/);
@@ -487,12 +489,12 @@ test('chat de Crescimento: gap entre praças, promoções de risco, alto giro e 
   const plan = chat.ask('Cria drafts shopee dos produtos com margem acima de 25%');
   assert.equal(plan.intent, 'GROWTH_ACTION');
   assert.match(plan.reply, /nada é publicado|não é publicado/i);
-  const fu = chat.ask('Quais oportunidades precisam de follow-up hoje?');
-  assert.equal(fu.intent, 'LEADS_QUERY');
-  assert.match(fu.reply, /follow-up/);
-  /* sem motor acoplado → honestidade */
+  /* 10.D — "lead" nunca ativa CRM, mesmo com motor acoplado */
+  const fu = chat.ask('Quais leads precisam de follow-up hoje?');
+  assert.equal(fu.intent, 'FUNIL_MARKETPLACE_CONTEXT');
+  assert.match(fu.reply, /nao trabalhamos com pipeline de leads/i);
   const bare = createHeadChat({ clock: c, companyId: w.company.id });
-  assert.match(bare.ask('Quantos leads chegaram hoje?').reply, /não tenho dados suficientes/i);
+  assert.match(bare.ask('Quantos leads chegaram hoje?').reply, /nao trabalhamos com pipeline de leads/i);
 });
 
 /* 15 — v6: menu com Crescimento e demonstrações obrigatórias */

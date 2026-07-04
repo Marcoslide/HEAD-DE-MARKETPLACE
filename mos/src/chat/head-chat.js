@@ -62,7 +62,15 @@ class HeadChat {
         break;
       }
       /* ---------- Crescimento (Sprint 10.B) ---------- */
-      case 'LEADS_QUERY':
+      /* 10.D: termo "lead" e contextualizado para o funil real, nunca CRM */
+      case 'FUNIL_MARKETPLACE_CONTEXT': {
+        reply = 'Em marketplace, nao trabalhamos com pipeline de leads.\n' +
+          'Aqui acompanhamos trafego, pedidos criados, pedidos nao pagos, ' +
+          'pagamentos aprovados, vendas, margem e operacao.\n' +
+          'Parceiros comerciais (afiliados, creators) vivem em Crescimento - Aceleracao.';
+        this.context = query;
+        break;
+      }
       case 'AFFILIATE_QUERY':
       case 'PROMOTION_RISK_QUERY':
       case 'PROMOTION_OPPORTUNITY_QUERY':
@@ -220,7 +228,6 @@ class HeadChat {
                dataSource: 'NO_DATA', coverage: [], missingPlatforms: [],
                confidence: 0, asOf: this.clock.nowIso() };
     switch (query.intent) {
-      case 'LEADS_QUERY': return this.growth.leads(query, text);
       case 'AFFILIATE_QUERY': return this.growth.affiliates(query, text);
       case 'PROMOTION_RISK_QUERY': return this.growth.promotionRisk(query);
       case 'PROMOTION_OPPORTUNITY_QUERY': return this.growth.promotionOpportunity(query);

@@ -1,0 +1,8 @@
+# Web (protótipo v8 servido estaticamente atrás do proxy)
+FROM node:22-slim
+WORKDIR /app
+COPY design ./design
+COPY mie/src ./mie/src
+COPY mos/src ./mos/src
+EXPOSE 3081
+CMD ["node", "-e", "require('node:http').createServer((q,s)=>{const p=require('path'),f=require('fs');let u=q.url.split('?')[0];if(u==='/')u='/design/prototipo-v8/index.html';const fp=p.join('/app',p.normalize(u));if(!fp.startsWith('/app')||!f.existsSync(fp)||f.statSync(fp).isDirectory()){s.writeHead(404);return s.end('nao encontrado')}const ct={'.html':'text/html','.css':'text/css','.js':'text/javascript'}[p.extname(fp)]||'text/plain';s.writeHead(200,{'content-type':ct});s.end(f.readFileSync(fp))}).listen(3081,()=>console.log('web :3081'))"]

@@ -13,24 +13,6 @@ function createDemoGrowthDataset(clock) {
   const d = clock.today ? clock.today() : clock.nowIso().slice(0, 10);
   return {
     source: 'DEMO_GROWTH_FIXTURE',
-    leads: [
-      { id: 'led-demo-1', name: 'Cliente Exemplo A', origin: 'WHATSAPP', status: 'NOVO',
-        enteredAt: `${d}T11:20:00Z`, productSku: 'QDR-SER',
-        productName: 'Quadro Paisagem Serra 60x90 Moldura', marketplace: null,
-        lastInteractionAt: null, dataSource: 'DEMO' },
-      { id: 'led-demo-2', name: 'Cliente Exemplo B', origin: 'MARKETPLACE_PERGUNTAS', status: 'EM_ATENDIMENTO',
-        enteredAt: `${d}T09:05:00Z`, productSku: 'KIT3-ABS',
-        productName: 'Kit 3 Quadros Sala Abstrato 60x90', marketplace: 'shopee',
-        lastInteractionAt: `${d}T10:00:00Z`, dataSource: 'DEMO' },
-      { id: 'led-demo-3', name: 'Cliente Exemplo C', origin: 'AFILIADO', status: 'SEM_RESPOSTA',
-        enteredAt: '2026-07-02T15:40:00Z', productSku: 'ESP-ORG',
-        productName: 'Espelho Decorativo Orgânico 70cm', affiliateName: 'Parceiro Demo 1',
-        lastInteractionAt: null, dataSource: 'DEMO' },
-      { id: 'led-demo-4', name: 'Cliente Exemplo D', origin: 'FORMULARIO', status: 'OPORTUNIDADE',
-        enteredAt: '2026-07-01T13:00:00Z', productSku: 'QDR-NOME',
-        productName: 'Quadro Personalizado Nome Família', estimatedValue: 289,
-        lastInteractionAt: '2026-07-03T09:10:00Z', dataSource: 'DEMO' },
-    ],
     followUpsDueToday: [
       { leadId: 'led-demo-4', leadName: 'Cliente Exemplo D', note: 'enviar proposta do personalizado', dueAt: `${d}T15:00:00Z` },
       { leadId: 'led-demo-3', leadName: 'Cliente Exemplo C', note: 'segunda tentativa de contato', dueAt: `${d}T17:00:00Z` },
@@ -90,27 +72,6 @@ function createGrowthAdapter(dataset, clock) {
     asOf: clock ? clock.nowIso() : null, ...extra });
 
   return {
-    leads(query) {
-      const today = (clock ? clock.nowIso() : '').slice(0, 10);
-      let items = dataset.leads;
-      if (query.leadOrigin) items = items.filter(l => l.origin === query.leadOrigin);
-      if (query.leadsView === 'UNANSWERED')
-        return base({ kind: 'LEADS_LIST', scope: 'sem resposta',
-          items: items.filter(l => l.status === 'SEM_RESPOSTA' || (l.status === 'NOVO' && !l.lastInteractionAt))
-            .map(l => ({ ...l, enteredAt: l.enteredAt })) });
-      if (query.leadsView === 'FOLLOWUPS')
-        return base({ kind: 'FOLLOWUPS_DUE', items: dataset.followUpsDueToday });
-      if (query.leadOrigin)
-        return base({ kind: 'LEADS_LIST', scope: `vindos de ${query.leadOrigin}`, items });
-      const isToday = l => (l.enteredAt || '').slice(0, 10) === today;
-      return base({ kind: 'LEADS_SUMMARY',
-        real: { total: 0, today: 0, unanswered: 0, byOrigin: {},
-                label: 'nenhum lead real — CRM externo não conectado' },
-        demo: { total: items.length, today: items.filter(isToday).length,
-                unanswered: items.filter(l => l.status === 'SEM_RESPOSTA').length,
-                byOrigin: items.reduce((m, l) => (m[l.origin] = (m[l.origin] || 0) + 1, m), {}),
-                label: 'dados demonstrativos' } });
-    },
     affiliates(query) {
       return base({ kind: 'AFFILIATE_PANEL', view: query.affiliateView || 'PERFORMANCE',
         partners: dataset.affiliates });

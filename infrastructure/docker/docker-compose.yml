@@ -1,0 +1,19 @@
+# Ambiente LOCAL completo: api + worker + web, com volume de dados próprio.
+# Staging e produção usam os mesmos containers com envs/volumes SEPARADOS —
+# nunca aponte staging para o volume ou secrets de produção.
+services:
+  api:
+    build: { context: ../.., dockerfile: infrastructure/docker/Dockerfile.api }
+    ports: ["3080:3080"]
+    environment: [HEAD_ENV=LOCAL]
+    volumes: [head-data-local:/data]
+  worker:
+    build: { context: ../.., dockerfile: infrastructure/docker/Dockerfile.worker }
+    environment: [HEAD_ENV=LOCAL]
+    volumes: [head-data-local:/data]
+    depends_on: [api]
+  web:
+    build: { context: ../.., dockerfile: infrastructure/docker/Dockerfile.web }
+    ports: ["3081:3081"]
+volumes:
+  head-data-local: {}

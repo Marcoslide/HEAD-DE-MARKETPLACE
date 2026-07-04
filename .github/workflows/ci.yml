@@ -1,0 +1,35 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: lint
+        run: npm run lint
+      - name: testes (suite completa)
+        run: npm test
+      - name: migrations verificadas
+        run: HEAD_ENV=LOCAL npm run db:migrate && HEAD_ENV=LOCAL npm run db:status
+      - name: build imagens
+        run: docker build -f infrastructure/docker/Dockerfile.api -t head-api . && docker build -f infrastructure/docker/Dockerfile.worker -t head-worker .
+  deploy-staging:
+    needs: test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: smoke staging
+        env: { HEAD_SECRET_STAGING: '${{ secrets.HEAD_SECRET_STAGING }}' }
+        run: npm run smoke
+  deploy-production:
+    needs: deploy-staging
+    runs-on: ubuntu-latest
+    environment: production   # exige aprovação manual configurada no GitHub
+    steps:
+      - run: echo "deploy production — executado pelo runner do provedor após aprovação"

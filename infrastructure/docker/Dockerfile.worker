@@ -1,0 +1,12 @@
+# Worker do Head Marketplace OS — processa a fila durável
+FROM node:22-slim
+WORKDIR /app
+COPY package.json ./
+COPY mie ./mie
+COPY mos ./mos
+COPY design/prototipo-v8/import-engine.js ./design/prototipo-v8/import-engine.js
+COPY apps/worker ./apps/worker
+ENV NODE_ENV=production HEAD_DATA_DIR=/data
+VOLUME /data
+HEALTHCHECK --interval=60s CMD node -e "const{envConfig,openDb}=require('/app/mos/src/production/core.js');const c=envConfig();const db=openDb(c);const r=db.prepare(\"SELECT valor FROM system_state WHERE chave='worker_heartbeat'\").get();process.exit(r&&Date.now()-new Date(r.valor)<180000?0:1)"
+CMD ["node", "apps/worker/main.js"]

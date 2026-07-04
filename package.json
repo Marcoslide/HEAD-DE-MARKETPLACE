@@ -1,0 +1,18 @@
+{
+  "name": "head-marketplace-os",
+  "version": "0.10.0",
+  "private": true,
+  "description": "Head Marketplace OS — inteligência, operação, crescimento e decisão para marketplaces",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test mie/test/*.test.js mos/test/*.test.js",
+    "lint": "node --check apps/api/server.js && node --check apps/worker/main.js && node --check mos/src/production/core.js && node --check mos/src/production/security.js && node --check mos/src/production/storage.js && node --check mos/src/production/jobs.js",
+    "api": "node apps/api/server.js",
+    "worker": "node apps/worker/main.js",
+    "db:migrate": "node infrastructure/scripts/db.js migrate",
+    "db:rollback": "node infrastructure/scripts/db.js rollback",
+    "db:status": "node infrastructure/scripts/db.js status",
+    "backup": "node infrastructure/scripts/db.js backup",
+    "smoke": "bash infrastructure/scripts/smoke.sh"
+  }
+}
