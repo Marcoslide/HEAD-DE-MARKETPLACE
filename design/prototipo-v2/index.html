@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Head de Marketplace</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark">H</div>
+      <div><div class="name">Head de Marketplace</div><div class="sub">operação de Marcos</div></div>
+    </div>
+
+    <nav class="nav" id="nav" aria-label="Navegação principal">
+      <button data-v="home"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 10.5 12 3l9 7.5V21H3z"/></svg>Home<span class="badge" id="badgeHome">2</span></button>
+      <button data-v="ia"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/></svg>IA<span class="kbd">2</span></button>
+      <button data-v="produtos"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 7l8-4 8 4v10l-8 4-8-4zM4 7l8 4m0 0 8-4m-8 4v10"/></svg>Produtos<span class="kbd">3</span></button>
+      <button data-v="missoes"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Missões<span class="badge live" id="badgeMissions">5</span></button>
+      <button data-v="conhecimento"><svg class="ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2zM19 3v18M8 7h7M8 11h7"/></svg>Conhecimento<span class="kbd">5</span></button>
+    </nav>
+
+    <div class="pulse-box" id="pulseBox" role="button" tabindex="0" aria-label="Ver missões em andamento">
+      <div class="pulse-head"><span class="dot" id="pulseDot"></span><span id="pulseState">Trabalhando agora</span></div>
+      <div class="pulse-msg" id="pulseMsg"></div>
+      <div class="pulse-link" id="pulseLink">missões ativas →</div>
+    </div>
+  </aside>
+
+  <!-- ================= CONTEÚDO ================= -->
+  <main class="main">
+
+    <!-- HOME -->
+    <section class="view on" id="v-home">
+      <div class="brief">
+        <div class="eyebrow" id="dateline"></div>
+        <h1 id="greeting" style="margin-top:14px"></h1>
+        <p class="lede">Enquanto você descansava, continuei trabalhando na sua operação. A noite foi produtiva — e uma coisa me chamou atenção.</p>
+        <ul class="worklist" id="worklist"></ul>
+        <div class="keyfind"><p class="voice" id="keyfind"></p></div>
+        <p class="sign">— Eu cuido do resto.</p>
+      </div>
+
+      <div class="section">
+        <div class="section-h"><span class="eyebrow" id="decisionsTitle">Aguardando sua decisão</span></div>
+        <div id="decisions"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-h"><span class="eyebrow">Descobertas de hoje</span></div>
+        <div class="grid3" id="discoveries"></div>
+      </div>
+
+      <div class="section">
+        <div class="section-h"><span class="eyebrow">Trabalho em andamento</span><button class="more" data-go="missoes">ver missões →</button></div>
+        <div class="mini-missions" id="miniMissions"></div>
+      </div>
+    </section>
+
+    <!-- IA -->
+    <section class="view" id="v-ia">
+      <div class="eyebrow">Conversa com o Head</div>
+      <div class="chat" id="chat" style="margin-top:26px" aria-live="polite"></div>
+      <div class="suggest" id="suggest"></div>
+      <div class="composer">
+        <input id="composerInput" placeholder="Fale com o Head… (⌘K de qualquer tela)" aria-label="Fale com o Head" autocomplete="off">
+        <button class="send" id="composerSend" aria-label="Enviar">→</button>
+      </div>
+    </section>
+
+    <!-- PRODUTOS -->
+    <section class="view" id="v-produtos">
+      <div class="section-h flat"><span class="eyebrow">Produtos · ordenados por atenção</span><span class="more">148 anúncios conectados</span></div>
+      <div id="products"></div>
+    </section>
+
+    <!-- MISSÕES -->
+    <section class="view" id="v-missoes">
+      <div class="section-h flat"><span class="eyebrow" id="missionsActiveTitle">Em andamento</span></div>
+      <div id="missionsActive"></div>
+      <div class="section">
+        <div class="section-h"><span class="eyebrow" id="missionsWaitingTitle">Aguardando você</span></div>
+        <div id="missionsWaiting"></div>
+      </div>
+      <div class="section">
+        <div class="section-h"><span class="eyebrow" id="missionsDoneTitle">Concluídas hoje</span></div>
+        <div id="missionsDone"></div>
+      </div>
+    </section>
+
+    <!-- CONHECIMENTO -->
+    <section class="view" id="v-conhecimento">
+      <div class="section-h flat"><span class="eyebrow">Conhecimento · a memória da sua operação</span></div>
+      <div class="cols" id="knowledgeCols"></div>
+      <div id="knowledge"></div>
+    </section>
+
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
