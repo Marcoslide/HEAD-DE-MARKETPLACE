@@ -38,6 +38,9 @@ class Database {
     /* Head Intelligence OS (Sprint 10.C) — evolução do RID, tudo aditivo */
     const rid = fs.readFileSync(path.join(__dirname, 'schema-rid.sql'), 'utf8');
     this.db.exec(rid);
+    /* Listing Schema Engine (complemento 10.C) — aditivo */
+    const listing = fs.readFileSync(path.join(__dirname, 'schema-listing.sql'), 'utf8');
+    this.db.exec(listing);
     /* a MEMÓRIA continua UMA só (S02) — ganha campos de política de memória */
     this._addColumns('memory', {
       category: 'TEXT', source: 'TEXT', confidence: 'TEXT',

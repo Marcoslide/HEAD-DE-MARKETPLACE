@@ -77,7 +77,11 @@ test('banco: migração completa (23 núcleo + 10 S09 + 5 S10 + 8 S10.A + 35 S10
     /* Head Intelligence OS (Sprint 10.C) */
     'radar_signal', 'strategic_dialogue', 'intelligence_action_plan',
     'intelligence_microtask', 'operational_intervention',
-    'user_leadership_profile', 'intelligence_report'];
+    'user_leadership_profile', 'intelligence_report',
+    'marketplace_category_tree', 'marketplace_category_mapping',
+    'marketplace_listing_schema', 'marketplace_schema_field',
+    'marketplace_listing_field_value', 'product_operational_profile',
+    'marketplace_shipping_eligibility'];
   assert.deepEqual(tables, expected.sort());
   mos.close();
 });
