@@ -130,3 +130,70 @@ empresa na barra global troca as entidades de todas as telas.
 - Headless: auto-testes por área + `?gbarself=1` (barra global), 1920/1366/1180/780 × 2 temas,
   zero erros de console, barra global filtrando o catálogo ao vivo, busca global, drawers de
   oportunidade/pedido não pago/conexão.
+
+---
+
+# Sprint 10.UI.2 — Operational Workbench multiempresa/multiCNPJ/multiloja
+
+## Modelo de escopo (Operational Scope Context)
+
+```
+GRUPO (g1 Líder Group · autorizado | g2 externo · NUNCA visível)
+ └─ EMPRESA (e1 Líder Comércio Digital · e2 Cozinha Demo)
+     └─ CNPJ (c1 Matriz MG · c2 Filial SP · c3 CNPJ Único)
+         └─ LOJA (Shopee Líder Molduras MG, Shopee Galeria Diamonds,
+                  ML Líder Molduras, Loja Física Lagoa Santa,
+                  TikTok Shop Líder, Magalu Líder SP, …)
+             └─ CONTA (a loja ML tem 2: principal + outlet)
+                 └─ produto·estoque·preço·prazo·anúncio·pedido POR LOJA
+```
+
+Regras implementadas em `V8LOGIC`: `scopeAuthorized`, `empresasDe`, `cnpjsDe`,
+`lojasDe`, `contasDe`, `normalizeCtx` (troca de pai limpa filhos órfãos),
+`scopeDescribe`/`scopeLine` (transparência de agregação), `globalFilter`
+(escopo → produtos), `margemLoja`, `lojaKpis`, `compareLojas` (≤4, com avisos
+de comparabilidade), `unpaidByLoja`, `advancedFilter` (20+ operadores, AND/OR,
+campo avaliado NO ESCOPO), `saveScopedView`/`viewsFor` (isolamento por
+empresa), `bulkScopeSummary` (lojas/CNPJs/contas afetadas, elegíveis ×
+bloqueados com motivo). Loja ≠ marketplace: loja física existe e não tem funil
+digital (conversão SEM DADOS, avisada na comparação).
+
+## Barra global hierárquica
+
+Grupo → Empresa → CNPJ → Loja → Marketplace → Conta → Período, encadeados
+(cada seletor limita o seguinte). Toda troca refaz a tela ativa e o toast
+declara o recorte ("N loja(s) · N CNPJ(s) · N conta(s) · origem · período").
+Jobs e notificações carregam escopo; a busca global encontra produto, loja,
+CNPJ, conta, pedido não pago, missão, oportunidade, experimento e conhecimento
+— sempre restrita à empresa ativa.
+
+## Superfícies multiloja
+
+- **Catálogo**: com loja ativa, estoque/preço/margem viram os DA LOJA;
+  drawer ganhou aba **Lojas e Contas** (Loja | CNPJ | Mkt | Conta | Estoque |
+  Preço | Margem | Prazo | Status | Pendência | ação "focar loja").
+- **Ações em massa**: modal **Confirmar escopo** antes de executar (itens,
+  elegíveis, bloqueados com motivo, lojas/CNPJs/contas afetadas); job registra
+  o escopo; novas ações internas (criar missão, solicitar dado, exportar
+  interno, comparar selecionados por loja).
+- **Crescimento**: tabela "Por loja" com Δ vs período anterior; modo
+  **Comparar Lojas** (até 4, com ranking e aviso de comparabilidade);
+  Pedidos Não Pagos com coluna de loja e concentração por loja.
+- **Home**: consolidado declara quantas lojas/CNPJs/contas entraram e quais
+  ficaram fora por SEM DADOS; ranking de lojas, loja em queda/crescimento.
+- **Missões**: filtradas pela loja do escopo.
+- **Visões salvas**: guardam escopo + filtros + colunas + ordenação, com tipo
+  (privada/empresa/CNPJ/loja) e isolamento testado entre empresas.
+- **Limpeza de CRM**: comando de chat com "lead" é interceptado e redirecionado
+  (LEADS_QUERY nunca chega à tela); zero telas/dados de lead no produto.
+  O motor legado de growth (Sprint 10.B) permanece na camada compartilhada
+  com seus próprios testes de contrato.
+
+## Validação
+
+- `mos/test/ui-v8-scope.test.js`: **29 testes** (suíte total: **389, verdes**).
+- Headless: 15 cenários obrigatórios (seleção encadeada, catálogo/crescimento
+  filtrados, comparação de lojas — inclusive incompatível com aviso —, não
+  pagos por loja, bulk multiloja com confirmação de escopo, job auditado,
+  visão por loja, isolamento entre empresas), 1920/1366/1180/780 × 2 temas,
+  zero erros de console.

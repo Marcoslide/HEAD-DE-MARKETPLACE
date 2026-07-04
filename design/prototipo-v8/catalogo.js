@@ -77,19 +77,23 @@
     const list = filtered();
     const sel = UI.state.selection;
     const fCount = L.activeFilterCount(CAT.filters);
-    const views = Object.keys(UI.state.views);
+    const views = L.viewsFor(UI.state, UI.ctx.empresa);
+    const lojaCtx = UI.ctx.loja; /* com loja ativa: estoque/preço/margem SÃO da loja */
     const chip = (label, on, act, extra) => `<button class="fchip ${on ? 'on' : ''}" data-act="${act}" ${extra || ''}>${label}</button>`;
     const rows = list.map(p => {
-      const mg = L.margem(p);
+      const sl = lojaCtx ? p.lojas[lojaCtx] : null;
+      const estoque = sl ? sl.estoque : p.estoque;
+      const preco = sl ? sl.preco : p.precoBase;
+      const mg = lojaCtx ? L.margemLoja(p, lojaCtx) : L.margem(p);
       return `<tr class="${sel.has(p.id) ? 'sel' : ''}" data-id="${p.id}">
         <td><input type="checkbox" data-act="selrow" data-id="${p.id}" ${sel.has(p.id) ? 'checked' : ''} aria-label="Selecionar ${UI.esc(p.nome)}"></td>
         <td><span class="thumb">▦</span></td>
-        <td><button class="tmain linklike" style="font-size:12.5px" data-act="drawer" data-id="${p.id}">${UI.esc(p.nome)}</button><span class="tsub">${UI.esc(p.sku)}</span></td>
+        <td><button class="tmain linklike" style="font-size:12.5px" data-act="drawer" data-id="${p.id}">${UI.esc(p.nome)}</button><span class="tsub">${UI.esc(p.sku)}${sl && sl.pendencia ? ' · <span class="st warn plain" style="font-size:9px">' + UI.esc(sl.pendencia) + '</span>' : ''}</span></td>
         ${CAT.cols.categoria ? `<td>${UI.esc(p.categoria)}</td>` : ''}
         <td>${p.tipo.replace(/_/g, ' ').toLowerCase()}</td>
-        <td>${p.estoque}</td>
+        <td>${estoque ?? '—'}${lojaCtx ? '<span class="tsub">na loja</span>' : ''}</td>
         ${CAT.cols.custo ? `<td>${UI.brl(p.custo)}</td>` : ''}
-        <td>${UI.brl(p.precoBase)}</td>
+        <td>${UI.brl(preco)}</td>
         <td>${mg == null ? '—' : mg + '%'}</td>
         <td><span class="mrow">${D.MKTS.map(mk => {
           const st = p.mkt[mk.key].status;
@@ -115,9 +119,10 @@
         ${fCount ? `<button class="fchip" data-act="f-clear">limpar (${fCount})</button>` : ''}
         <span style="flex:1"></span>
         <button class="fchip" data-act="saveview">salvar visão</button>
-        ${views.map(v => chip('▤ ' + v, false, 'loadview', `data-view="${UI.esc(v)}"`)).join('')}
+        ${views.map(v => chip('▤ ' + v.nome, false, 'loadview', `data-view="${v.id}" title="${UI.esc(v.tipo)} · ${UI.esc((v.escopo && v.escopo.loja) ? 'loja fixa' : 'escopo atual')}"`)).join('')}
         <button class="fchip" data-act="cols">colunas</button>
       </div>
+      <div class="fbar" style="margin:2px 0 10px">${UI.scopeLineHtml()}</div>
 
       ${list.length ? `
       <div class="tblwrap">
@@ -127,10 +132,10 @@
           ${thSort('nome', 'Produto')}
           ${CAT.cols.categoria ? thSort('categoria', 'Categoria') : ''}
           ${thSort('tipo', 'Tipo produção')}
-          ${thSort('estoque', 'Estoque')}
+          ${thSort('estoque', lojaCtx ? 'Estoque (loja)' : 'Estoque')}
           ${CAT.cols.custo ? thSort('custo', 'Custo') : ''}
-          ${thSort('precoBase', 'Preço base')}
-          ${thSort('margem', 'Margem')}
+          ${thSort('precoBase', lojaCtx ? 'Preço (loja)' : 'Preço base')}
+          ${thSort('margem', lojaCtx ? 'Margem (loja)' : 'Margem')}
           <th class="nosort">ML · Shp · TT · Mgl</th>
           ${thSort('readiness', 'Readiness')}
           <th class="nosort">Pendência</th>
@@ -142,16 +147,25 @@
       <div class="panel"><div class="empty"><b>Nenhum produto corresponde aos filtros</b>
         ${fCount} filtro(s) ativo(s). <button class="linklike" data-act="f-clear">Limpar filtros</button> para ver os ${prods().length} produtos.</div></div>`}
 
-      ${sel.size ? `
+      ${sel.size ? (() => {
+        const r = L.bulkScopeSummary(UI.state, [...sel], UI.ctx);
+        return `
       <div class="massbar" role="toolbar" aria-label="Ações em massa">
-        <b>${sel.size} selecionado(s)</b><span class="sep"></span>
+        <b>${sel.size} selecionado(s)</b>
+        <span class="src" title="Lojas: ${UI.esc(r.lojasAfetadas.join(' · '))} — CNPJs: ${UI.esc(r.cnpjsAfetados.join(' · '))}">${r.lojasAfetadas.length} loja(s) · ${r.cnpjsAfetados.length} CNPJ(s) · ${r.contasAfetadas.length} conta(s) · ${r.elegiveis} elegíveis${r.bloqueados.length ? ' · ' + r.bloqueados.length + ' com pendência' : ''}</span>
+        <span class="sep"></span>
         <button class="btn sm" data-act="bulk" data-bulk="marcar_revisao">marcar para revisão</button>
         <button class="btn sm" data-act="bulk" data-bulk="recalcular_margem">recalcular margens</button>
         <button class="btn sm" data-act="bulk" data-bulk="gerar_rascunhos">gerar rascunhos internos</button>
+        <button class="btn sm" data-act="bulk" data-bulk="criar_missao">criar missão</button>
+        <button class="btn sm" data-act="bulk" data-bulk="solicitar_dado">solicitar dado</button>
+        <button class="btn sm" data-act="bulk" data-bulk="exportar_interno">exportar (interno)</button>
+        <button class="btn sm" data-act="cmpsel" ${sel.size < 2 ? `disabled title="Selecione 2+ produtos para comparar entre lojas."` : ''}>comparar selecionados</button>
         <button class="btn sm" disabled title="${UI.esc(L.disabledReason('publicar_externo'))}">publicar nos marketplaces</button>
         <span class="sep"></span>
         <button class="btn sm ghost" data-act="selclear">limpar seleção</button>
-      </div>` : ''}`;
+      </div>`;
+      })() : ''}`;
   }
 
   function anuncios() {
@@ -293,6 +307,35 @@
             ? `<button class="btn sm" data-act="ddraft" data-mkt="${r.key}">criar rascunho interno</button>`
             : `<button class="btn sm" disabled title="${UI.esc(L.disabledReason('publicar_externo'))}">publicar alteração</button>`}</td>
         </tr>`).join('')}</tbody></table></div>`;
+    } else if (t === 'lojascontas') {
+      const entries = Object.entries(p.lojas);
+      bodyHtml = `
+        <p class="sub">Onde este produto opera: estoque, preço, margem e prazo <b>variam por loja</b>; o Product Master continua único. Editar o master não sobrescreve nada daqui sem confirmação.</p>
+        ${entries.length ? `
+        <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>
+          <th class="nosort">Loja</th><th class="nosort">CNPJ</th><th class="nosort">Mkt</th><th class="nosort">Conta</th>
+          <th class="nosort">Estoque</th><th class="nosort">Preço</th><th class="nosort">Margem</th><th class="nosort">Prazo</th>
+          <th class="nosort">Status</th><th class="nosort">Pendência</th><th class="nosort">Ação</th></tr></thead><tbody>
+        ${entries.map(([lid, sl]) => {
+          const s = D.scope.lojas.find(x => x.id === lid) || { nome: lid };
+          const c = D.scope.cnpjs.find(x => x.id === s.cnpjId) || {};
+          const conta = sl.contaId ? (D.scope.contas.find(a => a.id === sl.contaId) || {}).nome : (s.tipo === 'fisica' ? 'venda presencial' : '—');
+          return `<tr>
+            <td class="tmain">${UI.esc(s.nome)}<span class="tsub">${UI.esc(s.deposito || '')} · resp. ${UI.esc(s.responsavel || '—')}</span></td>
+            <td><span class="src">${UI.esc(c.nome || '—')}</span></td>
+            <td>${s.marketplace ? UI.esc((D.MKTS.find(m => m.key === s.marketplace) || {}).nome) : 'física'}</td>
+            <td><span class="src">${UI.esc(conta)}</span></td>
+            <td>${sl.estoque ?? '—'}</td><td>${UI.brl(sl.preco)}</td>
+            <td>${L.margemLoja(p, lid) == null ? '—' : L.margemLoja(p, lid) + '%'}</td>
+            <td>${sl.prazoDias != null ? sl.prazoDias + 'd' : '—'}</td>
+            <td>${UI.stBadge(sl.status)}</td>
+            <td>${sl.pendencia ? `<span class="st warn plain">${UI.esc(sl.pendencia)}</span>` : '<span class="src">—</span>'}</td>
+            <td><button class="btn sm ghost" data-act="d-lojactx" data-loja="${lid}">focar loja</button></td>
+          </tr>`;
+        }).join('')}
+        </tbody></table></div>
+        <p class="src" style="margin-top:8px">${entries.length} loja(s) · ${[...new Set(entries.map(([lid]) => (D.scope.lojas.find(x => x.id === lid) || {}).cnpjId))].length} CNPJ(s) · ${UI.esc(D.STATUS.DADO_SIMULADO)}</p>`
+        : `<div class="empty"><b>Produto sem presença em loja</b>Use a Expansão (Crescimento) para gerar um draft interno.</div>`}`;
     } else if (t === 'relacoes') {
       const opps = UI.state.opportunities.filter(o => o.produtoId === id && o.status !== 'IGNORADA');
       const exps = UI.state.experiments.filter(x => x.alvo === id);
@@ -336,7 +379,7 @@
           <span class="st info plain">readiness ${L.readiness(p)}%</span>
         </div></div>
         <button class="btn ghost sm" data-act="dclose" aria-label="Fechar">✕ fechar</button></div>
-      <div class="tabs">${tabBtn('master', 'Product Master')}${tabBtn('perfis', 'Perfis por marketplace')}${tabBtn('matriz', 'Matriz de publicação')}${tabBtn('relacoes', 'Relações')}${tabBtn('versoes', `Versões (${vers.length})`)}</div>
+      <div class="tabs">${tabBtn('master', 'Product Master')}${tabBtn('lojascontas', `Lojas e Contas (${Object.keys(p.lojas).length})`)}${tabBtn('perfis', 'Perfis por marketplace')}${tabBtn('matriz', 'Matriz de publicação')}${tabBtn('relacoes', 'Relações')}${tabBtn('versoes', `Versões (${vers.length})`)}</div>
       <div style="margin-top:14px">${bodyHtml}</div>`);
     UI.$('#drawer').onclick = onDrawerClick;
   };
@@ -367,7 +410,19 @@
     else if (act === 'adv') openAdvanced();
     else if (act === 'cols') openCols();
     else if (act === 'saveview') openSaveView();
-    else if (act === 'loadview') { CAT.filters = L.loadView(UI.state, b.dataset.view) || {}; UI.toast(`Visão "${b.dataset.view}" aplicada.`); body(); }
+    else if (act === 'loadview') {
+      const v = UI.state.scopedViews.find(x => x.id === b.dataset.view);
+      if (!v) return;
+      /* a visão restaura escopo (CNPJ/loja/conta/mkt/período) + filtros + colunas */
+      Object.assign(UI.ctx, v.escopo); V8LOGIC.normalizeCtx(UI.ctx);
+      CAT.filters = JSON.parse(JSON.stringify(v.filtros || {}));
+      if (v.colunas) CAT.cols = JSON.parse(JSON.stringify(v.colunas));
+      if (v.ordenacao) { CAT.sortKey = v.ordenacao.key; CAT.sortDir = v.ordenacao.dir; }
+      UI.renderGbar(); UI.refreshBadges();
+      UI.toast(`Visão "${v.nome}" aplicada (${v.tipo}) · ${V8LOGIC.scopeLine(UI.ctx)}`, 'ok');
+      body();
+    }
+    else if (act === 'cmpsel') openCompareProdutos([...UI.state.selection]);
     else if (act === 'selrow') { L.toggleSelect(UI.state, b.dataset.id); body(); }
     else if (act === 'selall') { const f = filtered(); f.every(p => UI.state.selection.has(p.id)) ? L.clearSelection(UI.state) : L.selectAllFiltered(UI.state, f); body(); }
     else if (act === 'selclear') { L.clearSelection(UI.state); body(); }
@@ -385,6 +440,12 @@
     const p = allProds().find(x => x.id === id);
     if (act === 'dclose') UI.closeDrawer();
     else if (act === 'd-goopp') { UI.closeDrawer(); UI.open('crescimento:' + b.dataset.id); }
+    else if (act === 'd-lojactx') {
+      UI.closeDrawer();
+      const s = D.scope.lojas.find(x => x.id === b.dataset.loja);
+      const c = D.scope.cnpjs.find(x => x.id === s.cnpjId);
+      UI.ctx.empresa = c.empresaId; UI.ctx.cnpj = c.id; UI.setCtx('loja', s.id);
+    }
     else if (act === 'dtab') CAT.openDrawer(id, b.dataset.tab);
     else if (act === 'dprofmkt') { CAT.profileMkt = b.dataset.mkt; CAT.openDrawer(id, 'perfis'); }
     else if (act === 'dsave') {
@@ -432,13 +493,54 @@
     }
   }
 
+  /* ação em massa multiloja: SEMPRE confirma o escopo antes de executar */
   function doBulk(action) {
     const ids = [...UI.state.selection];
-    const r = L.bulkAction(UI.state, ids, action);
-    if (r.blocked) return UI.toast(r.reason, 'err');
-    UI.toast(`Job ${r.job.id} · "${action}" sobre ${r.job.total} itens · ${r.job.status} · reversível e auditado.`, 'ok');
-    L.clearSelection(UI.state);
-    body();
+    if (!ids.length) return UI.toast('Nenhum item selecionado.', 'err');
+    const r = L.bulkScopeSummary(UI.state, ids, UI.ctx);
+    UI.openModal(`<h3 class="h2">Confirmar escopo da ação</h3>
+      <p class="sub" style="margin-top:4px">"${UI.esc(action.replace(/_/g, ' '))}" — nada será publicado externamente.</p>
+      <dl class="kv" style="margin-top:10px">
+        <dt>Itens</dt><dd>${r.itens} selecionado(s) · <b>${r.elegiveis} elegíveis</b></dd>
+        <dt>Lojas afetadas</dt><dd>${r.lojasAfetadas.length}: ${UI.esc(r.lojasAfetadas.join(' · '))}</dd>
+        <dt>CNPJs afetados</dt><dd>${r.cnpjsAfetados.length}: ${UI.esc(r.cnpjsAfetados.join(' · '))}</dd>
+        <dt>Contas afetadas</dt><dd>${r.contasAfetadas.length ? UI.esc(r.contasAfetadas.join(' · ')) : 'nenhuma'}</dd>
+        ${r.bloqueados.length ? `<dt>Com pendência</dt><dd>${r.bloqueados.map(x => `${UI.esc(x.sku)} — ${UI.esc(x.motivo)}`).join('<br>')}</dd>` : ''}
+      </dl>
+      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+        <button class="btn ghost" onclick="UI.closeModal()">cancelar</button>
+        <button class="btn primary" id="bulkGo">Executar (interno, auditado)</button></div>`);
+    UI.$('#bulkGo').onclick = () => {
+      UI.closeModal();
+      const res = L.bulkAction(UI.state, ids, action, D.meta.usuario, UI.ctx);
+      if (res.blocked) return UI.toast(res.reason, 'err');
+      if (action === 'criar_missao') {
+        D.missoes.push({ id: 'm' + (D.missoes.length + 1), titulo: `Missão em massa · ${ids.length} produtos (${res.job.escopo.lojas.length} lojas)`, status: D.STATUS.EM_PROCESSAMENTO, tipo: D.STATUS.ACAO_INTERNA, agora: 'criada por ação em massa', origem: 'catálogo · bulk', reversivel: true });
+      }
+      if (action === 'solicitar_dado')
+        for (const bqd of r.bloqueados) L._audit(UI.state, 'Head', 'dado_solicitado', `${bqd.sku}: ${bqd.motivo}`);
+      UI.toast(`Job ${res.job.id} · "${action}" · ${res.job.total} itens · ${res.job.escopo.lojas.length} loja(s) · ${res.job.escopo.cnpjs.length} CNPJ(s) · ${res.job.status}.`, 'ok');
+      L.clearSelection(UI.state);
+      UI.refreshBadges(); body();
+    };
+  }
+
+  /* comparar produtos selecionados entre lojas (preço, estoque, margem) */
+  function openCompareProdutos(ids) {
+    const ps = ids.map(id => allProds().find(p => p.id === id)).filter(Boolean).slice(0, 6);
+    const lojaIds = [...new Set(ps.flatMap(p => Object.keys(p.lojas)))];
+    const lojaNome = id => (D.scope.lojas.find(s => s.id === id) || { nome: id }).nome;
+    UI.openModal(`<h3 class="h2">Comparar selecionados por loja</h3>
+      <p class="sub" style="margin-top:4px">Preço · estoque · margem por loja. ${UI.esc(D.STATUS.DADO_SIMULADO)}. Célula vazia = produto não está na loja.</p>
+      <div class="tblwrap" style="margin-top:10px;max-height:50vh"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">Produto</th>${lojaIds.map(l => `<th class="nosort">${UI.esc(lojaNome(l))}</th>`).join('')}</tr></thead><tbody>
+        ${ps.map(p => `<tr><td class="tmain">${UI.esc(p.sku)}</td>
+          ${lojaIds.map(l => {
+            const sl = p.lojas[l];
+            return `<td>${sl ? `${UI.brl(sl.preco)}<span class="tsub">est. ${sl.estoque ?? '—'} · mg ${L.margemLoja(p, l) ?? '—'}%</span>` : '<span class="src">—</span>'}</td>`;
+          }).join('')}</tr>`).join('')}
+      </tbody></table></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="UI.closeModal()">fechar</button></div>`);
   }
 
   /* ---------------- modais auxiliares ---------------- */
@@ -482,16 +584,28 @@
 
   function openSaveView() {
     UI.openModal(`<h3 class="h2">Salvar visão</h3>
-      <p class="sub" style="margin-top:4px">Guarda os ${L.activeFilterCount(CAT.filters)} filtro(s) atuais como visão nomeada.</p>
-      <input class="input" id="svName" style="width:100%;margin-top:10px" placeholder="ex.: pendências de decoração">
-      <div style="display:flex;gap:8px;margin-top:16px;justify-content:flex-end">
+      <p class="sub" style="margin-top:4px">Guarda escopo (CNPJ, loja, conta, marketplace, período), ${L.activeFilterCount(CAT.filters)} filtro(s), colunas e ordenação. Visões não vazam entre empresas.</p>
+      <input class="input" id="svName" style="width:100%;margin-top:10px" placeholder="ex.: Shopee Matriz MG · produtos bloqueados">
+      <label style="display:block;margin-top:8px"><span class="eyebrow">Compartilhamento</span><br>
+        <select class="select" id="svTipo" style="width:100%;margin-top:3px">
+          <option value="privada">Privada (só eu)</option>
+          <option value="empresa">Compartilhada com a empresa</option>
+          <option value="cnpj">Compartilhada com o CNPJ</option>
+          <option value="loja">Compartilhada com a loja</option>
+        </select></label>
+      <p class="src" style="margin-top:8px">escopo atual: ${UI.esc(V8LOGIC.scopeLine(UI.ctx))}</p>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
         <button class="btn ghost" onclick="UI.closeModal()">cancelar</button>
         <button class="btn primary" id="svSave">Salvar visão</button></div>`);
     UI.$('#svSave').onclick = () => {
       const n = UI.$('#svName').value.trim();
       if (!n) return UI.toast('Dê um nome à visão.', 'err');
-      L.saveView(UI.state, n, CAT.filters);
-      UI.closeModal(); UI.toast(`Visão "${n}" salva.`, 'ok'); body();
+      L.saveScopedView(UI.state, {
+        nome: n, empresaId: UI.ctx.empresa, tipo: UI.$('#svTipo').value,
+        escopo: { cnpj: UI.ctx.cnpj, loja: UI.ctx.loja, conta: UI.ctx.conta, marketplace: UI.ctx.marketplace, periodo: UI.ctx.periodo },
+        filtros: CAT.filters, colunas: CAT.cols, ordenacao: { key: CAT.sortKey, dir: CAT.sortDir },
+      });
+      UI.closeModal(); UI.toast(`Visão "${n}" salva com escopo — auditada.`, 'ok'); body();
     };
   }
 

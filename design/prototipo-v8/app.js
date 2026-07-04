@@ -20,19 +20,30 @@
     view: 'home',
     renderers: {}, /* preenchido pelos arquivos de área */
 
-    /* ---------- contexto global (empresa · marketplace · período) ---------- */
-    ctx: { empresa: 'e1', marketplace: '', periodo: '7d' },
+    /* ---------- OPERATIONAL SCOPE CONTEXT (10.UI.2) ----------
+       Grupo → Empresa → CNPJ → Loja → Conta, mais marketplace e período.
+       Encadeado: trocar o pai revalida os filhos (normalizeCtx). */
+    ctx: { grupo: 'g1', empresa: 'e1', cnpj: '', loja: '', marketplace: '', conta: '', periodo: '7d' },
     setCtx(k, v) {
       if (UI.ctx[k] === v) return;
       UI.ctx[k] = v;
+      if (k === 'grupo') { UI.ctx.empresa = (V8LOGIC.empresasDe(v)[0] || {}).id || 'e1'; UI.ctx.cnpj = ''; UI.ctx.loja = ''; UI.ctx.conta = ''; }
+      if (k === 'empresa') { UI.ctx.cnpj = ''; UI.ctx.loja = ''; UI.ctx.conta = ''; }
+      if (k === 'cnpj') { UI.ctx.loja = ''; UI.ctx.conta = ''; }
+      if (k === 'loja') { UI.ctx.conta = ''; }
+      V8LOGIC.normalizeCtx(UI.ctx);
       UI.renderGbar();
       UI.refreshBadges();
       if (UI.renderers[UI.view]) UI.renderers[UI.view]();
-      const nomes = { empresa: 'Empresa', marketplace: 'Marketplace', periodo: 'Período' };
-      UI.toast(`${nomes[k]} do contexto atualizado — telas refeitas.`, 'ok');
+      const nomes = { grupo: 'Grupo', empresa: 'Empresa', cnpj: 'CNPJ', loja: 'Loja', marketplace: 'Marketplace', conta: 'Conta', periodo: 'Período' };
+      UI.toast(`${nomes[k] || k} do contexto atualizado · ${V8LOGIC.scopeLine(UI.ctx)}`, 'ok');
     },
     empresa() { return V8DATA.meta.empresas.find(e => e.id === UI.ctx.empresa); },
     ctxProducts() { return V8LOGIC.globalFilter(UI.state.products, UI.ctx); },
+    scopeLineHtml() {
+      const d = V8LOGIC.scopeDescribe(UI.ctx);
+      return `<span class="src" title="Lojas: ${UI.esc(d.lojas.join(' · '))} — CNPJs: ${UI.esc(d.cnpjs.join(' · '))}">recorte: ${d.lojas.length} loja(s) · ${d.cnpjs.length} CNPJ(s) · ${d.contas.length} conta(s) · ${UI.esc(d.origem)}</span>`;
+    },
 
     /* ---------- tema (token-based, nunca inversão) ---------- */
     theme() { return document.documentElement.getAttribute('data-theme'); },
@@ -65,18 +76,33 @@
     /* ---------- barra global ---------- */
     _gmenu: null,
     renderGbar() {
+      const S = V8DATA.scope;
+      const grupo = S.grupos.find(g => g.id === UI.ctx.grupo) || S.grupos[0];
       const emp = UI.empresa();
+      const cnpj = UI.ctx.cnpj ? S.cnpjs.find(c => c.id === UI.ctx.cnpj) : null;
+      const loja = UI.ctx.loja ? S.lojas.find(s => s.id === UI.ctx.loja) : null;
+      const conta = UI.ctx.conta ? S.contas.find(a => a.id === UI.ctx.conta) : null;
       const mkt = UI.ctx.marketplace ? V8DATA.MKTS.find(m => m.key === UI.ctx.marketplace).nome : 'Todos';
       const per = V8DATA.PERIODOS.find(p => p[0] === UI.ctx.periodo)[1];
       const menu = (kind, items) => UI._gmenu === kind
         ? `<div class="gmenu">${items.map(i => `<button class="gm-i" data-gact="${kind}" data-val="${i[0]}"><span><b>${UI.esc(i[1])}</b>${i[2] ? `<span class="src">${UI.esc(i[2])}</span>` : ''}</span></button>`).join('')}</div>` : '';
+      const cnpjNome = c => c.nome; /* rótulo curto do seletor */
 
+      /* seletores encadeados: grupo → empresa → CNPJ → loja → mkt → conta */
       $('#gbarCtx').innerHTML = `
-        <span class="gwrap"><button class="gsel" data-gact="menu" data-menu="empresa" title="Empresa ativa — muda as entidades exibidas"><span class="gk">empresa</span> ${UI.esc(emp.nome)} ▾</button>
-          ${menu('empresa', V8DATA.meta.empresas.map(e => [e.id, e.nome, e.conta]))}</span>
-        <span class="gwrap"><button class="gsel ${UI.ctx.marketplace ? 'on' : ''}" data-gact="menu" data-menu="marketplace" title="Marketplace ativo — filtra Catálogo, Anúncios e Crescimento"><span class="gk">mkt</span> ${UI.esc(mkt)} ▾</button>
+        <span class="gwrap"><button class="gsel" data-gact="menu" data-menu="grupo" title="Grupo/organização — limita as empresas visíveis"><span class="gk">grupo</span> ${UI.esc(grupo.nome.split(' (')[0])} ▾</button>
+          ${menu('grupo', S.grupos.filter(g => g.autorizado).map(g => [g.id, g.nome, '']))}</span>
+        <span class="gwrap"><button class="gsel" data-gact="menu" data-menu="empresa" title="Empresa ativa — limita CNPJs, lojas e entidades"><span class="gk">empresa</span> ${UI.esc(emp.nome.split(' LTDA')[0].split(' ME')[0])} ▾</button>
+          ${menu('empresa', V8LOGIC.empresasDe(UI.ctx.grupo).map(e => [e.id, e.nome, '']))}</span>
+        <span class="gwrap"><button class="gsel ${cnpj ? 'on' : ''}" data-gact="menu" data-menu="cnpj" title="CNPJ / entidade fiscal — limita as lojas"><span class="gk">cnpj</span> ${cnpj ? UI.esc(cnpj.nome) : 'Todos'} ▾</button>
+          ${menu('cnpj', [['', 'Todos os CNPJs', 'da empresa ativa'], ...V8LOGIC.cnpjsDe(UI.ctx.empresa).map(c => [c.id, cnpjNome(c), c.doc])])}</span>
+        <span class="gwrap"><button class="gsel ${loja ? 'on' : ''}" data-gact="menu" data-menu="loja" title="Loja / unidade operacional — limita contas e dados"><span class="gk">loja</span> ${loja ? UI.esc(loja.nome) : 'Todas'} ▾</button>
+          ${menu('loja', [['', 'Todas as lojas', 'do recorte atual'], ...V8LOGIC.lojasDe({ empresa: UI.ctx.empresa, cnpj: UI.ctx.cnpj }).map(s => [s.id, s.nome, (S.cnpjs.find(c => c.id === s.cnpjId) || {}).nome + (s.tipo === 'fisica' ? ' · loja física' : '')])])}</span>
+        <span class="gwrap"><button class="gsel ${UI.ctx.marketplace ? 'on' : ''}" data-gact="menu" data-menu="marketplace" title="Marketplace ativo"><span class="gk">mkt</span> ${UI.esc(mkt)} ▾</button>
           ${menu('marketplace', [['', 'Todos', 'sem filtro de canal'], ...V8DATA.MKTS.map(m => [m.key, m.nome, ''])])}</span>
-        <span class="gwrap"><button class="gsel ${UI.ctx.periodo !== '7d' ? 'on' : ''}" data-gact="menu" data-menu="periodo" title="Período global — atualiza indicadores de performance"><span class="gk">período</span> ${per} ▾</button>
+        <span class="gwrap"><button class="gsel ${conta ? 'on' : ''}" data-gact="menu" data-menu="conta" title="Conta do marketplace — limita anúncios, pedidos e estoque"><span class="gk">conta</span> ${conta ? UI.esc(conta.nome) : 'Todas'} ▾</button>
+          ${menu('conta', [['', 'Todas as contas', 'do recorte atual'], ...V8LOGIC.contasDe(UI.ctx).map(a => [a.id, a.nome, (S.lojas.find(s => s.id === a.lojaId) || {}).nome])])}</span>
+        <span class="gwrap"><button class="gsel ${UI.ctx.periodo !== '7d' ? 'on' : ''}" data-gact="menu" data-menu="periodo" title="Período global"><span class="gk">período</span> ${per} ▾</button>
           ${menu('periodo', V8DATA.PERIODOS.map(p => [p[0], p[1], '']))}</span>
         <span class="env-pill" title="Ambiente desta instância">${UI.esc(V8DATA.meta.env)}</span>`;
 
@@ -89,7 +115,7 @@
         <span class="gwrap"><button class="gicon" data-gact="menu" data-menu="notif" title="Central de notificações">◔ <span class="gbadge">${notifs.length || ''}</span></button>
           ${UI._gmenu === 'notif' ? `<div class="gmenu">${notifs.length ? notifs.map(n => `<button class="gm-i" data-gact="open" data-ref="${n.ref}"><span class="sig ${n.nivel}" style="width:7px;height:7px;border-radius:50%;margin-top:5px;background:var(--${n.nivel === 'info' ? 'info' : n.nivel})"></span><span><b>${UI.esc(n.txt)}</b></span></button>`).join('') : '<div class="empty" style="padding:14px"><b>Sem notificações</b></div>'}</div>` : ''}</span>
         <span class="gwrap"><button class="gicon" data-gact="menu" data-menu="jobs" title="Jobs em andamento e concluídos nesta sessão">⚙ <span class="gbadge">${jobs.length || ''}</span></button>
-          ${UI._gmenu === 'jobs' ? `<div class="gmenu">${jobs.length ? jobs.slice().reverse().map(j => `<button class="gm-i" data-gact="open" data-ref="operacao:"><span><b>${j.id} · ${UI.esc(j.acao)} (${j.total} itens)</b><span class="src">${UI.esc(j.status)} · ${UI.esc(j.autor)} · reversível</span></span></button>`).join('') : '<div class="empty" style="padding:14px"><b>Nenhum job nesta sessão</b>Ações em massa aparecem aqui com trilha.</div>'}</div>` : ''}</span>
+          ${UI._gmenu === 'jobs' ? `<div class="gmenu">${jobs.length ? jobs.slice().reverse().map(j => `<button class="gm-i" data-gact="open" data-ref="operacao:"><span><b>${j.id} · ${UI.esc(j.acao)} (${j.total} itens)</b><span class="src">${UI.esc(j.status)} · ${UI.esc(j.autor)} · reversível</span>${j.escopo ? `<span class="src">escopo: ${UI.esc(j.escopo.empresa)} · ${j.escopo.cnpjs.length} CNPJ(s) · ${j.escopo.lojas.length} loja(s)</span>` : ''}</span></button>`).join('') : '<div class="empty" style="padding:14px"><b>Nenhum job nesta sessão</b>Ações em massa aparecem aqui com trilha.</div>'}</div>` : ''}</span>
         <button class="gicon" onclick="UI.toggleTheme()" title="Alternar tema claro/escuro">◐</button>
         <span class="gwrap"><button class="gicon" data-gact="menu" data-menu="perfil" title="Perfil e permissões">${UI.esc(V8DATA.meta.usuario[0])} · ${UI.esc(V8DATA.meta.papel)}</button>
           ${UI._gmenu === 'perfil' ? `<div class="gmenu"><div style="padding:8px 10px;font-size:12px">
@@ -103,7 +129,7 @@
       const gq = $('#gq');
       if (gq) {
         gq.oninput = () => {
-          const res = V8LOGIC.globalSearch(gq.value, UI.state);
+          const res = V8LOGIC.globalSearch(gq.value, UI.state, UI.ctx);
           $('#gqWrap').innerHTML = gq.value.trim().length >= 2
             ? `<div class="gmenu" style="left:-160px;right:auto;width:320px">${res.length ? res.map(r => `<button class="gm-i" data-gact="open" data-ref="${r.ref}"><span><b>${UI.esc(r.label)}</b><span class="src">${r.tipo} · ${UI.esc(r.sub)}</span></span></button>`).join('') : `<div class="empty" style="padding:14px"><b>Nada encontrado</b>Busquei em produtos, oportunidades, missões e conhecimento.</div>`}</div>` : '';
         };
@@ -226,6 +252,19 @@
         UI.setCtx('empresa', 'e2');
         const e2 = $$('#catBody tbody tr').length;
         need(e1 !== e2 && e2 === V8DATA.products.filter(p => p.companyId === 'e2').length, `empresa muda entidades (${e1} → ${e2})`);
+        UI.setCtx('empresa', 'e1');
+        /* cadeia CNPJ → loja → conta filtra de verdade */
+        UI.setCtx('cnpj', 'c2');
+        const nC2 = $$('#catBody tbody tr').length;
+        need(nC2 === V8LOGIC.globalFilter(UI.state.products, { empresa: 'e1', cnpj: 'c2' }).length, `CNPJ filtra catálogo (${nC2})`);
+        UI.setCtx('cnpj', 'c1'); UI.setCtx('loja', 's1');
+        const nS1 = $$('#catBody tbody tr').length;
+        need(nS1 === 4, `loja s1 mostra só os produtos da loja (${nS1})`);
+        need(UI.ctx.marketplace === '' || UI.ctx.marketplace === 'shopee', 'loja não conflita com marketplace');
+        UI.setCtx('loja', ''); UI.setCtx('cnpj', '');
+        /* trocar empresa reseta filhos órfãos */
+        UI.setCtx('cnpj', 'c1'); UI.setCtx('empresa', 'e2');
+        need(UI.ctx.cnpj === '', 'trocar empresa limpa CNPJ órfão');
         UI.setCtx('empresa', 'e1');
         /* período muda indicadores de performance */
         UI.go('crescimento', 'Performance');

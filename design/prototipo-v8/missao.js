@@ -24,6 +24,12 @@
     </div>`;
   }
 
+  /* missões respeitam o escopo: loja ativa → só missões daquela loja */
+  function missoesDoEscopo() {
+    const lojaIds = UI.ctx.loja ? [UI.ctx.loja] : V8LOGIC.lojasDe({ empresa: UI.ctx.empresa, cnpj: UI.ctx.cnpj }).map(s => s.id);
+    return D.missoes.filter(m => !m.lojaId || lojaIds.includes(m.lojaId));
+  }
+
   function render() {
     const grupos = [
       [D.STATUS.AGUARDANDO_APROVACAO, 'Decisões que pedem você'],
@@ -31,15 +37,16 @@
       [D.STATUS.PRONTO_REVISAO, 'Prontas para revisão'],
       [D.STATUS.EM_REVISAO, 'Em revisão'],
     ];
+    const doEscopo = missoesDoEscopo();
     UI.$('#v-missao').innerHTML = `
       <div class="eyebrow">a missão · central de execução</div>
       <h1 class="h1">A Missão</h1>
-      <p class="sub" style="margin-top:6px">O que o Head está executando, o que espera sua decisão e o que já foi entregue — tudo ${UI.esc(D.STATUS.ACAO_INTERNA).toLowerCase()} e reversível.</p>
+      <p class="sub" style="margin-top:6px">${UI.scopeLineHtml()}<br>O que o Head está executando, o que espera sua decisão e o que já foi entregue — tudo ${UI.esc(D.STATUS.ACAO_INTERNA).toLowerCase()} e reversível.</p>
       ${grupos.map(([st, titulo]) => {
-        const list = D.missoes.filter(m => m.status === st);
+        const list = doEscopo.filter(m => m.status === st);
         return list.length ? `<div class="sect"><div class="sect-h"><span class="h2">${titulo}</span><span class="src">${list.length}</span></div>${list.map(m => card(m, MI._focus === m.id)).join('')}</div>` : '';
       }).join('')}
-      ${D.missoes.length ? '' : '<div class="panel sect"><div class="empty"><b>Nenhuma missão ativa</b>Missões nascem do radar, das decisões e da mesa de comando.</div></div>'}`;
+      ${doEscopo.length ? '' : '<div class="panel sect"><div class="empty"><b>Nenhuma missão no escopo atual</b>Missões nascem do radar, das decisões e da mesa de comando — troque a loja na barra global para ver outras.</div></div>'}`;
     UI.$('#v-missao').onclick = onClick;
     MI._focus = null;
   }

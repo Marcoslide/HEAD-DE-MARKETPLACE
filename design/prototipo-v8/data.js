@@ -90,6 +90,29 @@
   const COMPANY_OF = { p7: 'e2', p8: 'e2', p11: 'e2' };
   for (const p of products) p.companyId = COMPANY_OF[p.id] || 'e1';
 
+  /* 10.UI.2 — presença POR LOJA: estoque, preço, prazo, status e pendência
+     variam por loja; o Product Master continua único. */
+  const SL = (estoque, preco, prazoDias, status, extra) =>
+    Object.assign({ estoque, preco, prazoDias, status, pendencia: null, contaId: null }, extra || {});
+  const LOJAS_DE = {
+    p1: { s1: SL(12, 124.9, 2, 'ATIVO', { contaId: 'acc-shp-1' }), s4: SL(8, 119.9, 3, 'ATIVO', { contaId: 'acc-shp-2' }),
+          s2: SL(14, 129.9, 2, 'ATIVO', { contaId: 'acc-ml-1' }), s6: SL(0, 132.9, 5, 'PAUSADO', { contaId: 'acc-mg-1', pendencia: 'sem estoque no CD SP' }) },
+    p2: { s1: SL(3, 244.9, 2, 'ATIVO', { contaId: 'acc-shp-1', pendencia: 'risco de ruptura' }), s2: SL(3, 249.9, 2, 'ATIVO', { contaId: 'acc-ml-1' }),
+          s5: SL(0, 239.9, 4, 'ATIVO', { contaId: 'acc-tt-1', pendencia: 'estoque zerado no CD SP' }), s3: SL(2, 259.9, 0, 'ATIVO') },
+    p3: { s2: SL(0, 159.9, 5, 'ATIVO', { contaId: 'acc-ml-1' }), s1: SL(0, 154.9, 6, 'EM_REVISAO', { contaId: 'acc-shp-1', pendencia: 'foto sem escala real' }) },
+    p4: { s2: SL(0, 289.9, 9, 'PAUSADO', { contaId: 'acc-ml-1' }), s3: SL(1, 299.9, 0, 'ATIVO') },
+    p5: { s2: SL(11, 119.9, 2, 'ATIVO', { contaId: 'acc-ml-1' }), s4: SL(10, 115.9, 3, 'ATIVO', { contaId: 'acc-shp-2' }), s6: SL(0, 122.9, 5, 'NAO_PUBLICADO') },
+    p6: { s1: SL(20, 57.9, 2, 'ATIVO', { contaId: 'acc-shp-1' }), s2: SL(22, 59.9, 2, 'ATIVO', { contaId: 'acc-ml-1' }),
+          s4: SL(6, 55.9, 3, 'ATIVO', { contaId: 'acc-shp-2' }), s5: SL(10, 55.9, 4, 'ATIVO', { contaId: 'acc-tt-1' }), s3: SL(12, 62.9, 0, 'ATIVO') },
+    p9: { s2: SL(14, 179.9, 3, 'EM_REVISAO', { contaId: 'acc-ml-1', pendencia: 'grade incompleta' }), s5: SL(9, 174.9, 4, 'ATIVO', { contaId: 'acc-tt-1' }) },
+    p10: { s2: SL(27, null, 4, 'BLOQUEADO', { contaId: 'acc-ml-1', pendencia: 'certificação INMETRO não informada' }) },
+    p12: { s3: SL(0, 149.9, 0, 'NAO_PUBLICADO', { pendencia: 'dimensões da embalagem ausentes' }) },
+    p7: { s7: SL(60, 84.9, 2, 'ATIVO', { contaId: 'acc-shp-3' }), s8: SL(52, 89.9, 2, 'ATIVO', { contaId: 'acc-ml-2' }) },
+    p8: { s8: SL(40, 109.9, 3, 'ATIVO', { contaId: 'acc-ml-2' }), s7: SL(0, 104.9, 3, 'PAUSADO', { contaId: 'acc-shp-3' }) },
+    p11: { s7: SL(101, 37.9, 2, 'ATIVO', { contaId: 'acc-shp-3' }), s8: SL(102, 39.9, 2, 'ATIVO', { contaId: 'acc-ml-2' }) },
+  };
+  for (const p of products) p.lojas = LOJAS_DE[p.id] || {};
+
   /* ---------- performance por marketplace × período (funil honesto) ----------
      Etapas sem integração/dado importado ficam null → SEM DADOS (nunca inventadas). */
   const F = (impressoes, cliques, visitas, pedidosCriados, naoPagos, aprovados, enviados, entregues, faturamento, devolucoes, cancelamentos, reputacao) =>
@@ -120,12 +143,14 @@
 
   /* ---------- pedidos não pagos (perda entre pedido criado e pagamento) ---------- */
   const pedidosNaoPagos = [
-    { id: 'np1', marketplace: 'shopee', produtoId: 'p2', anuncio: 'Kit 3 Quadros Sala Moderna', valor: 244.9, frete: 22.4, desconto: 0, cupom: null, formaPagamento: 'pix (expirado)', motivo: 'pagamento não concluído no prazo', data: '2026-07-03', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
-    { id: 'np2', marketplace: 'shopee', produtoId: 'p1', anuncio: 'Quadro Paisagem Grande 60x90 Sala', valor: 124.9, frete: 19.9, desconto: 0, cupom: 'removido em 01/07', formaPagamento: null, motivo: null, data: '2026-07-03', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
-    { id: 'np3', marketplace: 'ml', produtoId: 'p2', anuncio: 'Kit 3 Quadros Sala Moderna', valor: 249.9, frete: 0, desconto: 0, cupom: null, formaPagamento: 'boleto (vencido)', motivo: 'boleto não pago', data: '2026-07-02', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
-    { id: 'np4', marketplace: 'ml', produtoId: 'p7', anuncio: 'Garrafa Térmica Inox 1L', valor: 89.9, frete: 14.5, desconto: 5, cupom: null, formaPagamento: null, motivo: null, data: '2026-07-02', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
-    { id: 'np5', marketplace: 'shopee', produtoId: 'p11', anuncio: 'Caneca Cerâmica Eco 350ml', valor: 37.9, frete: 16.9, desconto: 0, cupom: null, formaPagamento: null, motivo: null, data: '2026-07-01', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
-    { id: 'np6', marketplace: 'tiktok', produtoId: 'p6', anuncio: 'Porta-Retrato 3D Duplo Vidro', valor: 55.9, frete: 12.9, desconto: 0, cupom: null, formaPagamento: 'cartão (recusado)', motivo: 'cartão recusado', data: '2026-07-01', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
+    { id: 'np1', lojaId: 's1', contaId: 'acc-shp-1', marketplace: 'shopee', produtoId: 'p2', anuncio: 'Kit 3 Quadros Sala Moderna', valor: 244.9, frete: 22.4, desconto: 0, cupom: null, formaPagamento: 'pix (expirado)', motivo: 'pagamento não concluído no prazo', data: '2026-07-03', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
+    { id: 'np2', lojaId: 's1', contaId: 'acc-shp-1', marketplace: 'shopee', produtoId: 'p1', anuncio: 'Quadro Paisagem Grande 60x90 Sala', valor: 124.9, frete: 19.9, desconto: 0, cupom: 'removido em 01/07', formaPagamento: null, motivo: null, data: '2026-07-03', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
+    { id: 'np3', lojaId: 's2', contaId: 'acc-ml-1', marketplace: 'ml', produtoId: 'p2', anuncio: 'Kit 3 Quadros Sala Moderna', valor: 249.9, frete: 0, desconto: 0, cupom: null, formaPagamento: 'boleto (vencido)', motivo: 'boleto não pago', data: '2026-07-02', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
+    { id: 'np4', lojaId: 's8', contaId: 'acc-ml-2', marketplace: 'ml', produtoId: 'p7', anuncio: 'Garrafa Térmica Inox 1L', valor: 89.9, frete: 14.5, desconto: 5, cupom: null, formaPagamento: null, motivo: null, data: '2026-07-02', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
+    { id: 'np5', lojaId: 's7', contaId: 'acc-shp-3', marketplace: 'shopee', produtoId: 'p11', anuncio: 'Caneca Cerâmica Eco 350ml', valor: 37.9, frete: 16.9, desconto: 0, cupom: null, formaPagamento: null, motivo: null, data: '2026-07-01', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
+    { id: 'np6', lojaId: 's5', contaId: 'acc-tt-1', marketplace: 'tiktok', produtoId: 'p6', anuncio: 'Porta-Retrato 3D Duplo Vidro', valor: 55.9, frete: 12.9, desconto: 0, cupom: null, formaPagamento: 'cartão (recusado)', motivo: 'cartão recusado', data: '2026-07-01', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
+    { id: 'np7', lojaId: 's4', contaId: 'acc-shp-2', marketplace: 'shopee', produtoId: 'p1', anuncio: 'Quadro Paisagem 60x90 (Diamonds)', valor: 119.9, frete: 21.9, desconto: 0, cupom: null, formaPagamento: null, motivo: null, data: '2026-07-02', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
+    { id: 'np8', lojaId: 's4', contaId: 'acc-shp-2', marketplace: 'shopee', produtoId: 'p6', anuncio: 'Porta-Retrato 3D (Diamonds)', valor: 55.9, frete: 15.9, desconto: 0, cupom: null, formaPagamento: 'pix (expirado)', motivo: 'pagamento não concluído no prazo', data: '2026-07-03', origem: STATUS.DADO_SIMULADO, confianca: 'demonstração' },
   ];
 
   /* ---------- fila priorizada de oportunidades (sem CRM) ---------- */
@@ -164,8 +189,8 @@
     meta: {
       env: STATUS.DEMONSTRACAO,
       empresas: [
-        { id: 'e1', nome: 'Empresa Demonstração LTDA', conta: 'conta-demo · multicanal' },
-        { id: 'e2', nome: 'Cozinha Demo Comércio ME', conta: 'conta-cozinha · ml+shopee' },
+        { id: 'e1', nome: 'Líder Comércio Digital LTDA', conta: 'multicanal · 2 CNPJs · 6 lojas' },
+        { id: 'e2', nome: 'Cozinha Demo Comércio ME', conta: '1 CNPJ · 2 lojas' },
       ],
       empresa: 'Empresa Demonstração LTDA',
       conta: 'conta-demo · multicanal',
@@ -175,6 +200,83 @@
     },
     STATUS, MKTS, products,
     PERIODOS: [['hoje', 'Hoje'], ['7d', 'Últimos 7 dias'], ['30d', 'Últimos 30 dias']],
+
+    /* ============ 10.UI.2 · ESCOPO OPERACIONAL ============
+       Grupo → Empresa → CNPJ → Loja → Conta de marketplace.
+       Loja NÃO é sinônimo de marketplace: existe loja física, e uma
+       loja pode ter mais de uma conta. g2/e3 existem para provar que
+       dado de grupo não autorizado NUNCA vaza. */
+    scope: {
+      grupos: [
+        { id: 'g1', nome: 'Líder Group', autorizado: true },
+        { id: 'g2', nome: 'Grupo Externo (sem permissão)', autorizado: false },
+      ],
+      empresas: [
+        { id: 'e1', grupoId: 'g1', nome: 'Líder Comércio Digital LTDA' },
+        { id: 'e2', grupoId: 'g1', nome: 'Cozinha Demo Comércio ME' },
+        { id: 'e3', grupoId: 'g2', nome: 'Empresa Externa Não Autorizada' },
+      ],
+      cnpjs: [
+        { id: 'c1', empresaId: 'e1', nome: 'Matriz MG', doc: '12.345.678/0001-00 (simulado)' },
+        { id: 'c2', empresaId: 'e1', nome: 'Filial SP', doc: '12.345.678/0002-81 (simulado)' },
+        { id: 'c3', empresaId: 'e2', nome: 'CNPJ Único', doc: '98.765.432/0001-00 (simulado)' },
+        { id: 'c9', empresaId: 'e3', nome: 'CNPJ Externo', doc: '— (simulado)' },
+      ],
+      lojas: [
+        { id: 's1', cnpjId: 'c1', nome: 'Shopee Líder Molduras MG', tipo: 'marketplace', marketplace: 'shopee', deposito: 'CD Lagoa Santa', responsavel: 'Ana' },
+        { id: 's2', cnpjId: 'c1', nome: 'Mercado Livre Líder Molduras', tipo: 'marketplace', marketplace: 'ml', deposito: 'CD Lagoa Santa', responsavel: 'Marcos' },
+        { id: 's3', cnpjId: 'c1', nome: 'Loja Física Lagoa Santa', tipo: 'fisica', marketplace: null, deposito: 'Loja Lagoa Santa', responsavel: 'Paula' },
+        { id: 's4', cnpjId: 'c1', nome: 'Shopee Galeria Diamonds', tipo: 'marketplace', marketplace: 'shopee', deposito: 'CD Lagoa Santa', responsavel: 'Ana' },
+        { id: 's5', cnpjId: 'c2', nome: 'TikTok Shop Líder', tipo: 'marketplace', marketplace: 'tiktok', deposito: 'CD São Paulo', responsavel: 'Bruno' },
+        { id: 's6', cnpjId: 'c2', nome: 'Magalu Líder SP', tipo: 'marketplace', marketplace: 'magalu', deposito: 'CD São Paulo', responsavel: 'Bruno' },
+        { id: 's7', cnpjId: 'c3', nome: 'Shopee Cozinha Demo', tipo: 'marketplace', marketplace: 'shopee', deposito: 'CD Cozinha', responsavel: 'Marcos' },
+        { id: 's8', cnpjId: 'c3', nome: 'ML Cozinha Demo', tipo: 'marketplace', marketplace: 'ml', deposito: 'CD Cozinha', responsavel: 'Marcos' },
+        { id: 's9', cnpjId: 'c9', nome: 'Loja Externa (invisível)', tipo: 'marketplace', marketplace: 'ml', deposito: '—', responsavel: '—' },
+      ],
+      contas: [
+        { id: 'acc-shp-1', lojaId: 's1', marketplace: 'shopee', nome: 'shopee·lider-molduras-mg' },
+        { id: 'acc-ml-1', lojaId: 's2', marketplace: 'ml', nome: 'ml·lider-molduras' },
+        { id: 'acc-ml-1b', lojaId: 's2', marketplace: 'ml', nome: 'ml·lider-molduras-outlet' },
+        { id: 'acc-shp-2', lojaId: 's4', marketplace: 'shopee', nome: 'shopee·galeria-diamonds' },
+        { id: 'acc-tt-1', lojaId: 's5', marketplace: 'tiktok', nome: 'tiktok·lider' },
+        { id: 'acc-mg-1', lojaId: 's6', marketplace: 'magalu', nome: 'magalu·lider-sp' },
+        { id: 'acc-shp-3', lojaId: 's7', marketplace: 'shopee', nome: 'shopee·cozinha-demo' },
+        { id: 'acc-ml-2', lojaId: 's8', marketplace: 'ml', nome: 'ml·cozinha-demo' },
+      ],
+    },
+
+    /* performance POR LOJA × período (loja física: sem funil digital → SEM DADOS) */
+    lojaPerf: {
+      s1: { hoje: { pedidos: 6, naoPagos: 2, aprovados: 4, faturamento: 512.3, devolucoes: 0, conversao: 4.9, estoqueCritico: 1 },
+            '7d': { pedidos: 38, naoPagos: 14, aprovados: 24, faturamento: 2810.6, devolucoes: 3, conversao: 5.0, estoqueCritico: 1 },
+            '30d': { pedidos: 149, naoPagos: 47, aprovados: 102, faturamento: 11205.4, devolucoes: 9, conversao: 5.2, estoqueCritico: 2 },
+            anterior7d: { pedidos: 34, naoPagos: 8, aprovados: 26, faturamento: 3021.9, devolucoes: 2, conversao: 5.4 } },
+      s2: { hoje: { pedidos: 9, naoPagos: 2, aprovados: 7, faturamento: 1044.8, devolucoes: 0, conversao: 6.4, estoqueCritico: 1 },
+            '7d': { pedidos: 61, naoPagos: 15, aprovados: 46, faturamento: 6512.7, devolucoes: 2, conversao: 6.5, estoqueCritico: 1 },
+            '30d': { pedidos: 240, naoPagos: 55, aprovados: 185, faturamento: 25107.9, devolucoes: 8, conversao: 6.6, estoqueCritico: 1 },
+            anterior7d: { pedidos: 58, naoPagos: 11, aprovados: 47, faturamento: 6690.2, devolucoes: 2, conversao: 6.7 } },
+      s3: { hoje: { pedidos: 4, naoPagos: 0, aprovados: 4, faturamento: 389.6, devolucoes: 0, conversao: null, estoqueCritico: 0 },
+            '7d': { pedidos: 22, naoPagos: 0, aprovados: 22, faturamento: 2144.0, devolucoes: 1, conversao: null, estoqueCritico: 0 },
+            '30d': { pedidos: 88, naoPagos: 0, aprovados: 88, faturamento: 8352.7, devolucoes: 2, conversao: null, estoqueCritico: 0 },
+            anterior7d: { pedidos: 20, naoPagos: 0, aprovados: 20, faturamento: 1988.4, devolucoes: 1, conversao: null } },
+      s4: { hoje: { pedidos: 3, naoPagos: 2, aprovados: 1, faturamento: 99.9, devolucoes: 1, conversao: 3.1, estoqueCritico: 0 },
+            '7d': { pedidos: 20, naoPagos: 7, aprovados: 13, faturamento: 1500.1, devolucoes: 1, conversao: 3.2, estoqueCritico: 0 },
+            '30d': { pedidos: 81, naoPagos: 27, aprovados: 54, faturamento: 6035.4, devolucoes: 4, conversao: 3.3, estoqueCritico: 1 },
+            anterior7d: { pedidos: 26, naoPagos: 5, aprovados: 21, faturamento: 1897.9, devolucoes: 1, conversao: 3.9 } },
+      s5: { hoje: { pedidos: 4, naoPagos: 1, aprovados: 3, faturamento: 301.4, devolucoes: 0, conversao: 5.4, estoqueCritico: 0 },
+            '7d': { pedidos: 26, naoPagos: 7, aprovados: 19, faturamento: 2044.6, devolucoes: 1, conversao: 5.4, estoqueCritico: 0 },
+            '30d': { pedidos: 96, naoPagos: 24, aprovados: 72, faturamento: 7591.2, devolucoes: 5, conversao: 5.4, estoqueCritico: 0 },
+            anterior7d: { pedidos: 22, naoPagos: 5, aprovados: 17, faturamento: 1837.5, devolucoes: 1, conversao: 5.7 } },
+      s6: { hoje: null, '7d': null, '30d': null, anterior7d: null }, /* Magalu: SEM DADOS */
+      s7: { hoje: { pedidos: 5, naoPagos: 1, aprovados: 4, faturamento: 301.2, devolucoes: 0, conversao: 4.4, estoqueCritico: 0 },
+            '7d': { pedidos: 31, naoPagos: 6, aprovados: 25, faturamento: 1854.3, devolucoes: 1, conversao: 4.5, estoqueCritico: 0 },
+            '30d': { pedidos: 118, naoPagos: 21, aprovados: 97, faturamento: 7220.8, devolucoes: 3, conversao: 4.6, estoqueCritico: 0 },
+            anterior7d: { pedidos: 29, naoPagos: 6, aprovados: 23, faturamento: 1732.5, devolucoes: 1, conversao: 4.4 } },
+      s8: { hoje: { pedidos: 6, naoPagos: 1, aprovados: 5, faturamento: 512.9, devolucoes: 0, conversao: 5.9, estoqueCritico: 0 },
+            '7d': { pedidos: 40, naoPagos: 7, aprovados: 33, faturamento: 3310.5, devolucoes: 1, conversao: 6.0, estoqueCritico: 0 },
+            '30d': { pedidos: 151, naoPagos: 25, aprovados: 126, faturamento: 12480.3, devolucoes: 4, conversao: 6.1, estoqueCritico: 0 },
+            anterior7d: { pedidos: 37, naoPagos: 8, aprovados: 29, faturamento: 3105.2, devolucoes: 2, conversao: 5.8 } },
+    },
 
     conexoes: [
       { key: 'ml', nome: 'Mercado Livre', empresa: 'e1', conta: 'conta-demo', ambiente: STATUS.DEMONSTRACAO, status: STATUS.AGUARDANDO_CONEXAO, oauth: 'não iniciado', leitura: STATUS.AGUARDANDO_CONEXAO, escrita: STATUS.ESCRITA_BLOQUEADA, saude: null, erro: null, ultimaSync: null, flags: ['catalog_read (planejada)', 'orders_read (planejada)'], webhooks: [] },
@@ -225,11 +327,11 @@
     },
 
     missoes: [
-      { id: 'm1', titulo: 'Frear queima de estoque · Kit 3 Quadros Sala', status: STATUS.EM_PROCESSAMENTO, tipo: STATUS.ACAO_INTERNA, agora: 'monitorando cobertura a cada hora (simulado)', origem: 'radar interno', reversivel: true },
-      { id: 'm2', titulo: 'Recalibrar foto · Quadro Personalizado Nome Família', status: STATUS.AGUARDANDO_APROVACAO, tipo: STATUS.ACAO_INTERNA, agora: 'proposta pronta — aguardando sua decisão', origem: 'diagnóstico de devoluções', reversivel: true },
-      { id: 'm3', titulo: 'Completar dados · Espelho Orgânico (peso embalado)', status: STATUS.EM_PROCESSAMENTO, tipo: 'SOLICITAÇÃO DE DADO', agora: 'pergunta enviada via WhatsApp (simulado)', origem: 'data completion engine', reversivel: true },
-      { id: 'm4', titulo: 'Rascunho TikTok · Garrafa Térmica 1L', status: STATUS.PRONTO_REVISAO, tipo: STATUS.ACAO_INTERNA, agora: 'draft interno validado — publicação externa permanece bloqueada', origem: 'oportunidade priorizada', reversivel: true },
-      { id: 'm5', titulo: 'Revisão de grade · Tênis Runner 37', status: STATUS.EM_REVISAO, tipo: STATUS.ACAO_INTERNA, agora: 'aguardando numeração 34–36', origem: 'pendência de catálogo', reversivel: true },
+      { id: 'm1', lojaId: 's1', titulo: 'Frear queima de estoque · Kit 3 Quadros Sala', status: STATUS.EM_PROCESSAMENTO, tipo: STATUS.ACAO_INTERNA, agora: 'monitorando cobertura a cada hora (simulado)', origem: 'radar interno', reversivel: true },
+      { id: 'm2', lojaId: 's2', titulo: 'Recalibrar foto · Quadro Personalizado Nome Família', status: STATUS.AGUARDANDO_APROVACAO, tipo: STATUS.ACAO_INTERNA, agora: 'proposta pronta — aguardando sua decisão', origem: 'diagnóstico de devoluções', reversivel: true },
+      { id: 'm3', lojaId: 's2', titulo: 'Completar dados · Espelho Orgânico (peso embalado)', status: STATUS.EM_PROCESSAMENTO, tipo: 'SOLICITAÇÃO DE DADO', agora: 'pergunta enviada via WhatsApp (simulado)', origem: 'data completion engine', reversivel: true },
+      { id: 'm4', lojaId: 's5', titulo: 'Rascunho TikTok · Garrafa Térmica 1L', status: STATUS.PRONTO_REVISAO, tipo: STATUS.ACAO_INTERNA, agora: 'draft interno validado — publicação externa permanece bloqueada', origem: 'oportunidade priorizada', reversivel: true },
+      { id: 'm5', lojaId: 's2', titulo: 'Revisão de grade · Tênis Runner 37', status: STATUS.EM_REVISAO, tipo: STATUS.ACAO_INTERNA, agora: 'aguardando numeração 34–36', origem: 'pendência de catálogo', reversivel: true },
     ],
 
     /* ================= CRESCIMENTO — mesa de crescimento de marketplace =================
@@ -296,17 +398,249 @@
       return Math.round((ok / total) * 100);
     },
 
-    /* -------- contexto global: empresa ativa + marketplace ativo -------- */
+    /* ======== 10.UI.2 · OPERATIONAL SCOPE CONTEXT ========
+       ctx: {grupo, empresa, cnpj, loja, marketplace, conta, periodo, tipoDado}
+       Encadeado: grupo limita empresas; empresa limita CNPJs; CNPJ limita
+       lojas; loja limita contas. Dado de grupo não autorizado nunca entra. */
+    scopeAuthorized(empresaId) {
+      const e = V8DATA.scope.empresas.find(x => x.id === empresaId);
+      if (!e) return false;
+      const g = V8DATA.scope.grupos.find(x => x.id === e.grupoId);
+      return !!(g && g.autorizado);
+    },
+    empresasDe(grupoId) {
+      return V8DATA.scope.empresas.filter(e =>
+        (!grupoId || e.grupoId === grupoId) && V8LOGIC.scopeAuthorized(e.id));
+    },
+    cnpjsDe(empresaId) { return V8DATA.scope.cnpjs.filter(c => c.empresaId === empresaId && V8LOGIC.scopeAuthorized(empresaId)); },
+    lojasDe(ctx) {
+      ctx = ctx || {};
+      let lojas = V8DATA.scope.lojas.filter(s => {
+        const c = V8DATA.scope.cnpjs.find(x => x.id === s.cnpjId);
+        return c && V8LOGIC.scopeAuthorized(c.empresaId);
+      });
+      if (ctx.empresa) lojas = lojas.filter(s => (V8DATA.scope.cnpjs.find(c => c.id === s.cnpjId) || {}).empresaId === ctx.empresa);
+      if (ctx.cnpj) lojas = lojas.filter(s => s.cnpjId === ctx.cnpj);
+      if (ctx.marketplace) lojas = lojas.filter(s => s.marketplace === ctx.marketplace);
+      return lojas;
+    },
+    contasDe(ctx) {
+      const lojas = ctx && ctx.loja ? [ctx.loja] : V8LOGIC.lojasDe(ctx).map(s => s.id);
+      let contas = V8DATA.scope.contas.filter(a => lojas.includes(a.lojaId));
+      if (ctx && ctx.marketplace) contas = contas.filter(a => a.marketplace === ctx.marketplace);
+      return contas;
+    },
+    /* corrige filhos órfãos após troca de pai (empresa→cnpj→loja→conta) */
+    normalizeCtx(ctx) {
+      if (ctx.empresa && !V8LOGIC.scopeAuthorized(ctx.empresa)) ctx.empresa = 'e1';
+      if (ctx.cnpj && !V8LOGIC.cnpjsDe(ctx.empresa).some(c => c.id === ctx.cnpj)) ctx.cnpj = '';
+      if (ctx.loja && !V8LOGIC.lojasDe({ empresa: ctx.empresa, cnpj: ctx.cnpj }).some(s => s.id === ctx.loja)) ctx.loja = '';
+      if (ctx.loja) {
+        const s = V8DATA.scope.lojas.find(x => x.id === ctx.loja);
+        if (s && s.marketplace && ctx.marketplace && s.marketplace !== ctx.marketplace) ctx.marketplace = s.marketplace;
+      }
+      if (ctx.conta && !V8LOGIC.contasDe(ctx).some(a => a.id === ctx.conta)) ctx.conta = '';
+      return ctx;
+    },
+    /* transparência de agregação: o que exatamente está incluído no recorte */
+    scopeDescribe(ctx) {
+      ctx = ctx || {};
+      const lojas = ctx.loja ? V8DATA.scope.lojas.filter(s => s.id === ctx.loja) : V8LOGIC.lojasDe(ctx);
+      const cnpjIds = [...new Set(lojas.map(s => s.cnpjId))];
+      const contas = ctx.conta ? V8DATA.scope.contas.filter(a => a.id === ctx.conta) : V8LOGIC.contasDe(ctx);
+      return {
+        lojas: lojas.map(s => s.nome), lojaIds: lojas.map(s => s.id),
+        cnpjs: cnpjIds.map(id => (V8DATA.scope.cnpjs.find(c => c.id === id) || {}).nome),
+        contas: contas.map(a => a.nome),
+        origem: STATUS.DADO_SIMULADO, periodo: ctx.periodo || '7d',
+      };
+    },
+    scopeLine(ctx) {
+      const d = V8LOGIC.scopeDescribe(ctx);
+      return `${d.lojas.length} loja(s) · ${d.cnpjs.length} CNPJ(s) · ${d.contas.length} conta(s) · ${d.origem} · ${d.periodo}`;
+    },
+
+    /* -------- contexto global aplicado a produtos -------- */
     globalFilter(list, ctx) {
       ctx = ctx || {};
+      const lojaIds = ctx.loja ? [ctx.loja]
+        : (ctx.cnpj || ctx.conta) ? V8LOGIC.lojasDe(ctx).map(s => s.id) : null;
       return list.filter(p => {
         if (ctx.empresa && p.companyId !== ctx.empresa) return false;
+        if (!ctx.empresa && p.companyId && !V8LOGIC.scopeAuthorized(p.companyId)) return false;
+        if (lojaIds) {
+          if (ctx.conta) {
+            if (!lojaIds.some(i => p.lojas[i] && p.lojas[i].contaId === ctx.conta)) return false;
+          } else if (!lojaIds.some(i => p.lojas[i])) return false;
+        }
         if (ctx.marketplace) {
           const m = p.mkt[ctx.marketplace];
           if (!m || m.status === 'NAO_PUBLICADO') return false;
         }
         return true;
       });
+    },
+
+    /* margem por loja (preço da loja × custo do master) */
+    margemLoja(p, lojaId) {
+      const l = p.lojas[lojaId];
+      if (!l || !l.preco || !p.custo) return null;
+      return Math.round(((l.preco - p.custo) / l.preco) * 1000) / 10;
+    },
+
+    /* -------- KPIs e comparação por loja -------- */
+    lojaKpis(lojaId, periodo) {
+      const base = V8DATA.lojaPerf[lojaId];
+      if (!base || !base[periodo]) return null;
+      const d = base[periodo];
+      const prev = periodo === '7d' ? base.anterior7d : null;
+      const out = {
+        pedidos: d.pedidos, naoPagos: d.naoPagos, aprovados: d.aprovados,
+        taxaNaoPago: d.pedidos ? Math.round((d.naoPagos / d.pedidos) * 1000) / 10 : null,
+        faturamento: d.faturamento, devolucoes: d.devolucoes,
+        conversao: d.conversao, estoqueCritico: d.estoqueCritico ?? null,
+        origem: STATUS.DADO_SIMULADO, periodo,
+      };
+      if (prev && prev.faturamento) out.deltaFaturamento = Math.round(((d.faturamento - prev.faturamento) / prev.faturamento) * 1000) / 10;
+      return out;
+    },
+    /* comparação de até 4 lojas, com aviso de comparabilidade honesto */
+    compareLojas(lojaIds, periodo) {
+      if (lojaIds.length > 4) throw new Error('comparação limitada a 4 lojas por vez');
+      const rows = lojaIds.map(id => {
+        const s = V8DATA.scope.lojas.find(x => x.id === id);
+        const c = s && V8DATA.scope.cnpjs.find(x => x.id === s.cnpjId);
+        if (!s || !c || !V8LOGIC.scopeAuthorized(c.empresaId)) return null; /* fora do escopo autorizado */
+        return { lojaId: id, loja: s.nome, tipo: s.tipo, cnpj: c.nome, kpis: V8LOGIC.lojaKpis(id, periodo) };
+      }).filter(Boolean);
+      const avisos = [];
+      if (rows.some(r => !r.kpis)) avisos.push('lojas sem dado no período aparecem como SEM DADOS — não entram em soma nem ranking');
+      if (rows.some(r => r.tipo === 'fisica') && rows.some(r => r.tipo === 'marketplace'))
+        avisos.push('loja física não tem funil digital (conversão SEM DADOS) — compare apenas pedidos, faturamento e devolução');
+      const comDado = rows.filter(r => r.kpis);
+      const ranking = [...comDado].sort((a, b) => b.kpis.faturamento - a.kpis.faturamento).map(r => r.lojaId);
+      return { periodo, origem: STATUS.DADO_SIMULADO, rows, ranking, avisos, comparavel: avisos.length === 0 };
+    },
+
+    /* -------- pedidos não pagos por escopo -------- */
+    unpaidByLoja(ctx) {
+      ctx = ctx || {};
+      const lojaIds = ctx.loja ? [ctx.loja] : V8LOGIC.lojasDe(ctx).map(s => s.id);
+      const list = V8DATA.crescimento.pedidosNaoPagos.filter(o =>
+        lojaIds.includes(o.lojaId) &&
+        (!ctx.conta || o.contaId === ctx.conta) &&
+        (!ctx.marketplace || o.marketplace === ctx.marketplace));
+      const porLoja = {};
+      for (const o of list) {
+        const s = V8DATA.scope.lojas.find(x => x.id === o.lojaId);
+        porLoja[o.lojaId] = porLoja[o.lojaId] || { loja: s ? s.nome : o.lojaId, qtd: 0, valor: 0 };
+        porLoja[o.lojaId].qtd++; porLoja[o.lojaId].valor += o.valor;
+      }
+      return { list, porLoja, escopo: V8LOGIC.scopeDescribe(ctx) };
+    },
+
+    /* -------- construtor de filtros avançados (regras reais) -------- */
+    ADV_FIELDS: {
+      nome: p => p.nome, sku: p => p.sku, categoria: p => p.categoria,
+      estoque: (p, ctx) => ctx && ctx.loja ? (p.lojas[ctx.loja] || {}).estoque ?? null : p.estoque,
+      preco: (p, ctx) => ctx && ctx.loja ? (p.lojas[ctx.loja] || {}).preco ?? null : p.precoBase,
+      margem: (p, ctx) => ctx && ctx.loja ? V8LOGIC.margemLoja(p, ctx.loja) : V8LOGIC.margem(p),
+      pendencia: p => p.pendencias.length ? p.pendencias.join('; ') : null,
+      readiness: p => V8LOGIC.readiness(p),
+      atualizadoEm: p => p.atualizadoEm,
+      tipoDado: p => p.origem,
+      lojas: p => Object.keys(p.lojas).length,
+    },
+    ADV_OPERATORS: ['é igual a', 'não é', 'contém', 'não contém', 'maior que', 'menor que', 'entre',
+      'preenchido', 'não preenchido', 'nos últimos X dias', 'antes de', 'depois de',
+      'em risco', 'com pendência', 'sem dado', 'dado real', 'dado importado', 'dado simulado',
+      'aguardando aprovação', 'bloqueado externamente', 'pronto para revisão'],
+    _advTest(p, rule, ctx) {
+      const get = V8LOGIC.ADV_FIELDS[rule.campo] || (() => null);
+      const v = get(p, ctx);
+      const alvo = rule.valor;
+      switch (rule.operador) {
+        case 'é igual a': return String(v) === String(alvo);
+        case 'não é': return String(v) !== String(alvo);
+        case 'contém': return v != null && String(v).toLowerCase().includes(String(alvo).toLowerCase());
+        case 'não contém': return v == null || !String(v).toLowerCase().includes(String(alvo).toLowerCase());
+        case 'maior que': return v != null && +v > +alvo;
+        case 'menor que': return v != null && +v < +alvo;
+        case 'entre': return v != null && +v >= +alvo[0] && +v <= +alvo[1];
+        case 'preenchido': return v != null && v !== '';
+        case 'não preenchido': return v == null || v === '';
+        case 'nos últimos X dias': {
+          const dias = Math.round((new Date(V8DATA.meta.hoje) - new Date(p.atualizadoEm)) / 86400000);
+          return dias <= +alvo;
+        }
+        case 'antes de': return p.atualizadoEm < alvo;
+        case 'depois de': return p.atualizadoEm > alvo;
+        case 'em risco': return p.estoque <= 10 || p.pendencias.some(x => /risco|ruptura/.test(x));
+        case 'com pendência': return p.pendencias.length > 0;
+        case 'sem dado': return v == null;
+        case 'dado real': return p.origem === STATUS.DADO_REAL;
+        case 'dado importado': return p.origem === STATUS.DADO_IMPORTADO;
+        case 'dado simulado': return p.origem === STATUS.DADO_SIMULADO;
+        case 'aguardando aprovação': return Object.values(p.mkt).some(m => m.status === 'AGUARDANDO_APROVACAO');
+        case 'bloqueado externamente': return Object.values(p.mkt).some(m => m.status === 'BLOQUEADO');
+        case 'pronto para revisão': return Object.values(p.mkt).some(m => m.status === 'EM_REVISAO');
+        default: return false;
+      }
+    },
+    /* regras com agrupamento AND/OR: [{campo, operador, valor, join:'AND'|'OR'}] */
+    advancedFilter(list, rules, ctx) {
+      if (!rules || !rules.length) return list;
+      return list.filter(p => {
+        let acc = null;
+        for (const r of rules) {
+          const ok = V8LOGIC._advTest(p, r, ctx);
+          acc = acc === null ? ok : (r.join === 'OR' ? (acc || ok) : (acc && ok));
+        }
+        return acc;
+      });
+    },
+
+    /* -------- visões salvas COM escopo (isolamento por empresa) -------- */
+    saveScopedView(state, view) {
+      for (const k of ['nome', 'empresaId', 'tipo'])
+        if (!view[k]) throw new Error('visão incompleta: falta ' + k);
+      if (!V8LOGIC.scopeAuthorized(view.empresaId)) throw new Error('empresa fora do escopo autorizado');
+      const v = Object.assign({ id: 'view' + (++state.seq), criadaEm: V8DATA.meta.hoje, autor: V8DATA.meta.usuario }, JSON.parse(JSON.stringify(view)));
+      state.scopedViews.push(v);
+      V8LOGIC._audit(state, v.autor, 'view_salva', `${v.nome} (${v.tipo}, empresa ${v.empresaId})`);
+      return v;
+    },
+    /* visão compartilhada por empresa NÃO aparece para outra empresa */
+    viewsFor(state, empresaId, userId) {
+      return state.scopedViews.filter(v =>
+        v.empresaId === empresaId &&
+        (v.tipo !== 'privada' || v.autor === (userId || V8DATA.meta.usuario)));
+    },
+
+    /* -------- resumo de escopo para ações em massa -------- */
+    bulkScopeSummary(state, ids, ctx) {
+      const lojasAfetadas = new Set(), cnpjsAfetados = new Set(), contasAfetadas = new Set();
+      const bloqueados = [];
+      let elegiveis = 0;
+      for (const id of ids) {
+        const p = state.products.find(x => x.id === id);
+        if (!p) continue;
+        const lojaIds = ctx && ctx.loja ? [ctx.loja].filter(l => p.lojas[l]) : Object.keys(p.lojas);
+        for (const l of lojaIds) {
+          const s = V8DATA.scope.lojas.find(x => x.id === l);
+          if (!s) continue;
+          lojasAfetadas.add(s.nome); cnpjsAfetados.add(s.cnpjId);
+          if (p.lojas[l].contaId) contasAfetadas.add(p.lojas[l].contaId);
+        }
+        if (p.pendencias.length) bloqueados.push({ id, sku: p.sku, motivo: p.pendencias[0] });
+        else elegiveis++;
+      }
+      return {
+        itens: ids.length, elegiveis, bloqueados,
+        lojasAfetadas: [...lojasAfetadas],
+        cnpjsAfetados: [...cnpjsAfetados].map(id => (V8DATA.scope.cnpjs.find(c => c.id === id) || {}).nome),
+        contasAfetadas: [...contasAfetadas],
+      };
     },
 
     /* filtros combináveis — cada campo é AND; ausência = não filtra */
@@ -363,7 +697,7 @@
     createState() {
       return {
         products: JSON.parse(JSON.stringify(V8DATA.products)),
-        versions: [], jobs: [], audit: [], views: {},
+        versions: [], jobs: [], audit: [], views: {}, scopedViews: [],
         experiments: JSON.parse(JSON.stringify(V8DATA.crescimento.experimentos)),
         opportunities: JSON.parse(JSON.stringify(V8DATA.crescimento.oportunidades)),
         selection: new Set(), seq: 0,
@@ -419,19 +753,26 @@
 
     /* ações em massa: sempre viram JOB auditável; escrita externa é recusada */
     EXTERNAL_ACTIONS: ['publicar_externo', 'pausar_externo', 'alterar_preco_externo'],
-    bulkAction(state, ids, action, author) {
+    bulkAction(state, ids, action, author, ctx) {
       if (!ids.length) return { blocked: true, reason: 'nenhum item selecionado' };
       if (V8LOGIC.EXTERNAL_ACTIONS.includes(action)) {
         V8LOGIC._audit(state, author || 'Marcos', 'bulk_blocked', `${action} recusado: ${STATUS.ESCRITA_BLOQUEADA}`);
         return { blocked: true, reason: STATUS.ESCRITA_BLOQUEADA + ' — conecte a conta oficial e aprove para publicar.' };
       }
+      /* todo job registra o escopo afetado: empresa, CNPJ, loja e conta */
+      const resumo = V8LOGIC.bulkScopeSummary(state, ids, ctx);
       const job = {
         id: 'job' + (++state.seq), acao: action, itens: [...ids], total: ids.length,
         status: STATUS.EM_PROCESSAMENTO, tipo: STATUS.ACAO_INTERNA, reversivel: true,
         autor: author || 'Marcos', em: V8DATA.meta.hoje,
+        escopo: {
+          empresa: (V8DATA.scope.empresas.find(e => e.id === ((ctx && ctx.empresa) || 'e1')) || {}).nome,
+          cnpjs: resumo.cnpjsAfetados, lojas: resumo.lojasAfetadas, contas: resumo.contasAfetadas,
+        },
       };
       state.jobs.push(job);
-      V8LOGIC._audit(state, job.autor, 'bulk_job', `${action} sobre ${ids.length} itens (${job.id})`);
+      V8LOGIC._audit(state, job.autor, 'bulk_job',
+        `${action} sobre ${ids.length} itens (${job.id}) · ${resumo.lojasAfetadas.length} loja(s) · ${resumo.cnpjsAfetados.length} CNPJ(s)`);
       if (action === 'marcar_revisao')
         for (const id of ids) {
           const p = state.products.find(x => x.id === id);
@@ -646,14 +987,32 @@
     },
 
     /* busca global (produtos, oportunidades, missões, conhecimento) */
-    globalSearch(q, state) {
+    /* busca global multiloja: respeita a empresa ativa e o escopo autorizado;
+       cada resultado carrega empresa/CNPJ/loja para orientação */
+    globalSearch(q, state, ctx) {
       q = (q || '').trim().toLowerCase();
       if (q.length < 2) return [];
+      ctx = ctx || {};
       const out = [];
-      const prods = state ? state.products : V8DATA.products;
+      const empresaNome = id => (V8DATA.scope.empresas.find(e => e.id === id) || {}).nome || id;
+      const prods = V8LOGIC.globalFilter(state ? state.products : V8DATA.products, { empresa: ctx.empresa });
       for (const p of prods)
         if (p.nome.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
-          out.push({ tipo: 'produto', id: p.id, label: p.nome, sub: p.sku, ref: 'catalogo:' + p.id });
+          out.push({ tipo: 'produto', id: p.id, label: p.nome, sub: `${p.sku} · ${empresaNome(p.companyId)} · ${Object.keys(p.lojas).length} loja(s)`, ref: 'catalogo:' + p.id });
+      for (const s of V8LOGIC.lojasDe({ empresa: ctx.empresa }))
+        if (s.nome.toLowerCase().includes(q)) {
+          const c = V8DATA.scope.cnpjs.find(x => x.id === s.cnpjId);
+          out.push({ tipo: 'loja', id: s.id, label: s.nome, sub: `${c.nome} · ${empresaNome(c.empresaId)}`, ref: 'catalogo:' });
+        }
+      for (const c of V8DATA.scope.cnpjs.filter(x => V8LOGIC.scopeAuthorized(x.empresaId) && (!ctx.empresa || x.empresaId === ctx.empresa)))
+        if (c.nome.toLowerCase().includes(q) || c.doc.includes(q))
+          out.push({ tipo: 'cnpj', id: c.id, label: c.nome, sub: `${c.doc} · ${empresaNome(c.empresaId)}`, ref: 'conexoes:' });
+      for (const a of V8LOGIC.contasDe({ empresa: ctx.empresa }))
+        if (a.nome.toLowerCase().includes(q))
+          out.push({ tipo: 'conta', id: a.id, label: a.nome, sub: (V8DATA.scope.lojas.find(s => s.id === a.lojaId) || {}).nome, ref: 'conexoes:' });
+      for (const o of V8LOGIC.unpaidByLoja({ empresa: ctx.empresa }).list)
+        if (o.id.includes(q) || o.anuncio.toLowerCase().includes(q))
+          out.push({ tipo: 'pedido não pago', id: o.id, label: o.id + ' · ' + o.anuncio, sub: (V8DATA.scope.lojas.find(s => s.id === o.lojaId) || {}).nome, ref: 'crescimento:naopagos' });
       for (const o of (state ? state.opportunities : V8DATA.crescimento.oportunidades))
         if (o.tipo.toLowerCase().includes(q) || o.evidencia.toLowerCase().includes(q))
           out.push({ tipo: 'oportunidade', id: o.id, label: o.tipo, sub: o.marketplace, ref: 'crescimento:' + o.id });
@@ -663,13 +1022,19 @@
       for (const k of V8DATA.conhecimento)
         if (k.tema.toLowerCase().includes(q) || k.resumo.toLowerCase().includes(q))
           out.push({ tipo: 'conhecimento', id: k.id, label: k.tema, sub: k.tipo, ref: 'conhecimento:' });
-      return out.slice(0, 9);
+      for (const x of (state ? state.experiments : V8DATA.crescimento.experimentos))
+        if (x.hipotese.toLowerCase().includes(q) || x.tipo.toLowerCase().includes(q))
+          out.push({ tipo: 'experimento', id: x.id, label: x.tipo + ' · ' + x.id, sub: x.status, ref: 'crescimento:' });
+      return out.slice(0, 10);
     },
 
     notifications(state) {
       const out = [];
-      for (const m of V8DATA.missoes.filter(x => x.status === STATUS.AGUARDANDO_APROVACAO))
-        out.push({ nivel: 'warn', txt: 'Decisão pendente: ' + m.titulo, ref: 'missao:' + m.id });
+      for (const m of V8DATA.missoes.filter(x => x.status === STATUS.AGUARDANDO_APROVACAO)) {
+        const loja = m.lojaId && V8DATA.scope.lojas.find(s => s.id === m.lojaId);
+        const cnpj = loja && V8DATA.scope.cnpjs.find(c => c.id === loja.cnpjId);
+        out.push({ nivel: 'warn', txt: (loja ? loja.nome + ' · ' + cnpj.nome + ' — ' : '') + 'Decisão pendente: ' + m.titulo, ref: 'missao:' + m.id });
+      }
       for (const s of V8DATA.silencio.filter(x => x.estado === 'atencao'))
         out.push({ nivel: 'warn', txt: s.nota || s.txt, ref: 'silencio:' });
       const prods = state ? state.products : V8DATA.products;

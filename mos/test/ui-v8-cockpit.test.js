@@ -27,7 +27,7 @@ const catJs = read('catalogo.js');
 
 test('01 · barra global altera o contexto das telas', () => {
   assert.match(html, /id="gbar"/);
-  assert.match(appJs, /ctx: \{ empresa: 'e1', marketplace: '', periodo: '7d' \}/);
+  assert.match(appJs, /ctx: \{ grupo: 'g1', empresa: 'e1', cnpj: '', loja: '', marketplace: '', conta: '', periodo: '7d' \}/);
   assert.match(appJs, /setCtx\(k, v\)/);
   assert.match(appJs, /if \(UI\.renderers\[UI\.view\]\) UI\.renderers\[UI\.view\]\(\)/, 'mudar contexto refaz a tela ativa');
   /* a lógica que a barra usa muda de fato o conjunto de entidades */

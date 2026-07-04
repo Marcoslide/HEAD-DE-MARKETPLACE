@@ -19,13 +19,22 @@
     const st = UI.state;
     const per = UI.ctx.periodo;
     const perLbl = D.PERIODOS.find(p => p[0] === per)[1];
-    /* performance agregada dos canais com dado no período ativo */
-    let fat = 0, ped = 0, npg = 0, canaisComDado = 0;
-    for (const mk of D.MKTS) {
-      const k = L.perfKpis(mk.key, per);
-      if (!k) continue;
-      canaisComDado++; fat += k.faturamento; ped += k.pedidos; npg += k.naoPagos;
+    /* performance agregada POR LOJA do escopo ativo — agregação sempre
+       transparente: quantas lojas/CNPJs entraram e quem ficou de fora */
+    const scopeDesc = L.scopeDescribe(UI.ctx);
+    const lojasScope = UI.ctx.loja ? [UI.ctx.loja] : scopeDesc.lojaIds;
+    let fat = 0, ped = 0, npg = 0, lojasComDado = [], lojasSemDado = [];
+    const porLoja = [];
+    for (const lid of lojasScope) {
+      const k = L.lojaKpis(lid, per === 'hoje' ? '7d' : per);
+      const nome = (D.scope.lojas.find(s => s.id === lid) || {}).nome;
+      if (!k) { lojasSemDado.push(nome); continue; }
+      lojasComDado.push(nome); fat += k.faturamento; ped += k.pedidos; npg += k.naoPagos;
+      porLoja.push({ lid, nome, k });
     }
+    porLoja.sort((a, b) => b.k.faturamento - a.k.faturamento);
+    const emQueda = [...porLoja].filter(x => x.k.deltaFaturamento != null).sort((a, b) => a.k.deltaFaturamento - b.k.deltaFaturamento)[0];
+    const emAlta = [...porLoja].filter(x => x.k.deltaFaturamento != null).sort((a, b) => b.k.deltaFaturamento - a.k.deltaFaturamento)[0];
     const un = L.unpaidStats(null, per === 'hoje' ? '7d' : per);
     const decisoes = D.missoes.filter(m => m.status === D.STATUS.AGUARDANDO_APROVACAO);
     const jobsCriticos = st.jobs.filter(j => j.status !== 'CONCLUÍDO (interno)');
@@ -48,7 +57,7 @@
           <button data-act="open" data-ref="operacao:">mesa de comando →</button></div>
         <div class="sl"><span class="k">faturamento · ${UI.esc(perLbl).toLowerCase()}</span>
           <span class="v">${UI.brl(fat)}</span>
-          <button data-act="open" data-ref="crescimento:" title="${canaisComDado} canais com dado · ${UI.esc(D.STATUS.DADO_SIMULADO)}">performance →</button></div>
+          <button data-act="open" data-ref="crescimento:" title="${lojasComDado.length} loja(s) com dado · ${UI.esc(D.STATUS.DADO_SIMULADO)}">performance →</button></div>
       </div>
 
       <div class="cockpit">
@@ -64,14 +73,21 @@
           ${H.piorou.map(m => li('neg', m.txt, 'piorou · ' + m.fonte, m.acao, 'abrir')).join('')}
         </div>
 
-        <!-- CENTRO DIREITO: performance e risco operacional -->
+        <!-- CENTRO DIREITO: performance por escopo e risco operacional -->
         <div class="panel">
           <div class="sect-h" style="margin-top:0"><span class="h2">Performance · ${UI.esc(perLbl).toLowerCase()}</span>
             <button class="linklike" data-act="open" data-ref="crescimento:">detalhe →</button></div>
+          <p class="src" style="margin-bottom:6px" title="Lojas incluídas: ${UI.esc(lojasComDado.join(' · ') || 'nenhuma')}${lojasSemDado.length ? ' — SEM DADOS: ' + UI.esc(lojasSemDado.join(' · ')) : ''}">
+            consolidado de <b>${lojasComDado.length} loja(s)</b> · ${scopeDesc.cnpjs.length} CNPJ(s) · ${scopeDesc.contas.length} conta(s) · ${UI.esc(scopeDesc.origem)}${lojasSemDado.length ? ` · ${lojasSemDado.length} loja(s) SEM DADOS fora da soma` : ''}</p>
           ${mrow('Pedidos criados', ped)}
           ${mrow('Pedidos não pagos', `<span class="num crit" style="font-size:13px">${npg}</span>`, un ? ` <span class="delta down">${un.taxaNaoPago}%</span>` : '')}
           ${mrow('Faturamento', UI.brl(fat))}
-          ${mrow('Canais com dado', canaisComDado + ' de ' + D.MKTS.length, ` <span class="src">Magalu: ${UI.esc(D.STATUS.SEM_DADOS)}</span>`)}
+          ${porLoja.length > 1 ? `
+          <div class="sect-h"><span class="h2">Ranking de lojas</span><span class="src">por faturamento</span></div>
+          ${porLoja.slice(0, 4).map((x, i) => `<div class="metric-row"><span class="lbl">${i + 1}º <button class="linklike" data-act="focoloja" data-loja="${x.lid}">${UI.esc(x.nome)}</button></span>
+            <span class="val">${UI.brl(x.k.faturamento)}${x.k.deltaFaturamento != null ? ` <span class="delta ${x.k.deltaFaturamento >= 0 ? 'up' : 'down'}">${x.k.deltaFaturamento >= 0 ? '+' : ''}${x.k.deltaFaturamento}%</span>` : ''}</span></div>`).join('')}
+          ${emQueda && emQueda.k.deltaFaturamento < 0 ? mrow('Loja em queda', `<span class="num crit" style="font-size:12.5px">${UI.esc(emQueda.nome)}</span>`, ` <span class="delta down">${emQueda.k.deltaFaturamento}%</span>`) : ''}
+          ${emAlta && emAlta.k.deltaFaturamento > 0 ? mrow('Loja em crescimento', `<span class="num good" style="font-size:12.5px">${UI.esc(emAlta.nome)}</span>`, ` <span class="delta up">+${emAlta.k.deltaFaturamento}%</span>`) : ''}` : ''}
           <div class="sect-h"><span class="h2">Operações em risco</span></div>
           ${H.operacoesEmRisco.map(o => li(o.nivel, o.txt, 'risco operacional', o.ref, 'abrir')).join('')}
           ${li('', H.intervencao.txt, H.intervencao.fonte, H.intervencao.acao, 'ver anúncio')}
@@ -97,8 +113,14 @@
       </div>`;
 
     UI.$('#v-home').onclick = e => {
-      const b = e.target.closest('[data-act="open"]');
-      if (b) UI.open(b.dataset.ref);
+      const b = e.target.closest('[data-act]');
+      if (!b) return;
+      if (b.dataset.act === 'open') UI.open(b.dataset.ref);
+      else if (b.dataset.act === 'focoloja') {
+        const s = D.scope.lojas.find(x => x.id === b.dataset.loja);
+        const c = D.scope.cnpjs.find(x => x.id === s.cnpjId);
+        UI.ctx.empresa = c.empresaId; UI.ctx.cnpj = c.id; UI.setCtx('loja', s.id);
+      }
     };
   }
 

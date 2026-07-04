@@ -33,6 +33,11 @@
     push('u', UI.esc(q));
     let r;
     try { r = chat.ask(q); } catch (e) { r = { reply: 'Não consegui responder: ' + e.message, intent: 'ERRO' }; }
+    /* 10.UI.2 — limpeza de CRM: este produto não trabalha com leads/pipeline.
+       Comando de lead é respondido com o redirecionamento honesto. */
+    if (r.intent === 'LEADS_QUERY' || /\blead(s)?\b|pipeline comercial/i.test(q)) {
+      r = { reply: 'FATO: este produto não trabalha com leads nem pipeline de CRM.\nSTATUS: parceiros comerciais (afiliados, creators) vivem em Crescimento · Aceleração; oportunidades de venda vivem em Crescimento · Oportunidades.', intent: 'SEM_CRM' };
+    }
     push('h', fmt(r.reply), `${r.intent || 'RESPOSTA'} · ${D.STATUS.DADO_SIMULADO} · ${clock.nowIso().slice(11, 16)}`);
     paint();
   }

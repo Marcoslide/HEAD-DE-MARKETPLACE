@@ -59,8 +59,35 @@
       ${D.MKTS.map(m => `<button class="fchip ${m.key === mk ? 'on' : ''}" data-act="mkt" data-mkt="${m.key}" ${UI.ctx.marketplace ? 'title="marketplace fixado pela barra global"' : ''}>${m.nome}</button>`).join('')}
       <span style="flex:1"></span><span class="src">período: ${D.PERIODOS.find(p => p[0] === per)[1]} (barra global)</span></div>`;
 
-    if (!fun) return selector + `
-      <div class="panel"><div class="empty"><b>${mkNome}: ${UI.esc(D.STATUS.SEM_DADOS)}</b>
+    /* visão POR LOJA do recorte atual — quem caiu, quem subiu, onde dói */
+    const lojasScope = L.lojasDe({ empresa: UI.ctx.empresa, cnpj: UI.ctx.cnpj }).filter(s => !UI.ctx.loja || s.id === UI.ctx.loja);
+    const porLoja = `
+      <div class="panel" style="margin-top:14px">
+        <div class="sect-h" style="margin-top:0"><span class="h2">Por loja · recorte atual</span>
+          <span style="display:flex;gap:8px;align-items:center">${UI.scopeLineHtml()}
+          <button class="btn sm" data-act="cmplojas">comparar lojas</button></span></div>
+        <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>
+          <th class="nosort">Loja</th><th class="nosort">CNPJ</th><th class="nosort">Pedidos</th><th class="nosort">Não pagos</th>
+          <th class="nosort">Faturamento</th><th class="nosort">Δ vs 7d ant.</th><th class="nosort">Conversão</th><th class="nosort">Devol.</th></tr></thead><tbody>
+        ${lojasScope.map(s => {
+          const kk = L.lojaKpis(s.id, per === 'hoje' ? '7d' : per);
+          const c = D.scope.cnpjs.find(x => x.id === s.cnpjId) || {};
+          if (!kk) return `<tr><td class="tmain">${UI.esc(s.nome)}</td><td><span class="src">${UI.esc(c.nome)}</span></td><td colspan="6"><span class="src">${UI.esc(D.STATUS.SEM_DADOS)} — sem integração; nada inventado</span></td></tr>`;
+          return `<tr>
+            <td><button class="tmain linklike" style="font-size:12.5px" data-act="focoloja" data-loja="${s.id}">${UI.esc(s.nome)}</button><span class="tsub">${s.tipo === 'fisica' ? 'loja física' : UI.esc((D.MKTS.find(m => m.key === s.marketplace) || {}).nome)}</span></td>
+            <td><span class="src">${UI.esc(c.nome)}</span></td>
+            <td>${kk.pedidos}</td>
+            <td>${kk.naoPagos}${kk.taxaNaoPago != null ? ` <span class="delta ${kk.taxaNaoPago > 25 ? 'down' : ''}">${kk.taxaNaoPago}%</span>` : ''}</td>
+            <td>${UI.brl(kk.faturamento)}</td>
+            <td>${kk.deltaFaturamento != null ? `<span class="delta ${kk.deltaFaturamento >= 0 ? 'up' : 'down'}">${kk.deltaFaturamento >= 0 ? '+' : ''}${kk.deltaFaturamento}%</span>` : '<span class="src">—</span>'}</td>
+            <td>${kk.conversao != null ? kk.conversao + '%' : `<span class="src">${UI.esc(D.STATUS.SEM_DADOS)}</span>`}</td>
+            <td>${kk.devolucoes}</td></tr>`;
+        }).join('')}
+        </tbody></table></div>
+      </div>`;
+
+    if (!fun) return selector + porLoja + `
+      <div class="panel" style="margin-top:14px"><div class="empty"><b>${mkNome}: ${UI.esc(D.STATUS.SEM_DADOS)}</b>
       Não há integração nem importação para este canal — nenhuma etapa do funil será inventada.
       <br><button class="linklike" data-act="goconx">conectar leitura oficial →</button></div></div>`;
 
@@ -93,7 +120,40 @@
             <button class="btn sm ghost" data-act="sub" data-sub="Oportunidades">oportunidades deste canal</button>
           </div>
         </div>
-      </div>`;
+      </div>` + porLoja;
+  }
+
+  /* modo COMPARAR LOJAS: até 4, com aviso de comparabilidade */
+  function openCompareLojas() {
+    const lojas = L.lojasDe({ empresa: UI.ctx.empresa, cnpj: UI.ctx.cnpj });
+    UI.openModal(`<h3 class="h2">Comparar lojas</h3>
+      <p class="sub" style="margin-top:4px">Até 4 lojas/contas por vez · período: ${D.PERIODOS.find(p => p[0] === perAtivo())[1]} · ${UI.esc(D.STATUS.DADO_SIMULADO)}.</p>
+      <div style="display:grid;gap:6px;margin-top:10px;max-height:200px;overflow:auto">
+        ${lojas.map(s => `<label style="display:flex;gap:8px;align-items:center;font-size:12.5px"><input type="checkbox" data-cmploja="${s.id}"> ${UI.esc(s.nome)} <span class="src">${UI.esc((D.scope.cnpjs.find(c => c.id === s.cnpjId) || {}).nome)}${s.tipo === 'fisica' ? ' · física' : ''}</span></label>`).join('')}
+      </div>
+      <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+        <button class="btn ghost" onclick="UI.closeModal()">cancelar</button>
+        <button class="btn primary" id="cmpGo">Comparar</button></div>`);
+    UI.$('#cmpGo').onclick = () => {
+      const ids = UI.$$('#modal [data-cmploja]:checked').map(i => i.dataset.cmploja);
+      if (ids.length < 2) return UI.toast('Selecione pelo menos 2 lojas.', 'err');
+      if (ids.length > 4) return UI.toast('Comparação limitada a 4 lojas por vez.', 'err');
+      const cmp = L.compareLojas(ids, perAtivo() === 'hoje' ? '7d' : perAtivo());
+      const METRICAS = [['pedidos', 'Pedidos'], ['naoPagos', 'Não pagos'], ['taxaNaoPago', 'Taxa não pago %'], ['faturamento', 'Faturamento'], ['conversao', 'Conversão %'], ['devolucoes', 'Devoluções'], ['estoqueCritico', 'Itens estoque crítico'], ['deltaFaturamento', 'Δ faturamento %']];
+      UI.openModal(`<h3 class="h2">Comparação · ${cmp.periodo} · ${UI.esc(cmp.origem)}</h3>
+        ${cmp.avisos.map(a => `<div class="callout" style="margin-top:8px;border-left-color:var(--warn)">⚠ ${UI.esc(a)}</div>`).join('')}
+        <div class="tblwrap" style="margin-top:10px"><table class="tbl" style="min-width:0"><thead><tr>
+          <th class="nosort">Métrica</th>${cmp.rows.map(r => `<th class="nosort">${UI.esc(r.loja)}<span class="tsub" style="text-transform:none">${UI.esc(r.cnpj)}${cmp.ranking[0] === r.lojaId ? ' · nº 1 em faturamento' : ''}</span></th>`).join('')}</tr></thead><tbody>
+          ${METRICAS.map(([k, lbl]) => `<tr><td class="tmain">${lbl}</td>
+            ${cmp.rows.map(r => {
+              const v = r.kpis ? r.kpis[k] : null;
+              if (v == null) return `<td><span class="src">${UI.esc(D.STATUS.SEM_DADOS)}</span></td>`;
+              return `<td>${k === 'faturamento' ? UI.brl(v) : v}</td>`;
+            }).join('')}</tr>`).join('')}
+        </tbody></table></div>
+        <p class="src" style="margin-top:8px">ranking por faturamento: ${cmp.ranking.map((id, i) => `${i + 1}º ${UI.esc((D.scope.lojas.find(s => s.id === id) || {}).nome)}`).join(' · ')}</p>
+        <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="UI.closeModal()">fechar</button></div>`);
+    };
   }
 
   /* ---------------- Oportunidades ---------------- */
@@ -155,7 +215,9 @@
   function naoPagos() {
     const mk = UI.ctx.marketplace || null;
     const stat = L.unpaidStats(mk, perAtivo() === 'hoje' ? '7d' : perAtivo());
-    const list = L.unpaidList({ marketplace: mk });
+    const byLoja = L.unpaidByLoja(UI.ctx);
+    const list = byLoja.list;
+    const lojaNome = id => (D.scope.lojas.find(s => s.id === id) || { nome: id }).nome;
     return `
       ${stat ? `<div class="statusline" style="margin-top:0;grid-template-columns:repeat(5,1fr)">
         <div class="sl"><span class="k">pedidos não pagos</span><span class="v neg">${stat.naoPagos}</span></div>
@@ -168,12 +230,20 @@
       <div class="callout" style="margin-top:12px"><b>Pedido criado ≠ venda.</b> Esta área isola a perda entre o pedido e o pagamento aprovado.
       O Head levanta hipóteses (frete, cupom, prazo, checkout) mas <b>nunca afirma causa sem evidência</b> do canal. Sem recuperação automática, sem contato com comprador.</div>
 
+      ${Object.keys(byLoja.porLoja).length > 1 ? `
+      <div class="panel" style="margin-top:12px">
+        <div class="sect-h" style="margin-top:0"><span class="h2">Concentração por loja</span>${UI.scopeLineHtml()}</div>
+        ${Object.entries(byLoja.porLoja).sort((a, b) => b[1].valor - a[1].valor).map(([lid, v]) => `
+          <div class="metric-row"><span class="lbl"><button class="linklike" data-act="focoloja" data-loja="${lid}">${UI.esc(v.loja)}</button></span>
+          <span class="val">${v.qtd} pedido(s) · ${UI.brl(v.valor)}</span></div>`).join('')}
+      </div>` : ''}
+
       <div class="tblwrap" style="margin-top:12px"><table class="tbl"><thead><tr>
-        <th class="nosort">Pedido</th><th class="nosort">Mkt</th><th class="nosort">Anúncio</th><th class="nosort">Valor</th><th class="nosort">Frete</th>
+        <th class="nosort">Pedido</th><th class="nosort">Loja</th><th class="nosort">Anúncio</th><th class="nosort">Valor</th><th class="nosort">Frete</th>
         <th class="nosort">Cupom</th><th class="nosort">Pagamento</th><th class="nosort">Motivo conhecido</th><th class="nosort">Data</th><th class="nosort"></th></tr></thead><tbody>
       ${list.map(o => `<tr>
         <td><span class="tmain">${o.id}</span><span class="tsub">${UI.esc(o.confianca)}</span></td>
-        <td>${UI.esc((D.MKTS.find(m => m.key === o.marketplace) || {}).nome || o.marketplace)}</td>
+        <td><span class="src">${UI.esc(lojaNome(o.lojaId))}</span></td>
         <td><button class="linklike" data-act="ent" data-id="${o.produtoId}" style="font-size:12px">${UI.esc(o.anuncio)}</button></td>
         <td>${UI.brl(o.valor)}</td><td>${UI.brl(o.frete)}</td>
         <td>${o.cupom ? UI.esc(o.cupom) : '—'}</td>
@@ -356,6 +426,12 @@
     const act = b.dataset.act;
     if (act === 'sub') { CR.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Crescimento · ' + CR.sub; render(CR.sub); }
     else if (act === 'mkt') { if (UI.ctx.marketplace) return UI.toast('Marketplace está fixado pela barra global — troque lá.', ''); CR.mkt = b.dataset.mkt; body(); }
+    else if (act === 'cmplojas') openCompareLojas();
+    else if (act === 'focoloja') {
+      const s = D.scope.lojas.find(x => x.id === b.dataset.loja);
+      const c = D.scope.cnpjs.find(x => x.id === s.cnpjId);
+      UI.ctx.empresa = c.empresaId; UI.ctx.cnpj = c.id; UI.setCtx('loja', s.id);
+    }
     else if (act === 'opp') openOpp(b.dataset.id);
     else if (act === 'np') openNp(b.dataset.id);
     else if (act === 'ent') UI.open('catalogo:' + b.dataset.id);
