@@ -33,3 +33,12 @@ Erro em qualquer camada → `rollback` do lote (preserva lotes posteriores) → 
 Bootstrap (3 CNPJs, 6 lojas) + camadas 2/4/5/6 rodadas pelo pipeline real:
 XLSX parseado; receita 7.500 → conferência 0,00%; sobreposição criou 1 e evitou 2
 (receita 10.000, nunca 17.500); reimportação idêntica bloqueada. Estado limpo para o real.
+
+## 10.E.1 — Ativação: ordem de execução
+`pilot.js revisar` → `confirmar --item <cada CNPJ/loja>` → subir VPS (vps-compose) →
+`pilot.js preflight` até "STAGING PRONTO PARA PILOTO" (itens do owner saem como
+AGUARDANDO AÇÃO DO OWNER) → `bootstrap` → camada 2 (`ingest` fica em STAGING,
+imprime revisão de vínculos; master NUNCA automático; `aplicar --lote` só após
+revisão; conflito de SKU bloqueia o aceite) → `relatorio --camada 2` (Go/No-Go)
+→ `aceitar --camada 2` → só então vendas. Atritos: `pilot.js atrito --tipo SKU
+--camada 2 --desc "..."` → pilot/atritos.jsonl (insumo do 10.R).

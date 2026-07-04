@@ -1,18 +1,115 @@
 {
-  "_nota": "Estrutura REAL da Líder — edite antes do bootstrap; CNPJ sempre mascarado aqui (o completo só via cadastro autorizado).",
-  "grupo": { "id": "grp-lider", "nome": "Líder Group" },
-  "empresa": { "id": "cmp-lider", "nome": "Líder Comércio Digital LTDA" },
+  "_nota": "Estrutura REAL da Líder — revise e confirme cada item (pilot.js revisar/confirmar) antes do bootstrap; nada é assumido; CNPJ completo só via cadastro autorizado.",
+  "grupo": {
+    "id": "grp-lider",
+    "nome": "Líder Group"
+  },
+  "empresa": {
+    "id": "cmp-lider",
+    "nome": "Líder Comércio Digital LTDA"
+  },
   "cnpjs": [
-    { "id": "cnpj-matriz-mg", "nome": "Matriz MG", "estado": "MG", "cidade": "Lagoa Santa", "principal": true },
-    { "id": "cnpj-filial-bh", "nome": "Filial Belo Horizonte", "estado": "MG", "cidade": "Belo Horizonte" },
-    { "id": "cnpj-filial-sp", "nome": "Filial São Paulo", "estado": "SP", "cidade": "São Paulo" }
+    {
+      "id": "cnpj-matriz-mg",
+      "nome": "Matriz MG",
+      "estado": "MG",
+      "cidade": "Lagoa Santa",
+      "principal": true,
+      "status": "PENDENTE DE CONFIRMAÇÃO"
+    },
+    {
+      "id": "cnpj-filial-bh",
+      "nome": "Filial Belo Horizonte",
+      "estado": "MG",
+      "cidade": "Belo Horizonte",
+      "status": "PENDENTE DE CONFIRMAÇÃO"
+    },
+    {
+      "id": "cnpj-filial-sp",
+      "nome": "Filial São Paulo",
+      "estado": "SP",
+      "cidade": "São Paulo",
+      "status": "PENDENTE DE CONFIRMAÇÃO"
+    }
   ],
   "lojas": [
-    { "id": "sto-shp-mg", "apelido": "shopee-mg", "cnpjId": "cnpj-matriz-mg", "nome": "Shopee Líder Molduras MG", "tipo": "marketplace", "marketplace": "shopee", "deposito": "CD Lagoa Santa", "conta": { "id": "acc-shp-mg", "nome": "shopee·lider-molduras-mg" } },
-    { "id": "sto-shp-diamonds", "apelido": "shopee-diamonds", "cnpjId": "cnpj-matriz-mg", "nome": "Shopee Galeria Diamonds", "tipo": "marketplace", "marketplace": "shopee", "deposito": "CD Lagoa Santa", "conta": { "id": "acc-shp-dia", "nome": "shopee·galeria-diamonds" } },
-    { "id": "sto-ml", "apelido": "ml", "cnpjId": "cnpj-matriz-mg", "nome": "Mercado Livre Líder Molduras", "tipo": "marketplace", "marketplace": "ml", "deposito": "CD Lagoa Santa", "conta": { "id": "acc-ml", "nome": "ml·lider-molduras" } },
-    { "id": "sto-tiktok", "apelido": "tiktok", "cnpjId": "cnpj-filial-sp", "nome": "TikTok Shop Líder", "tipo": "marketplace", "marketplace": "tiktok", "deposito": "CD São Paulo", "conta": { "id": "acc-tt", "nome": "tiktok·lider" } },
-    { "id": "sto-fis-lagoa", "apelido": "fisica-lagoa", "cnpjId": "cnpj-matriz-mg", "nome": "Loja Física Lagoa Santa", "tipo": "loja física", "deposito": "Loja Lagoa Santa" },
-    { "id": "sto-fis-mantiqueira", "apelido": "fisica-mantiqueira", "cnpjId": "cnpj-filial-bh", "nome": "Loja Física Mantiqueira", "tipo": "loja física", "deposito": "Loja Mantiqueira" }
+    {
+      "id": "sto-shp-mg",
+      "apelido": "shopee-mg",
+      "cnpjId": "cnpj-matriz-mg",
+      "nome": "Shopee Líder Molduras MG",
+      "tipo": "marketplace",
+      "marketplace": "shopee",
+      "deposito": "CD Lagoa Santa",
+      "conta": {
+        "id": "acc-shp-mg",
+        "nome": "shopee·lider-molduras-mg",
+        "status": "PENDENTE DE CONFIRMAÇÃO"
+      },
+      "status": "PENDENTE DE CONFIRMAÇÃO"
+    },
+    {
+      "id": "sto-shp-diamonds",
+      "apelido": "shopee-diamonds",
+      "cnpjId": "cnpj-matriz-mg",
+      "nome": "Shopee Galeria Diamonds",
+      "tipo": "marketplace",
+      "marketplace": "shopee",
+      "deposito": "CD Lagoa Santa",
+      "conta": {
+        "id": "acc-shp-dia",
+        "nome": "shopee·galeria-diamonds",
+        "status": "PENDENTE DE CONFIRMAÇÃO"
+      },
+      "status": "PENDENTE DE CONFIRMAÇÃO"
+    },
+    {
+      "id": "sto-ml",
+      "apelido": "ml",
+      "cnpjId": "cnpj-matriz-mg",
+      "nome": "Mercado Livre Líder Molduras",
+      "tipo": "marketplace",
+      "marketplace": "ml",
+      "deposito": "CD Lagoa Santa",
+      "conta": {
+        "id": "acc-ml",
+        "nome": "ml·lider-molduras",
+        "status": "PENDENTE DE CONFIRMAÇÃO"
+      },
+      "status": "PENDENTE DE CONFIRMAÇÃO"
+    },
+    {
+      "id": "sto-tiktok",
+      "apelido": "tiktok",
+      "cnpjId": "cnpj-filial-sp",
+      "nome": "TikTok Shop Líder",
+      "tipo": "marketplace",
+      "marketplace": "tiktok",
+      "deposito": "CD São Paulo",
+      "conta": {
+        "id": "acc-tt",
+        "nome": "tiktok·lider",
+        "status": "PENDENTE DE CONFIRMAÇÃO"
+      },
+      "status": "PENDENTE DE CONFIRMAÇÃO"
+    },
+    {
+      "id": "sto-fis-lagoa",
+      "apelido": "fisica-lagoa",
+      "cnpjId": "cnpj-matriz-mg",
+      "nome": "Loja Física Lagoa Santa",
+      "tipo": "loja física",
+      "deposito": "Loja Lagoa Santa",
+      "status": "PENDENTE DE CONFIRMAÇÃO"
+    },
+    {
+      "id": "sto-fis-mantiqueira",
+      "apelido": "fisica-mantiqueira",
+      "cnpjId": "cnpj-filial-bh",
+      "nome": "Loja Física Mantiqueira",
+      "tipo": "loja física",
+      "deposito": "Loja Mantiqueira",
+      "status": "PENDENTE DE CONFIRMAÇÃO"
+    }
   ]
 }
