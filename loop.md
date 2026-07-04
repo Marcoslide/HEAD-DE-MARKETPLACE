@@ -141,7 +141,7 @@ Tudo conectado ao MIE utilizando dados simulados.
 
 # BLOCO 07 — Fluxo de Publicação (Simulado)
 
-- [ ] Construir todo o fluxo interno de publicação.
+- [x] Construir todo o fluxo interno de publicação.
 
 Fluxo:
 
@@ -173,7 +173,7 @@ Nenhum envio real para marketplaces.
 
 # BLOCO 08 — Providers
 
-- [ ] Criar arquitetura desacoplada para futuros Providers.
+- [x] Criar arquitetura desacoplada para futuros Providers.
 
 MarketplaceProvider
 ShopeeProvider
