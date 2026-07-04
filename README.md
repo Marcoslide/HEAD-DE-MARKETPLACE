@@ -1,8 +1,8 @@
-# Head de Marketplace — IA
+# Marketplace Operating System
 
-> O primeiro **Head de Marketplace com Inteligência Artificial**.
+> O que estamos construindo é um **Marketplace Operating System (MOS)** — e o **Head de Marketplace com IA** é a interface humana desse sistema operacional.
 > Não é um ERP. Não é um HUB. Não é um dashboard. Não é um gerador de anúncios.
-> É um funcionário extremamente inteligente que trabalha 24 horas por dia cuidando da sua operação de marketplaces.
+> É um funcionário extremamente inteligente que trabalha 24 horas por dia cuidando da sua operação de marketplaces — sustentado por baixo pelos motores de inteligência, os playbooks, a memória, os especialistas e os fluxos operacionais.
 
 ---
 
@@ -38,7 +38,8 @@ Se a resposta não for sim, a funcionalidade não entra no produto.
 |---|---|
 | **[`CONSTITUICAO.md`](CONSTITUICAO.md)** | **Quem o Head é** — como pensa, investiga, decide, prioriza, aprende, conversa e cala. Todo Sprint passa pelo Teste de Conformidade (Art. 24). Em conflito, a Constituição vence tudo. |
 | **[`MIF.md`](MIF.md)** | **O que o Head sabe fazer** — o Marketplace Intelligence Framework: a doutrina profissional de operação de marketplaces (patrimônio da empresa, executável por qualquer IA futura). |
-| **[`ROADMAP.md`](ROADMAP.md)** | **Para onde vamos** — as três trilhas (Inteligência · Plataforma · Conhecimento), os Sprints 04–15 e a estrela-polar do Sprint 20. |
+| **[`MOS.md`](MOS.md)** | **Como a empresa funciona** — os fluxos operacionais completos (Fluxos 001–010): da loja conectada ao resultado que vira conhecimento. Operacional, não técnico. |
+| **[`ROADMAP.md`](ROADMAP.md)** | **Para onde vamos** — a arquitetura em 6 camadas, as trilhas de construção e a estrela-polar (o briefing do funcionário executivo). |
 
 ## Estado deste repositório — Sprints 01–03
 

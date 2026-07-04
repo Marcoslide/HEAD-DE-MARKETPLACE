@@ -1,77 +1,111 @@
-# ROADMAP — Head de Marketplace
+# ROADMAP — Marketplace Operating System
 
-> **Nós não desenvolvemos funcionalidades. Nós desenvolvemos camadas de inteligência.**
-> Cada sprint adiciona uma capacidade ao funcionário — não uma feature ao software.
-> Todo sprint obedece à [`CONSTITUICAO.md`](CONSTITUICAO.md) (Teste de Conformidade, Art. 24) e executa a doutrina do [`MIF.md`](MIF.md).
+> **O que estamos construindo é um Marketplace Operating System (MOS).**
+> O Head de Marketplace é a interface humana desse sistema operacional. Por baixo dele: os motores de inteligência, os especialistas, os playbooks do MIF, a Constituição, a memória e os fluxos operacionais.
+>
+> **Nós não desenvolvemos funcionalidades. Nós construímos camadas de inteligência.**
+> A pergunta de organização nunca é "em qual sprint isso entra?" — é **"a qual camada isso pertence?"**.
 
 ---
 
-## As três trilhas
+## A arquitetura em camadas
 
-O projeto evolui em três trilhas paralelas e equilibradas. Nenhuma pode ficar muito à frente das outras — plataforma bonita sem inteligência é dashboard; IA inteligente sem plataforma não opera; inteligência sem conhecimento é genérica.
+Da base ao topo — cada camada se apoia nas de baixo e serve às de cima:
 
-| Trilha | O que é | Documentos-mestre |
+```
+┌──────────────────────────────────────────────────────────────────┐
+│ 6 · CAMADA DE EXPERIÊNCIA                                        │
+│     interface, conversa, briefing, operações, acompanhamento     │
+│     → docs/01–05 · design/prototipo-v2 · chat · WhatsApp (face)  │
+├──────────────────────────────────────────────────────────────────┤
+│ 5 · CAMADA DE EXECUÇÃO                                           │
+│     Collector, APIs oficiais, publicação, WhatsApp (canal),      │
+│     automações, backend e banco                                  │
+├──────────────────────────────────────────────────────────────────┤
+│ 4 · CAMADA COGNITIVA                                             │
+│     os motores: Observação · Investigação · Priorização ·        │
+│     Decisão · Execução · Aprendizado · Memória                   │
+│     + os 7 especialistas do conselho                             │
+├──────────────────────────────────────────────────────────────────┤
+│ 3 · CAMADA OPERACIONAL                                           │
+│     os fluxos completos da empresa → MOS.md (Fluxos 001–010)     │
+├──────────────────────────────────────────────────────────────────┤
+│ 2 · CAMADA DE CONHECIMENTO                                       │
+│     doutrinas, playbooks, modelos mentais, Knowledge Base        │
+│     → MIF.md + universidade do Head                              │
+├──────────────────────────────────────────────────────────────────┤
+│ 1 · CAMADA CONSTITUCIONAL                                        │
+│     identidade, princípios, limites → CONSTITUICAO.md            │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+Regras da arquitetura:
+
+1. **Nada furando camadas**: a Experiência não chama APIs diretamente; ela conversa com a Cognição, que opera pelos fluxos da Operacional, que executam pela camada de Execução.
+2. **As camadas 1–3 são documentos, não código** — e são as mais valiosas: qualquer motor de IA futuro executa sobre elas.
+3. **Conflitos resolvem para baixo**: implementação obedece ao MOS, que obedece ao MIF, que obedece à Constituição.
+
+---
+
+## Estado das camadas
+
+| Camada | Estado | Artefatos |
 |---|---|---|
-| **🧠 Inteligência** (o cérebro) | Como o Head pensa, investiga, aprende e decide — os motores | `CONSTITUICAO.md` + `MIF.md` |
-| **🏗️ Plataforma** (o corpo) | Interface, banco, APIs, autenticação, integrações, WhatsApp, publicação, infra | `docs/01–05` (UX/design) |
-| **📚 Conhecimento** (a experiência) | A universidade do Head: marketplaces, CRO, SEO, psicologia, casos reais, aprendizado contínuo | `MIF.md` + Knowledge Base |
+| 1 · Constitucional | ✅ **construída** | `CONSTITUICAO.md` (25 artigos, cláusulas pétreas, Teste de Conformidade) |
+| 2 · Conhecimento | ✅ **fundada** · expande sempre | `MIF.md` v1 (8 doutrinas) · Knowledge Base por vir |
+| 3 · Operacional | ✅ **fundada** · cresce por acréscimo | `MOS.md` v1 (Fluxos 001–010) |
+| 4 · Cognitiva | 🔜 **próxima** | os 7 motores + especialistas (MIE) |
+| 5 · Execução | ⏳ futura | backend, banco, Collector, APIs, WhatsApp, publicação |
+| 6 · Experiência | ✅ **fundada** · evolui com as demais | `docs/01–05` + `design/prototipo-v2` (navegável) |
 
 ---
 
-## Fundação — concluída ✅
+## As trilhas de construção
 
-| Sprint | Camada | Entrega |
-|---|---|---|
-| **01 — Visão do Produto** | O funcionário | Visão, princípios, arquitetura de UX, design system, wireframes (`docs/01–05`) ✅ |
-| **02 — Experiência** | Como ele se apresenta | Aplicação navegável premium (`design/prototipo-v2/`) ✅ |
-| **03 — O Cérebro** | Como ele pensa | `CONSTITUICAO.md` — identidade intelectual permanente ✅ |
-| **03.5 — O Patrimônio** | O que ele sabe fazer | `MIF.md` + este roadmap ✅ |
+A ordem de trabalho dentro de cada trilha (uma trilha por vez avança; as outras acompanham):
 
----
+### 🏛️ Fundação — concluída ✅
+```
+Constituição → MIF → MOS → Roadmap
+```
 
-## As camadas de inteligência
+### 🧠 Inteligência — em curso
+```
+Motores (MIE) → Especialistas → Memória → Aprendizado
+```
+1. **Motores (MIE — Marketplace Intelligence Engine)**: Observação, Investigação, Priorização, Decisão, Execução, Aprendizado e Memória funcionando sobre dados simulados. Testes provam obediência: curiosidade nunca interrompe (Art. 19); "vendas caíram" percorre exatamente o playbook MIF 2.2; nenhuma resposta pula o Art. 5.
+2. **Especialistas**: o conselho dos 7 (Art. 10) entregando pareceres no formato fixo; o Head sintetiza e assume.
+3. **Memória Histórica**: ontem, semana passada, mês passado, seis meses; o "normal" de cada operação; detecção de padrões.
+4. **Investigação Inteligente + Conversão + Experimentação + Autonomia**: o detetive, o criador de versões, o cientista e — por fim — a iniciativa própria com alçadas (nasce o funcionário autônomo).
 
-### Sprint 04 — Marketplace Intelligence Engine (MIE) · 🧠
-O cérebro matemático. Ele ainda não conversa — ele aprende. O "sistema operacional interno" do Head:
-**Motor de Observação · Motor de Investigação · Motor de Priorização · Motor de Decisão · Motor de Aprendizado · Motor de Memória · Motor de Execução.**
-Cada motor implementa o artigo correspondente da Constituição (Arts. 12–15) e a doutrina do MIF. Entregável: motores funcionando sobre dados simulados, com testes que provam o comportamento (ex.: curiosidade nunca vira interrupção).
+### 🏗️ Plataforma
+```
+Backend → Banco → Collector → APIs → WhatsApp → Publicação
+```
+1. **Backend + Banco**: a espinha que persiste memória, missões, decisões e conhecimento.
+2. **Collector**: ele começa a enxergar — pesquisar, abrir anúncios, ler avaliações/perguntas, snapshots, ranking, preços, concorrentes.
+3. **APIs oficiais**: Shopee, Mercado Livre, Amazon, TikTok Shop — os dados reais da operação do cliente.
+4. **WhatsApp**: a voz onde o empresário vive — briefing, aprovações e conversa.
+5. **Publicação**: as mãos — publicar, atualizar, criar, duplicar, adaptar (sempre versionado e reversível).
 
-### Sprint 05 — Knowledge Base · 📚
-A universidade do Head: Shopee, Mercado Livre, Amazon, CRO, SEO, copywriting, psicologia, Método REAL (adaptado), precificação, conversão, comportamento. Conhecimento estruturado e consultável pelos motores — a doutrina do MIF expandida em profundidade por domínio.
+### 🎨 Experiência
+```
+UX → Produto → Chat → Operações
+```
+1. **UX**: fundada (docs/01–05 + protótipo navegável). ✅
+2. **Produto**: a aplicação real sobre a Camada Cognitiva (o protótipo ganha cérebro).
+3. **Chat**: a conversa conectada aos motores — cada resposta percorrendo o Art. 5 de verdade.
+4. **Operações**: acompanhamento fino — missões ao vivo, linha do tempo, versões, biblioteca.
 
-### Sprint 06 — Marketplace Collector · 🏗️
-Ele começa a enxergar: pesquisar produtos, abrir anúncios, ler avaliações e perguntas, salvar snapshots, acompanhar ranking, preços e concorrentes. Primeiro contato com o mundo real.
-
-### Sprint 07 — Memória Histórica · 🧠
-Ele passa a saber: ontem, semana passada, mês passado, seis meses. Séries temporais + o normal de cada operação (Art. 17) + detecção de padrões. É o que torna a inteligência adaptativa possível.
-
-### Sprint 08 — Investigação Inteligente · 🧠
-O detetive. Responde com evidência: por que caiu? por que subiu? o que mudou? quem mudou? qual concorrente causou isso? é tendência? é sazonalidade? Implementa os playbooks de diagnóstico do MIF sobre o Collector + Memória.
-
-### Sprint 09 — Conversão · 🧠📚
-Ele começa a melhorar anúncios: versões, imagens, títulos, descrições, criativos, palavras. Cria → mede → aprende (Art. 15). A doutrina de conversão do MIF em ação.
-
-### Sprint 10 — Funcionário Autônomo · 🧠
-Nasce o funcionário: cria missões, abre investigações, pesquisa sozinho, trabalha de madrugada, entrega o briefing pela manhã. Iniciativa própria dentro de alçadas (MIF, Parte 7).
-
-### Sprint 11 — WhatsApp · 🏗️
-Ele ganha voz onde o empresário vive. Conversa, responde, envia o briefing, pede aprovação — com a mesma voz da Constituição (Art. 20).
-
-### Sprint 12 — APIs oficiais · 🏗️
-Tudo fica real: Shopee, Mercado Livre, Amazon, TikTok Shop. Dados oficiais da operação do cliente.
-
-### Sprint 13 — Publicação · 🏗️
-Ele passa a ter mãos: publica, atualiza, altera, cria, duplica e adapta anúncios — sempre com reversibilidade (versões) e alçadas.
-
-### Sprint 14 — Experimentação · 🧠
-Ele testa como cientista: experimentos controlados, versões, comparações, aprendizado sistemático (MIF, Parte 6).
-
-### Sprint 15 — Aprendizado Global · 🧠📚
-Ele aprende com milhares de empresas — compartilhando padrões, nunca dados sensíveis. O efeito de rede que nenhum concorrente copia: cada cliente torna o Head melhor para todos.
+### 📚 Conhecimento (trilha permanente)
+```
+MIF → Knowledge Base → Aprendizado contínuo → Aprendizado Global
+```
+A universidade do Head: marketplaces (Shopee, ML, Amazon), CRO, SEO, copywriting, psicologia, Método REAL adaptado, precificação, comportamento — e, no horizonte, o **Aprendizado Global**: padrões agregados entre milhares de empresas, sem jamais compartilhar dados sensíveis (MIF 8.2). O efeito de rede que nenhum concorrente copia.
 
 ---
 
-## ⭐ A estrela-polar — Sprint 20: Funcionário Executivo
+## ⭐ A estrela-polar
 
 O critério de sucesso do projeto inteiro é este briefing ser verdadeiro:
 
@@ -80,13 +114,14 @@ O critério de sucesso do projeto inteiro é este briefing ser verdadeiro:
 > investiguei 18 concorrentes; encontrei duas oportunidades; descobri um padrão novo; preparei três anúncios; reorganizei duas campanhas; identifiquei risco em um SKU; aumentei o orçamento de uma campanha porque você autorizou automações até R$ 500; suspendi um experimento que estava piorando a conversão.
 > **Você possui apenas uma decisão importante hoje.**
 
-Isso não parece software. Parece uma pessoa. Cada sprint acima existe para tornar uma linha desse briefing verdadeira.
+Isso não parece software. Parece uma pessoa. Cada linha desse briefing depende de uma camada: a autorização de R$ 500 é a alçada Classe B (MIF 7.2) rodando na Camada Cognitiva, executada pela Camada de Execução, contada pela Camada de Experiência — sob as leis da Camada Constitucional.
 
 ---
 
 ## Regras do roadmap
 
-1. **Ordem pode mudar; a Constituição, não.** Se o mercado pedir WhatsApp antes de Experimentação, tudo bem — desde que o Teste de Conformidade passe.
-2. **Cada sprint entrega o funcionário melhor, não o software maior.** A pergunta de aceite é sempre: *"o dono sente que contratou alguém mais competente este mês?"*
-3. **As três trilhas andam juntas.** Um sprint 🧠 grande é seguido de equilíbrio em 🏗️ ou 📚 quando necessário.
-4. **O maior ativo não é o código** — é a combinação Constituição + MIF + Memória + Conhecimento. Código se copia; um colaborador digital especializado com doutrina própria, não.
+1. **Toda proposta nova responde primeiro: "a qual camada isso pertence?"** Se não pertence a nenhuma, provavelmente não pertence ao produto.
+2. **A ordem dentro das trilhas pode mudar; as camadas 1–3, não.** Documentos soberanos evoluem por acréscimo, nunca por conveniência.
+3. **Cada entrega torna o funcionário melhor, não o software maior.** Pergunta de aceite: *"o dono sente que contratou alguém mais competente este mês?"*
+4. **Trilhas equilibradas**: plataforma bonita sem inteligência é dashboard; IA inteligente sem plataforma não opera; inteligência sem conhecimento é genérica.
+5. **O maior ativo não é o código** — é a pilha 1-2-3 (Constituição + MIF + MOS) mais a Memória. Código se copia; um colaborador digital com doutrina própria e memória da operação, não.
