@@ -72,10 +72,31 @@
       </div>
     </section>
 
-    <!-- PRODUTOS -->
+    <!-- PRODUTOS (Central de Produtos · Marketplaces · Anúncios) -->
     <section class="view" id="v-produtos">
-      <div class="section-h flat"><span class="eyebrow">Produtos · ordenados por atenção</span><span class="more">148 anúncios conectados</span></div>
-      <div id="products"></div>
+      <div class="section-h flat"><span class="eyebrow" id="centralTitle">Produtos · ordenados por atenção</span><span class="more" id="centralCount"></span></div>
+      <div class="central-bar">
+        <div class="tabs" id="centralTabs">
+          <button class="tab active" data-tab="produtos">Produtos</button>
+          <button class="tab" data-tab="marketplaces">Marketplaces</button>
+          <button class="tab" data-tab="anuncios">Anúncios</button>
+        </div>
+        <input class="search" id="centralSearch" placeholder="Buscar produto ou anúncio…" aria-label="Buscar">
+        <div class="filters" id="centralFilters">
+          <button class="chip" data-f="all">Todos</button>
+          <button class="chip" data-f="atencao">Precisa de atenção</button>
+          <button class="chip" data-f="Mercado Livre">Mercado Livre</button>
+          <button class="chip" data-f="Shopee">Shopee</button>
+        </div>
+      </div>
+      <div id="centralBody"></div>
+      <div class="pager" id="centralPager"></div>
+    </section>
+
+    <!-- CENTRAL DO PRODUTO (aprofundamento) -->
+    <section class="view" id="v-produto">
+      <button class="btn ghost" id="backToProducts">← Produtos</button>
+      <div id="productDetail" style="margin-top:18px"></div>
     </section>
 
     <!-- MISSÕES -->

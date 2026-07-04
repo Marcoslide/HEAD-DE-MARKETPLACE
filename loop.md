@@ -99,7 +99,7 @@ Nenhuma API externa.
 
 # BLOCO 05 — Camada Operacional
 
-- [ ] Construir completamente a tela Operações utilizando dados simulados.
+- [x] Construir completamente a tela Operações utilizando dados simulados.
 
 Implementar:
 
@@ -119,7 +119,7 @@ Paginação
 
 # BLOCO 06 — Central do Produto
 
-- [ ] Implementar a Central do Produto.
+- [x] Implementar a Central do Produto.
 
 Cada produto deverá possuir:
 

@@ -25,7 +25,8 @@ function go(v) {
   state.view = v;
   $$(".view").forEach(s => s.classList.remove("on"));
   $("#v-" + v).classList.add("on");
-  $$("#nav button").forEach(b => b.classList.toggle("active", b.dataset.v === v));
+  const navKey = v === "produto" ? "produtos" : v;
+  $$("#nav button").forEach(b => b.classList.toggle("active", b.dataset.v === navKey));
   window.scrollTo({ top: 0 });
   if (v === "ia" && !state.chatStarted) startChat();
 }
@@ -184,12 +185,50 @@ function renderMini() {
     `<div class="mini"><span class="dot"></span><span><b>${m.tag}</b> · ${m.product} — ${m.now}</span></div>`).join("");
 }
 
-/* ---------------- Produtos ---------------- */
-function renderProducts() {
-  $("#products").innerHTML = DATA.products.map(p => {
+/* ---------------- Central (Produtos · Marketplaces · Anúncios) ---------------- */
+const central = { tab: "produtos", search: "", filter: "all", page: 1, pageSize: 5 };
+
+function centralData() {
+  let items = DATA.products;
+  if (central.filter === "atencao") items = items.filter(p => p.score < 70 || p.convCls === "down");
+  else if (central.filter !== "all") items = items.filter(p => p.mkt === central.filter);
+  if (central.search) {
+    const q = central.search.toLowerCase();
+    items = items.filter(p => p.name.toLowerCase().includes(q) ||
+      p.listings.some(l => l.versions.some(v => v.title.toLowerCase().includes(q))));
+  }
+  return [...items].sort((x, y) => x.score - y.score); // atenção primeiro
+}
+
+function renderCentral() {
+  const titles = { produtos: "Produtos · ordenados por atenção",
+    marketplaces: "Marketplaces conectados", anuncios: "Anúncios · todas as praças" };
+  $("#centralTitle").textContent = titles[central.tab];
+  $$("#centralTabs .tab").forEach(t => t.classList.toggle("active", t.dataset.tab === central.tab));
+  $$("#centralFilters .chip").forEach(c => c.classList.toggle("active", c.dataset.f === central.filter));
+
+  if (central.tab === "marketplaces") return renderMarketplaces();
+  if (central.tab === "anuncios") return renderListings();
+  renderProductsTab();
+}
+
+function sparkline(values) {
+  const max = Math.max(...values), min = Math.min(...values);
+  const range = max - min || 1;
+  return `<div class="spark" title="últimos 7 dias">` + values.map((v, i) =>
+    `<i style="height:${6 + ((v - min) / range) * 20}px" class="${i === values.length - 1 ? "hot" : ""}"></i>`).join("") + `</div>`;
+}
+
+function renderProductsTab() {
+  const all = centralData();
+  const pages = Math.max(1, Math.ceil(all.length / central.pageSize));
+  central.page = Math.min(central.page, pages);
+  const slice = all.slice((central.page - 1) * central.pageSize, central.page * central.pageSize);
+  $("#centralCount").textContent = `${all.length} produtos · ${DATA.products.reduce((s, p) => s + p.listings.length, 0)} anúncios`;
+  $("#centralBody").innerHTML = slice.map(p => {
     const color = p.score >= 80 ? "var(--positive)" : p.score >= 50 ? "var(--amber)" : "var(--critical)";
     return `
-    <article class="card prod">
+    <article class="card prod" style="cursor:pointer" onclick="openProduct('${p.id}')">
       <div class="thumb">${p.emoji}</div>
       <div class="info">
         <div class="nameline"><span class="name">${p.name}</span><span class="mkt">${p.mkt}</span></div>
@@ -197,10 +236,127 @@ function renderProducts() {
         <div class="lastword">“${p.last}”</div>
         ${p.opp ? `<div class="opp">◆ ${p.opp}</div>` : ""}
       </div>
+      ${sparkline(p.perf.conv)}
       <div class="ring" style="--p:${p.score};--c:${color}" title="Saúde ${p.score}/100"><b>${p.score}</b></div>
     </article>`;
-  }).join("");
+  }).join("") || `<div class="alldone"><p class="voice">Nenhum produto com esse filtro.</p></div>`;
+  $("#centralPager").innerHTML = pages > 1 ? `
+    <button class="btn" ${central.page === 1 ? "disabled" : ""} onclick="centralPage(-1)">←</button>
+    <span>página ${central.page} de ${pages}</span>
+    <button class="btn" ${central.page === pages ? "disabled" : ""} onclick="centralPage(1)">→</button>` : "";
 }
+window.centralPage = d => { central.page += d; renderCentral(); };
+
+function renderMarketplaces() {
+  $("#centralCount").textContent = `${DATA.marketplaces.length} conexões`;
+  $("#centralPager").innerHTML = "";
+  $("#centralBody").innerHTML = DATA.marketplaces.map(m => `
+    <article class="card mkt-card">
+      <div class="eyebrow"><span class="tag pos">${m.status}</span></div>
+      <h3 style="font-family:var(--sans);font-weight:600;font-size:16px">${m.name}</h3>
+      <div class="stats-row">
+        <span><b>${m.products}</b> produtos</span><span><b>${m.listings}</b> anúncios</span>
+        <span>saúde média <b>${m.health}</b>/100</span>
+      </div>
+      <div class="lastword" style="margin-top:10px">“${m.note}”</div>
+    </article>`).join("");
+}
+
+function renderListings() {
+  let rows = DATA.products.flatMap(p => p.listings.map(l => ({ p, l })));
+  if (central.filter !== "all" && central.filter !== "atencao")
+    rows = rows.filter(r => r.l.mkt === central.filter);
+  if (central.filter === "atencao") rows = rows.filter(r => r.l.health < 70 || r.l.status !== "ativo");
+  if (central.search) {
+    const q = central.search.toLowerCase();
+    rows = rows.filter(r => r.p.name.toLowerCase().includes(q) ||
+      r.l.versions.some(v => v.title.toLowerCase().includes(q)));
+  }
+  $("#centralCount").textContent = `${rows.length} anúncios`;
+  $("#centralPager").innerHTML = "";
+  $("#centralBody").innerHTML = rows.map(({ p, l }) => {
+    const active = l.versions.find(v => v.active) || l.versions[0];
+    return `
+    <article class="card listing-row" style="cursor:pointer" onclick="openProduct('${p.id}')">
+      <div class="thumb">${p.emoji}</div>
+      <div class="info">
+        <div class="nameline"><span class="name">${active.title}</span><span class="mkt">${l.mkt}</span>
+          <span class="lstatus ${l.status}">${l.status}</span></div>
+        <div class="stats"><span>R$ ${l.price}</span><span>#${l.ranking} na busca</span>
+          <span>v${active.n} ativa · ${l.versions.length} versões</span>
+          <span>${l.publications.length} publicações</span></div>
+      </div>
+      <div class="ring" style="--p:${l.health};--c:${l.health >= 80 ? "var(--positive)" : l.health >= 50 ? "var(--amber)" : "var(--critical)"}"><b>${l.health}</b></div>
+    </article>`;
+  }).join("") || `<div class="alldone"><p class="voice">Nenhum anúncio com esse filtro.</p></div>`;
+}
+
+/* ---------------- Central do Produto (Bloco 06) ---------------- */
+window.openProduct = function (id) {
+  const p = DATA.products.find(x => x.id === id);
+  if (!p) return;
+  const color = p.score >= 80 ? "var(--positive)" : p.score >= 50 ? "var(--amber)" : "var(--critical)";
+  const decisions = state.decisions.filter(d => d.status === "pending" && p.name.startsWith(d.product.slice(0, 12)));
+  const missions = state.missions.active.filter(m => p.name.includes(m.product) || m.product.includes(p.name.slice(0, 12)));
+  $("#productDetail").innerHTML = `
+    <div class="card prod" style="cursor:default">
+      <div class="thumb">${p.emoji}</div>
+      <div class="info">
+        <div class="nameline"><span class="name" style="font-size:17px">${p.name}</span><span class="mkt">${p.mkt}</span></div>
+        <div class="stats"><span class="${p.convCls}">${p.conv}</span><span>${p.rank}</span></div>
+      </div>
+      <div class="ring" style="--p:${p.score};--c:${color}"><b>${p.score}</b></div>
+    </div>
+
+    <div class="section"><div class="section-h"><span class="eyebrow">Resumo executivo</span></div>
+      <p class="voice" style="font-size:16.5px;line-height:1.65;max-width:58ch">${p.resumo}</p></div>
+
+    ${decisions.length ? `<div class="section"><div class="section-h"><span class="eyebrow">Decisões deste produto · ${decisions.length}</span></div>
+      ${decisions.map(d => `<div class="card"><h3>${d.descoberta}</h3>
+        <div class="actions"><button class="btn primary" onclick="go('home')">Decidir agora</button>
+        <button class="btn ghost" onclick="askFree('Me explica melhor a proposta do ${p.name}.')">Perguntar sobre isso</button></div></div>`).join("")}</div>` : ""}
+
+    <div class="section"><div class="section-h"><span class="eyebrow">Performance · 7 dias</span></div>
+      <div class="detail-grid">
+        <div class="card"><div class="kv"><b>Conversão</b><span>%</span></div>${sparkline(p.perf.conv)}
+          <div class="kv" style="margin-top:8px">hoje <b>${p.perf.conv.at(-1)}%</b> · início <b>${p.perf.conv[0]}%</b></div></div>
+        <div class="card"><div class="kv"><b>CTR</b><span>%</span></div>${sparkline(p.perf.ctr)}
+          <div class="kv" style="margin-top:8px">hoje <b>${p.perf.ctr.at(-1)}%</b> · início <b>${p.perf.ctr[0]}%</b></div></div>
+      </div></div>
+
+    <div class="section"><div class="section-h"><span class="eyebrow">Anúncios e versões</span></div>
+      ${p.listings.map(l => `<div class="card">
+        <div class="eyebrow"><span class="mkt">${l.mkt}</span><span class="lstatus ${l.status}">${l.status}</span>
+          <span style="margin-left:auto;font-variant-numeric:tabular-nums">R$ ${l.price} · #${l.ranking} · saúde ${l.health}</span></div>
+        <div style="margin-top:12px">${l.versions.map(v => `
+          <div class="vrow"><span class="vn">v${v.n}</span><span>${v.title}</span>
+            <span style="color:var(--text-3);font-size:11.5px">· ${v.author === "head" ? "Head" : "você"} · ${v.reason}</span>
+            <span class="vres">${v.active ? "● ativa · " : ""}${v.result}</span></div>`).join("")}</div>
+        ${l.publications.length ? `<details style="margin-top:10px"><summary style="font-size:12px;color:var(--text-3);cursor:pointer">publicações simuladas (${l.publications.length})</summary>
+          <div class="tl" style="margin-top:8px">${l.publications.map(pb => `<div><time>${pb.at}</time>${pb.action} — ${pb.outcome}</div>`).join("")}</div></details>` : ""}
+      </div>`).join("")}</div>
+
+    ${missions.length ? `<div class="section"><div class="section-h"><span class="eyebrow">Missões ativas · ${missions.length}</span></div>
+      ${missions.map(m => `<div class="mini"><span class="dot"></span><span><b>${m.tag}</b> — ${m.title}</span></div>`).join("")}</div>` : ""}
+
+    ${p.experiments.length ? `<div class="section"><div class="section-h"><span class="eyebrow">Experimentos</span></div>
+      ${p.experiments.map(e => `<div class="card"><h3 style="font-size:15px">${e.name}</h3>
+        <div class="kv" style="margin-top:8px"><b>variável:</b><span>${e.variable}</span></div>
+        <div class="kv"><b>critério (definido antes):</b><span>${e.criteria}</span></div>
+        <div class="kv"><b>estado:</b><span>${e.status}</span></div></div>`).join("")}</div>` : ""}
+
+    <div class="section"><div class="section-h"><span class="eyebrow">Linha do tempo</span></div>
+      <div class="tl">${p.timeline.map(t => `<div><time>${t.day}</time>${t.text}
+        ${t.effect ? `<span class="fx"> → ${t.effect}</span>` : ""}</div>`).join("")}</div></div>
+
+    ${p.learnings.length ? `<div class="section"><div class="section-h"><span class="eyebrow">Aprendizados deste produto</span></div>
+      ${p.learnings.map(l => `<div class="mini"><span style="color:var(--amber)">◆</span><span>${l}</span></div>`).join("")}</div>` : ""}
+
+    <div class="actions" style="margin-top:28px">
+      <button class="btn ghost" onclick="askFree('Como está o ${p.name}?')">Perguntar sobre este produto</button>
+    </div>`;
+  go("produto");
+};
 
 /* ---------------- Missões ---------------- */
 function missionCard(m) {
@@ -361,12 +517,18 @@ function send() {
   askFree(v);
 }
 
+/* ---------------- Central: eventos ---------------- */
+$$("#centralTabs .tab").forEach(t => t.addEventListener("click", () => { central.tab = t.dataset.tab; central.page = 1; renderCentral(); }));
+$$("#centralFilters .chip").forEach(c => c.addEventListener("click", () => { central.filter = c.dataset.f; central.page = 1; renderCentral(); }));
+$("#centralSearch").addEventListener("input", e => { central.search = e.target.value.trim(); central.page = 1; renderCentral(); });
+$("#backToProducts").addEventListener("click", () => go("produtos"));
+
 /* ---------------- Boot ---------------- */
 renderBriefing();
 renderDecisions();
 renderDiscoveries();
 renderMini();
-renderProducts();
+renderCentral();
 renderMissions();
 renderKnowledgeCols();
 renderKnowledge();
