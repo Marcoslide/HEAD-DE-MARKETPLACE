@@ -673,3 +673,48 @@ nada externamente. Módulo autossuficiente em `catalog-engine.js` (V8CAT).
   obrigatórios do sprint); suíte completa **578 verdes**; validação headless
   com XLSX real do template mostrando a jornada completa dentro do Catálogo,
   console limpo.
+
+## Sprint 10.E.3.1 — Convergência do cadastro importado para o editor completo
+
+Consolida o cadastro Shopee importado dentro do **editor operacional de 14
+abas já existente** — sem tela paralela nem segundo editor. A origem do
+anúncio muda; o editor não.
+
+- **Anúncio importado vira 1ª classe** (`cadastroConverge`): cada anúncio do
+  cadastro Shopee é registrado como `cat.listings` real (com `produtoId`
+  apontando para um Product Master criado em `cat.products`), e as variações
+  viram `p.variacoes`. Idempotente: reimportar + reconverter atualiza, nunca
+  duplica. Assim `byId`/`prodOf`/`valorDe`/`salesInfo`/`perfComercial`/
+  `masterVsListings`/`fotosDe` funcionam — o **mesmo** `CAT.openEditor`.
+- **Roteamento**: na lista de anúncios, o cadastro importado tem *Editar
+  anúncio* → `CAT.openEditor` (editor completo); o modal antigo vira só
+  *resumo* (leitura rápida). `body()` chama `ensureConverged()` antes de
+  renderizar, então qualquer entrada por Anúncios/Saúde/Campos abre o editor.
+- **Campos importados na aba certa**: Informação Básica (título, marca,
+  proveniência: fonte/arquivo/aba/situação reportada), Especificações
+  (marca/material/NCM), Descrição, Informações de Vendas (preço/estoque/SKU,
+  via overrides + `salesInfo`), Variações e Lista de Variações, Informações
+  Fiscais (NCM/EAN), Envio e Logística (peso/dimensões/prazo), Fotos e Vídeos
+  (mídia referenciada da biblioteca), Economia do Produto (V8BIZ por SKU),
+  Performance Comercial, Comparar Marketplaces, Histórico. Nada se perde:
+  colunas sem aba caem em **Outros** com "Campos extras recebidos: N" +
+  *mapear campo* (auditado).
+- **Honestidade preservada**: mídia por URL fica `MÍDIA REFERENCIADA`
+  (`referenciada:true`, `dataUrl:null`) — nunca "baixada/validada"; upload
+  manual continua real. Performance só aparece com vínculo por `item_id`
+  (constrói `l.perf` a partir da contribuição por produto real); sem
+  correspondência, a aba declara "Performance ainda não vinculada" — nenhum
+  número demo. Sem custo cadastrado, `salesInfo` retorna `semCusto` e não
+  inventa margem; a Economia do Produto declara cobertura insuficiente.
+- **Saúde e Pendências** aponta a aba **real** do editor (sem_ean →
+  Informações Fiscais, sem_peso → Envio e Logística, sem_custo → Economia do
+  Produto, sem_perf_vinculo → Performance Comercial etc.) e o clique abre o
+  editor de 14 abas na aba certa — nunca o modal.
+- **Edição auditada e permissões**: correção manual preserva o valor
+  importado original (`MANUAL_CORRECTION`, motivo obrigatório); leitura não
+  edita, designer sobe mídia mas não altera preço/fiscal. Convergência cria
+  só o anúncio Shopee — ML/TikTok/Magalu intactos. **Nenhuma escrita externa.**
+- **Testes**: `ui-v8-catalog-converge.test.js` (31 testes obrigatórios do
+  sprint); suíte completa **599 verdes**; validação headless abrindo o
+  editor completo a partir do cadastro importado, percorrendo as 14 abas com
+  os dados na aba certa, em light/dark e mobile, console limpo.

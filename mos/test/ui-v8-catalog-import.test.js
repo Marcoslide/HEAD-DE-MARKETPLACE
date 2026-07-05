@@ -182,7 +182,7 @@ test('17-19 · pendências de peso/EAN/mídia abrem logística, especificações
   const saude = V8CAT.saudeCadastro(cat);
   const fila = k => saude.find(f => f.key === k);
   assert.equal(fila('sem_peso').aba, 'Envio e Logística');
-  assert.equal(fila('sem_ean').aba, 'Especificações');
+  assert.equal(fila('sem_ean').aba, 'Informações Fiscais');
   assert.equal(fila('midia_referenciada').aba, 'Fotos e Vídeos');
   assert.ok(fila('sem_ean').itens.length >= 1, 'pendência de EAN populada');
 });

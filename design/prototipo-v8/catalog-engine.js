@@ -171,9 +171,11 @@
     const p = prodOf(cat, l);
     const preco = valorDe(cat, l, 'preco') || p.precoBase;
     const comissao = round2(preco * 0.14), taxaFixa = 4, imposto = round2(preco * 0.07);
-    const margemBruta = preco ? round2(((preco - p.custo) / preco) * 100) : null;
-    const liquida = preco ? round2(((preco - p.custo - comissao - taxaFixa - imposto) / preco) * 100) : null;
-    const minimoSeguro = round2((p.custo + taxaFixa) / (1 - 0.14 - 0.07 - 0.10)); /* custo+taxas+10% margem mínima */
+    /* 10.E.3.1 — sem custo cadastrado (ex.: anúncio importado) não inventa margem */
+    const temCusto = p.custo != null;
+    const margemBruta = (preco && temCusto) ? round2(((preco - p.custo) / preco) * 100) : null;
+    const liquida = (preco && temCusto) ? round2(((preco - p.custo - comissao - taxaFixa - imposto) / preco) * 100) : null;
+    const minimoSeguro = temCusto ? round2((p.custo + taxaFixa) / (1 - 0.14 - 0.07 - 0.10)) : null; /* custo+taxas+10% margem mínima */
     const alertas = [];
     if (liquida != null && liquida < 10) alertas.push('Preço abaixo da margem mínima segura');
     if (l.perf && l.perf.vendidos30d > 5 && liquida != null && liquida < 15) alertas.push('Produto vende, mas a margem é insuficiente');
@@ -181,8 +183,8 @@
     if (l.perf && l.perf.devolucoes >= Math.max(2, l.perf.vendidos90d * 0.06)) alertas.push('Produto vende e tem devolução alta');
     if (l.perf && l.perf.impressoes > 20000 && convExp(l.perf.pedidosPagos, l.perf.visitas, '').taxa < 1.5) alertas.push('Alta exposição com baixa conversão');
     return { preco, custo: p.custo, comissao, taxaFixa, imposto, margemBruta, margemLiquida: liquida,
-      precoMinimoSeguro: minimoSeguro, precoRecomendado: round2(minimoSeguro * 1.35), alertas,
-      fonte: 'NORMALIZED_INTERNAL_DATA', formulaMargem: '(preço − custo − comissão − taxa − imposto) ÷ preço' };
+      precoMinimoSeguro: minimoSeguro, precoRecomendado: minimoSeguro != null ? round2(minimoSeguro * 1.35) : null, alertas,
+      semCusto: !temCusto, fonte: 'NORMALIZED_INTERNAL_DATA', formulaMargem: '(preço − custo − comissão − taxa − imposto) ÷ preço' };
   }
 
   function perfComercial(cat, l) {
@@ -936,21 +938,117 @@
     return mudou;
   }
 
+  /* =============================================================
+     10.E.3.1 — CONVERGÊNCIA: o anúncio importado vira listing/produto
+     de primeira classe (mesmo modelo do editor de 14 abas). A origem
+     muda; o editor não. Idempotente: reimportar atualiza, não duplica.
+     ============================================================= */
+  const STATUS_INTERNO = { 'Ativo reportado': 'ATIVO', 'Pausado reportado': 'PAUSADO', 'Não publicado reportado': 'NAO_PUBLICADO',
+    'Em revisão reportado': 'EM_REVISAO', 'Com erro reportado': 'BLOQUEADO', 'Desconhecido': 'EM_REVISAO' };
+  function cadastroConverge(cat, opts) {
+    opts = opts || {};
+    const st = cadStore(cat);
+    const eng = opts.eng || (typeof window !== 'undefined' && window.IMPORTAR ? window.IMPORTAR.eng : null);
+    const contrib = (eng && eng.snapshots) ? eng.snapshots.filter(s => s.metric_type === 'contrib_produto') : [];
+    const camposExtras = (st.imports.length ? st.imports[st.imports.length - 1].campos : []).filter(c => !c.campoNormalizado)
+      .map(c => ({ coluna: c.coluna, exemplo: c.exemplo, tipo: c.tipo, status: c.status, aba: 'Outros' }));
+    const criados = { produtos: 0, anuncios: 0, variacoes: 0, atualizados: 0 };
+    for (const L of st.listings.filter(l => !l.arquivado)) {
+      const master = st.masters.find(m => m.key === L.masterKey) || {};
+      const vars = st.variacoes.filter(v => v.listingKey === L.key && !v.arquivada);
+      const precos = vars.map(v => v.preco).filter(x => x != null);
+      const precoBase = precos.length ? Math.min(...precos) : null;
+      const estoque = vars.reduce((a, v) => a + (v.estoque || 0), 0);
+      const v0 = vars[0] || {}; const g0 = v0.logistica || {}; const f0 = v0.fiscal || {};
+      /* Produto Master interno (verdade interna) — id determinístico por masterKey */
+      const pid = 'cadp' + hash(L.masterKey).toString(16);
+      let p = cat.products.find(x => x.id === pid);
+      if (!p) {
+        p = { id: pid, nome: master.nome || L.titulo, sku: master.skuPai || null, categoria: L.categoria || '—',
+          precoBase, custo: null, estoque, atualizadoEm: L.atualizadoEm, origem: 'DADO IMPORTADO VIA PLANILHA',
+          fonte: 'PLANILHA_SHOPEE', importado: true, companyId: L.companyId, tipo: 'IMPORTADO', pendencias: [], lojas: {},
+          mkt: { shopee: { status: STATUS_INTERNO[L.statusReportado] || 'EM_REVISAO', preco: precoBase } },
+          master: { marca: master.marca || null, material: master.material || null, modelo: master.modelo || null,
+            ncm: f0.ncm || null, ean: v0.ean || null, pesoEmbaladoKg: g0.pesoEmbaladoKg || v0.pesoKg || null,
+            descricao: master.descricao || null, cor: null, garantia: null, origemFiscal: f0.origem || null } };
+        p.variacoes = vars.map((v, i) => ({ id: p.id + '-v' + (i + 1), nome: v.nome || 'única',
+          tipo: v.atributoNome || 'variação', sku: v.sku, codigoBarras: v.ean || null, preco: v.preco, precoPromo: v.precoPromo,
+          estoque: v.estoque, vendidos: 0, pedidosPagos: 0, ordem: i, status: /Ativo/.test(v.statusReportado) ? 'ATIVA' : 'PAUSADA',
+          arquivada: null, skuPai: master.skuPai, pesoKg: v.pesoKg, logistica: v.logistica, fiscal: v.fiscal, cadVarId: v.id }));
+        cat.products.push(p); criados.produtos++;
+      } else {
+        p.precoBase = precoBase; p.estoque = estoque; p.atualizadoEm = L.atualizadoEm;
+        p.variacoes = vars.map((v, i) => ({ id: p.id + '-v' + (i + 1), nome: v.nome || 'única', tipo: v.atributoNome || 'variação',
+          sku: v.sku, codigoBarras: v.ean || null, preco: v.preco, precoPromo: v.precoPromo, estoque: v.estoque, vendidos: 0,
+          pedidosPagos: 0, ordem: i, status: /Ativo/.test(v.statusReportado) ? 'ATIVA' : 'PAUSADA', arquivada: null,
+          skuPai: master.skuPai, pesoKg: v.pesoKg, logistica: v.logistica, fiscal: v.fiscal, cadVarId: v.id }));
+      }
+      /* performance real só quando item_id casa (nunca inventa) */
+      const cp = L.itemIdExterno && contrib.find(s => String(s.item_id) === String(L.itemIdExterno));
+      const perf = cp && cp.metricas ? { fonte: 'contribuição por produto (importada)', periodo: { ini: cp.periodo_ini, fim: cp.periodo_fim },
+        granularidade: 'PERIOD_METRIC', cobertura: 'período importado', confianca: 'alta — item_id igual',
+        vendidosTotal: cp.metricas.orders || 0, vendidos7d: null, vendidos30d: null, vendidos90d: cp.metricas.orders || 0,
+        faturamento: round2(cp.metricas.sales || 0), pedidosPagos: cp.metricas.orders || 0, pedidosCriados: cp.metricas.orders || 0,
+        naoPagos: 0, cancelamentos: 0, devolucoes: 0, impressoes: cp.metricas.impressions || 0, cliques: cp.metricas.clicks || 0,
+        visitas: cp.metricas.clicks || 0, carrinhos: null } : null;
+      const overrides = { marca: master.marca, material: master.material, modelo: master.modelo, categoria: L.categoria,
+        descricao: master.descricao, ncm: f0.ncm, origemFiscal: f0.origem, ean: v0.ean, pesoEmbaladoKg: g0.pesoEmbaladoKg || v0.pesoKg,
+        alturaCm: g0.alturaCm, larguraCm: g0.larguraCm, comprimentoCm: g0.comprimentoCm, prazoPostagem: g0.prazoManuseio,
+        preco: precoBase, statusInterno: L.statusReportado };
+      Object.keys(overrides).forEach(k => overrides[k] == null && delete overrides[k]);
+      let listing = cat.listings.find(x => x.id === L.id);
+      if (!listing) {
+        listing = { id: L.id, produtoId: p.id, marketplace: 'shopee', mktNome: MKT_NOME.shopee, lojaId: null, contaId: L.contaId,
+          itemIdExterno: L.itemIdExterno, status: STATUS_INTERNO[L.statusReportado] || 'EM_REVISAO',
+          motivo: L.statusReportado === 'Desconhecido' ? 'status reportado desconhecido na planilha' : null, interno: false,
+          titulo: L.titulo, preco: precoBase, precoPromo: (vars.find(v => v.precoPromo != null) || {}).precoPromo || null, estoque,
+          skuPai: master.skuPai, ean: v0.ean || null, criadoEm: L.importadoEm, atualizadoEm: L.atualizadoEm,
+          overrides, correcoes: L.correcoes || [], versoes: L.versoes || [], arquivado: null, excluidoDaAnalise: null,
+          fonte: 'PLANILHA_SHOPEE', origem: 'DADO IMPORTADO VIA PLANILHA', situacao: L.situacao,
+          cadastroImportado: true, cadastroKey: L.key,
+          cadastroRef: { arquivo: L.arquivo, aba: L.aba, importadoEm: L.importadoEm, statusReportado: L.statusReportado },
+          midiasReferenciadas: L.midias || [], camposExtras, perf };
+        cat.listings.push(listing); criados.anuncios++; criados.variacoes += vars.length;
+        /* mídia referenciada na biblioteca do catálogo (com usos), nunca marcada como baixada */
+        (L.midias || []).forEach((md, i) => {
+          const id = 'mdref' + hash(L.key + md.url).toString(16);
+          if (!cat.media.some(x => x.id === id)) cat.media.push({ id, arquivo: md.url || md.arquivo || ('midia-' + i), tipo: md.tipo,
+            origem: md.status === 'MÍDIA REFERENCIADA' ? 'MÍDIA REFERENCIADA (Shopee)' : 'UPLOAD MANUAL', status: md.status,
+            referenciada: md.status === 'MÍDIA REFERENCIADA', pendenteValidacao: !!md.pendenteValidacao, dataUrl: null,
+            em: L.importadoEm, usuario: 'importação', produtoId: p.id, dims: null, pesoKb: null,
+            usos: [{ listingId: L.id, posicao: i, principal: !!md.principal }] });
+        });
+      } else {
+        Object.assign(listing, { titulo: L.titulo, preco: precoBase, estoque, overrides, perf,
+          midiasReferenciadas: L.midias || [], camposExtras, atualizadoEm: L.atualizadoEm,
+          status: STATUS_INTERNO[L.statusReportado] || 'EM_REVISAO', cadastroRef: { arquivo: L.arquivo, aba: L.aba, importadoEm: L.importadoEm, statusReportado: L.statusReportado } });
+        criados.atualizados++;
+      }
+      L.convergedListingId = L.id; L.convergedProdutoId = p.id;
+    }
+    return criados;
+  }
+
   /* Saúde e Pendências do cadastro — cada fila abre a aba certa do editor */
+  /* cada fila abre a aba certa do EDITOR COMPLETO (10.E.3.1) */
   const CAD_FILAS = [
-    ['sem_sku', 'Variações sem SKU', 'Lista de Variações'],
+    ['sem_sku', 'Variações sem SKU', 'Informações de Vendas'],
     ['sem_item_id', 'Anúncios sem item_id', 'Informação Básica'],
     ['sem_peso', 'Variações sem peso', 'Envio e Logística'],
     ['sem_dimensao', 'Anúncios sem dimensão', 'Envio e Logística'],
     ['sem_marca', 'Anúncios sem marca', 'Informação Básica'],
-    ['sem_ean', 'Variações sem EAN/GTIN', 'Especificações'],
-    ['sem_categoria', 'Anúncios sem categoria', 'Categoria'],
-    ['variacao_incompleta', 'Variações incompletas', 'Lista de Variações'],
+    ['sem_ean', 'Variações sem EAN/GTIN', 'Informações Fiscais'],
+    ['sem_categoria', 'Anúncios sem categoria', 'Informação Básica'],
+    ['sem_descricao', 'Anúncios sem descrição', 'Descrição'],
+    ['sem_atributo', 'Anúncios sem atributo obrigatório', 'Especificações'],
+    ['variacao_incompleta', 'Variações incompletas', 'Variações'],
     ['sem_foto', 'Anúncios sem foto principal', 'Fotos e Vídeos'],
     ['midia_referenciada', 'Anúncios com mídia apenas referenciada', 'Fotos e Vídeos'],
     ['sem_estoque', 'Variações sem estoque informado', 'Informações de Vendas'],
     ['status_desconhecido', 'Anúncios sem status reconhecido', 'Informação Básica'],
     ['sku_duplicado', 'SKU duplicado', 'Lista de Variações'],
+    ['sem_custo', 'Anúncios sem custo cadastrado', 'Economia do Produto'],
+    ['sem_perf_vinculo', 'Anúncios sem vínculo de performance', 'Performance Comercial'],
     ['sem_master', 'Anúncios sem Product Master', 'Comparar Marketplaces'],
     ['variacao_sem_vinculo', 'Variações sem vínculo confirmado', 'Lista de Variações'],
   ];
@@ -967,12 +1065,16 @@
       sem_marca: lst.filter(l => { const m = st.masters.find(x => x.key === l.masterKey); return !m || !m.marca; }).map(l => l.id),
       sem_ean: vr.filter(v => !v.ean).map(v => v.id),
       sem_categoria: lst.filter(l => !l.categoria).map(l => l.id),
+      sem_descricao: lst.filter(l => !l.descricao).map(l => l.id),
+      sem_atributo: lst.filter(l => { const m = st.masters.find(x => x.key === l.masterKey); return !m || !m.material; }).map(l => l.id),
       variacao_incompleta: vr.filter(v => v.preco == null || v.estoque == null).map(v => v.id),
       sem_foto: lst.filter(l => !temFoto(l)).map(l => l.id),
       midia_referenciada: lst.filter(l => l.midias.length && l.midias.every(m => m.status === 'MÍDIA REFERENCIADA')).map(l => l.id),
       sem_estoque: vr.filter(v => v.estoque == null).map(v => v.id),
       status_desconhecido: lst.filter(l => l.statusReportado === 'Desconhecido').map(l => l.id),
       sku_duplicado: vr.filter(v => v.conflitoSku).map(v => v.id),
+      sem_custo: lst.map(l => l.id), /* cadastro importado nunca traz custo — Economia declara cobertura insuficiente */
+      sem_perf_vinculo: lst.filter(l => !l.itemIdExterno).map(l => l.id),
       sem_master: lst.filter(l => !masterConfirmado(l)).map(l => l.id),
       variacao_sem_vinculo: vr.filter(v => { const l = st.listings.find(x => x.key === v.listingKey); return !l || !masterConfirmado(l); }).map(v => v.id),
     };
@@ -1109,5 +1211,7 @@
     /* 10.E.2.4 — importação real de cadastro Shopee */
     CADASTRO_SCHEMA, ENTIDADE_NOME, CAD_FILAS, statusReportado, cadastroDetect, cadastroStage, cadastroApply,
     saudeCadastro, cadastroRelacoes, cadastroOverview, cadListings, cadVariacoesDe, cadMasterDe, cadCamposRecebidos,
-    cadImports, cadCorrigirCampo, cadDecidirVinculo, cadAddMediaManual, cadArquivar, cadMapearCampo, cadastroFixture };
+    cadImports, cadCorrigirCampo, cadDecidirVinculo, cadAddMediaManual, cadArquivar, cadMapearCampo, cadastroFixture,
+    /* 10.E.3.1 — convergência para o editor completo */
+    cadastroConverge, STATUS_INTERNO };
 }));

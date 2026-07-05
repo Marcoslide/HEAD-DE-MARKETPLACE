@@ -61,7 +61,14 @@
   }
 
   const STATUS_TABS = { 'Ativos': 'Ativos', 'Pausados': 'Pausados', 'Não Publicados': 'Não publicados', 'Em Revisão': 'Em revisão', 'Com Erro ou Bloqueio': 'Bloqueados' };
+  /* 10.E.3.1 — garante que todo anúncio importado é listing/produto de 1ª classe (abre no editor completo) */
+  function ensureConverged() {
+    const cat = CAT.eng();
+    if (cat.cadastro && cat.cadastro.listings && cat.cadastro.listings.length)
+      V8CAT.cadastroConverge(cat, { eng: window.IMPORTAR ? IMPORTAR.eng : null });
+  }
   function body() {
+    ensureConverged();
     const el = UI.$('#catBody');
     if (CAT.sub === 'Visão Geral') el.innerHTML = visaoGeral();
     else if (CAT.sub === 'Produtos Master') el.innerHTML = produtos();
@@ -259,10 +266,11 @@
             <td><span class="st ${/Ativo/.test(l.statusReportado) ? 'pos' : /Desconhecido/.test(l.statusReportado) ? 'warn' : ''} plain">${UI.esc(l.statusReportado)}</span></td>
             <td>${p.vendas != null ? brl(p.vendas) : `<span class="src">${UI.esc(p.vinculoPerf || 'sem vínculo')}</span>`}</td>
             <td>${md ? (md.status === 'MÍDIA REFERENCIADA' ? '<span class="st warn plain">mídia ref.</span>' : '<span class="st pos plain">ok</span>') : '<span class="st warn plain">sem foto</span>'}</td>
-            <td><span class="rowact"><button class="btn sm" data-act="vercad" data-id="${l.id}">ver cadastro</button></span></td></tr>`;
+            <td><span class="rowact"><button class="btn sm primary" data-act="editcad" data-id="${l.id}">Editar anúncio</button>
+              <button class="btn sm ghost" data-act="vercad" data-id="${l.id}">resumo</button></span></td></tr>`;
         }).join('')}
       </tbody></table></div>
-      <p class="src" style="margin-top:6px">status <b>reportado por planilha</b> (nunca ao vivo) · mídia por URL é <b>referenciada</b>, não validada · vínculo de performance por item_id, incerto vai para revisão. Nada é enviado à Shopee.</p>
+      <p class="src" style="margin-top:6px"><b>Editar anúncio</b> abre o mesmo editor completo de 14 abas dos demais anúncios. Status <b>reportado por planilha</b> (nunca ao vivo) · mídia por URL é <b>referenciada</b>, não validada · performance por item_id, incerto vai para revisão. Nada é enviado à Shopee.</p>
     </div>`;
   }
   const CAD_ABAS = ['Informação Básica', 'Categoria', 'Descrição', 'Especificações', 'Informações de Vendas',
@@ -643,7 +651,8 @@
       UI.$('#cadApply').onclick = () => {
         const r = V8CAT.cadastroApply(CAT.eng(), st, { papel: pp, usuario: D.meta.usuario });
         if (r.blocked) return UI.toast(r.reason, 'err');
-        UI.toast(`Cadastro aplicado — ${r.impacto.mastersCriados} master, ${r.impacto.listingsVinculados} anúncio, ${r.impacto.variacoesCriadas} variação. Nada enviado à Shopee.`, 'ok');
+        V8CAT.cadastroConverge(CAT.eng(), { eng: window.IMPORTAR ? IMPORTAR.eng : null }); /* abre no editor completo */
+        UI.toast(`Cadastro aplicado — ${r.impacto.mastersCriados} master, ${r.impacto.listingsVinculados} anúncio, ${r.impacto.variacoesCriadas} variação. Abra em Anúncios → Editar anúncio (editor completo). Nada enviado à Shopee.`, 'ok');
         UI.closeModal(); CAT.sub = 'Importar Cadastro'; render(CAT.sub);
       };
     }
@@ -878,7 +887,11 @@
         <dt>Status de publicação</dt><dd>${UI.stBadge(l.status)}${l.motivo ? ' · ' + UI.esc(l.motivo) : ''}</dd>
         <dt>Status interno</dt><dd>${l.interno ? 'RASCUNHO INTERNO' : 'projeção de anúncio do canal'}</dd>
         <dt>ID externo</dt><dd>${l.itemIdExterno ? UI.esc(l.itemIdExterno) + ' · <span class="src">link externo disponível quando houver integração oficial</span>' : '<span class="src">sem ID externo — anúncio ainda não publicado</span>'}</dd>
-      </dl>${salvarBar}`;
+        ${l.cadastroRef ? `<dt>Fonte</dt><dd>Cadastro Shopee importado · <b>${UI.esc(l.cadastroRef.arquivo)}</b></dd>
+        <dt>Aba · importado em</dt><dd>${UI.esc(l.cadastroRef.aba)} · ${UI.esc(l.cadastroRef.importadoEm)}</dd>
+        <dt>Situação</dt><dd><span class="st warn plain">${UI.esc(l.situacao || 'STATUS REPORTADO POR PLANILHA')}</span> · status reportado: ${UI.esc(l.cadastroRef.statusReportado)}</dd>` : ''}
+      </dl>
+      ${l.camposExtras && l.camposExtras.length ? `<div class="callout" style="margin-top:10px">Campos extras recebidos: <b>${l.camposExtras.length}</b> — nada se perdeu. <button class="btn sm ghost" data-act="eaba" data-aba="Outros">Abrir em Outros</button></div>` : ''}${salvarBar}`;
     else if (A === 'Especificações') corpo = `
       ${einp('marca', 'Marca', V('marca') ?? p.master.marca, { ob: true })}
       ${einp('material', 'Material', V('material') ?? p.master.material, { ob: true })}
@@ -989,6 +1002,10 @@
         <dt>Criado em · atualizado</dt><dd>${l.criadoEm} · ${l.atualizadoEm}</dd>
         <dt>Fonte</dt><dd>${UI.esc(l.fonte)} · ${UI.esc(l.origem)}</dd>
       </dl>
+      ${l.camposExtras && l.camposExtras.length ? `<div class="sect-h"><span class="h2">Campos extras recebidos na importação</span><span class="src">${l.camposExtras.length} campo(s) preservado(s) — nada descartado</span></div>
+        <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Coluna original</th><th class="nosort">Exemplo</th><th class="nosort">Tipo</th><th class="nosort">Status</th><th class="nosort">Ação</th></tr></thead><tbody>
+        ${l.camposExtras.map(c => `<tr><td class="tmain">${UI.esc(c.coluna)}</td><td><span class="src">${UI.esc(String(c.exemplo ?? '—').slice(0, 24))}</span></td><td><span class="kbd">${UI.esc(c.tipo)}</span></td><td><span class="st warn plain">AGUARDANDO MAPEAMENTO</span></td><td><span class="rowact"><button class="btn sm ghost" data-act="cadmap" data-col="${UI.esc(c.coluna)}">mapear campo</button></span></td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="src" style="margin-top:8px">nenhum campo extra pendente — todas as colunas caíram em abas conhecidas.</p>'}
       <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
         <button class="btn sm" data-act="ecorrigir" data-lid="${l.id}">Corrigir campo importado (com motivo)</button>
         <button class="btn sm ghost" data-act="earquivar" data-lid="${l.id}">Arquivar anúncio</button>
@@ -996,7 +1013,7 @@
     else if (A === 'Performance Comercial') {
       const pc = V8CAT.perfComercial(cat, l);
       const rk = V8CAT.rankingDe(cat, l.id);
-      corpo = pc.semDados ? `<div class="empty"><b>${UI.esc(D.STATUS.SEM_DADOS)}</b>${UI.esc(pc.nota)}</div>` : `
+      corpo = pc.semDados ? `<div class="empty"><b>Performance ainda não vinculada a este anúncio</b>${l.cadastroImportado ? 'Motivo: não há correspondência confirmada por item_id, SKU ou vínculo humano com Pedidos, Métricas Principais, Performance de Produtos ou Tráfego. Nenhum número demo é exibido.' : UI.esc(pc.nota)}</div>` : `
       <p class="src">fonte: ${UI.esc(pc.fonte)} · período: ${pc.periodo.ini} a ${pc.periodo.fim} · ${UI.esc(pc.granularidade)} · cobertura: ${UI.esc(pc.cobertura)} · confiança: ${UI.esc(pc.confianca)}</p>
       <div class="mesa-grid" style="margin-top:10px">
         ${[['Vendidos total', pc.vendidosTotal], ['Vendidos 7d', pc.vendidos7d], ['Vendidos 30d', pc.vendidos30d], ['Vendidos 90d', pc.vendidos90d],
@@ -1331,13 +1348,16 @@
     /* 10.E.2.4 — cadastro Shopee (dentro do Catálogo) */
     else if (act === 'upcatshopee') cadUpload(false);
     else if (act === 'upcatdemo') cadUpload(true);
-    else if (act === 'vercad') openCadastro(b.dataset.id);
+    /* 10.E.3.1 — Editar anúncio importado abre o EDITOR COMPLETO de 14 abas (não modal) */
+    else if (act === 'editcad') { ensureConverged(); CAT.openEditor(b.dataset.id); }
+    else if (act === 'vercad') openCadastro(b.dataset.id); /* resumo rápido (leitura), não é o editor principal */
     else if (act === 'cadaba') { CAT.cadAba = b.dataset.aba; openCadastro(b.dataset.id, b.dataset.aba); }
     else if (act === 'cadaba-fila') {
+      ensureConverged();
       const cat = CAT.eng();
-      const l = V8CAT.cadListings(cat).find(x => x.id === b.dataset.id) ||
-        (V8CAT.cadVariacoesDe && (function () { const v = cat.cadastro.variacoes.find(x => x.id === b.dataset.id); return v ? V8CAT.cadListings(cat).find(x => x.key === v.listingKey) : null; })());
-      if (l) openCadastro(l.id, b.dataset.aba); else UI.toast('registro do cadastro não encontrado', 'err');
+      let lid = b.dataset.id;
+      if (!V8CAT.byId(cat, lid)) { const v = cat.cadastro.variacoes.find(x => x.id === lid); const l = v ? V8CAT.cadListings(cat).find(x => x.key === v.listingKey) : null; lid = l ? l.id : null; }
+      if (lid) CAT.openEditor(lid, b.dataset.aba); else UI.toast('registro do cadastro não encontrado', 'err');
     }
     else if (act === 'cadmidia') {
       const nome = prompt('Nome do arquivo de mídia (foto/vídeo) do computador:', 'foto-produto.jpg');
