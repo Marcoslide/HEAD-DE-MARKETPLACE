@@ -363,3 +363,57 @@ das subáreas da Central de Inteligência, de Fontes e Histórico e da Ativaçã
   itens do contrato); suíte completa 491 verdes; validação headless com
   upload real (`setInputFiles` com XLSX construído), 13 auto-testes,
   14 áreas × 2 temas × 4 larguras, zero erros de console.
+
+## Sprint 10.E.3 — Catalog & Listing Operating Center
+
+**Princípio central**: `PRODUCT MASTER` (verdade interna: SKU, variações,
+mídia oficial, custo, dados técnicos) × `LISTING` (projeção operacional em
+marketplace + conta + loja). Editar anúncio Shopee nunca sobrescreve ML/
+TikTok/Magalu; editar o master nunca apaga customização de canal; duplicar/
+adaptar cria cópia interna — o original permanece intacto. Tudo
+`READ_ONLY · INTERNAL_ONLY · DRAFT_ONLY` até integração oficial + aprovação.
+
+- **Motor** (`catalog-engine.js` · V8CAT): 48 listings derivados dos 12
+  produtos master, com perf rotulada (fonte/período/granularidade/cobertura/
+  confiança), tags comerciais, filas de saúde, comparações, edição
+  versionada, correção `MANUAL_CORRECTION`, variações com conflito de SKU
+  explícito, mídia com usos por anúncio, duplicar/adaptar com relatório
+  (levado/adaptado/pendente/incompatível/regra/fonte/confiança), edição em
+  massa (prévia → job auditável → rollback) e 12 permissões `CATALOG_*`
+  com enforcement no motor.
+- **Navegação nova (21 subáreas)**: Visão Geral (abre primeiro; 23
+  indicadores com fonte/período/cobertura/qualidade + bloco de fontes),
+  Produtos Master, Anúncios (tabela densa configurável: SKU, IDs, EAN,
+  preços, vendidos 7/30/90d, faturamento, CTR, conversão, margem, posição,
+  fonte), status (Ativos/Pausados/Não Publicados/Em Revisão/Com Erro),
+  Rascunhos, Variações, Fotos e Vídeos (biblioteca), Atributos, SKU e
+  Vínculos, Anúncio Master, Importar Cadastro, Edição em Massa, Duplicar e
+  Adaptar, Saúde e Pendências (cada fila abre no campo certo), Comparar
+  Marketplaces, Histórico e Versões, Fontes e Arquivos.
+- **Busca e filtros**: nome, SKU pai/variação, ID do anúncio, ID externo,
+  EAN/GTIN, marca, categoria; ~35 filtros rápidos (sem venda, mais vendidos
+  por período, crescimento/queda, estoque, mídia, atributos, posição 1–10/
+  11–50, ganhou/perdeu posição, CTR/conversão/margem/devolução, conflito de
+  SKU, sem master).
+- **Ranking honesto**: leitura observada com posição, palavra-chave,
+  marketplace, conta, escopo, fonte, data/hora, período, tipo, confiança e
+  histórico (`#4 → #7 → #11`); sem esses campos o motor lança erro e a UI
+  mostra "SEM DADOS — sem posição inventada". Queda vira hipótese, nunca
+  causa confirmada.
+- **Editor completo** (13 abas na linguagem da Shopee): Informação Básica,
+  Especificações (estados obrigatório/pendente/importado/corrigido/
+  divergente), Descrição, Informações de Vendas (comissão, imposto, margem
+  bruta/líquida com fórmula, preço mínimo seguro, alertas), Variações,
+  Lista de Variações, Fotos e Vídeos (upload REAL do computador via
+  FileReader; principal/reordenar/remover só daquele anúncio), Fiscais,
+  Envio e Logística (cruza estoque Full importado), Outros, Performance
+  Comercial (métrica com fonte/período/fórmula; conversão sempre com
+  denominador), Comparar Marketplaces (master × canais com divergência e
+  ação), Histórico e Auditoria.
+- **Importar Cadastro** vive dentro do Catálogo (template
+  Shopee_mass_upload_2026-07-05_basic_template.xlsx como referência),
+  usando o fluxo real de upload com staging e confirmação humana.
+- **Testes**: `mos/test/ui-v8-catalog.test.js` (16 blocos cobrindo os 43
+  itens do contrato); suíte completa 507 verdes; validação headless com
+  upload real de foto (filechooser), 13 auto-testes, 14 áreas × 2 temas ×
+  4 larguras, zero erros de console.

@@ -309,7 +309,7 @@ test('25 · contratos anteriores continuam válidos (API do v8 intacta)', () => 
     'publicationMatrix', 'assertRankingLegit', 'disabledReason', 'saveView', 'loadView',
     'toggleSelect', 'selectAllFiltered', 'badgeCounts', 'margem', 'readiness'])
     assert.equal(typeof V8LOGIC[fn], 'function', 'API preservada: ' + fn);
-  /* subáreas do Catálogo intactas */
-  for (const s of ['Visão Geral', 'Produtos', 'Anúncios', 'Rascunhos e Revisões', 'Pendências', 'Promoções Relacionadas'])
+  /* subáreas do Catálogo (contrato 10.E.3 — Catalog & Listing Operating Center) */
+  for (const s of ['Visão Geral', 'Produtos Master', 'Anúncios', 'Rascunhos', 'Saúde e Pendências', 'Comparar Marketplaces'])
     assert.ok(catJs.includes(`'${s}'`), `catálogo mantém ${s}`);
 });

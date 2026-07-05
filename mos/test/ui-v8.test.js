@@ -52,10 +52,14 @@ test('03 · menu 10.E.2: Pedidos + Central de Inteligência; Importar vira Fonte
   assert.match(appJs, /data-ref="importar:"/, 'botão global de Fontes e Histórico na barra');
 });
 
-test('04 · subáreas do Catálogo completas', () => {
+test('04 · subáreas do Catálogo (Catalog & Listing Operating Center 10.E.3)', () => {
   const cat = read('catalogo.js');
-  for (const s of ['Visão Geral', 'Produtos', 'Anúncios', 'Rascunhos e Revisões', 'Pendências', 'Promoções Relacionadas'])
+  for (const s of ['Visão Geral', 'Produtos Master', 'Anúncios', 'Rascunhos', 'Ativos', 'Pausados', 'Não Publicados',
+    'Em Revisão', 'Com Erro ou Bloqueio', 'Variações', 'Fotos e Vídeos', 'Atributos e Especificações',
+    'SKU e Vínculos', 'Anúncio Master', 'Importar Cadastro', 'Edição em Massa', 'Duplicar e Adaptar',
+    'Saúde e Pendências', 'Comparar Marketplaces', 'Histórico e Versões', 'Fontes e Arquivos'])
     assert.ok(cat.includes(`'${s}'`), `subárea ${s}`);
+  assert.match(cat, /sub: 'Visão Geral'/, 'Catálogo abre em Visão Geral');
 });
 
 /* ---------- busca e filtros ---------- */
