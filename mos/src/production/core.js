@@ -141,6 +141,28 @@ const MIGRATIONS = [
     down(db) { db.exec('DROP TABLE IF EXISTS locks; DROP TABLE IF EXISTS master_links;'); },
     validate(db) { try { db.prepare('SELECT count(*) c FROM locks').get(); return true; } catch (e) { return false; } },
   },
+  {
+    /* 10.E.2.5.3 — colunas CONSULTÁVEIS na base real: identidade (item/variação/SKU)
+       + tempo (occurred_at/period/snapshot) + escopo desnormalizado, para as consultas
+       da Central por empresa+marketplace+conta+período sem varrer o JSON bruto. */
+    id: '004-intelligence-vertical',
+    up(db) {
+      for (const col of ['metric_type TEXT', 'marketplace TEXT', 'company_id TEXT', 'account_id TEXT',
+        'external_listing_id TEXT', 'external_variation_id TEXT', 'seller_sku TEXT', 'master_sku TEXT',
+        'occurred_at TEXT', 'snapshot_at TEXT', 'period_start TEXT', 'period_end TEXT',
+        'temporal_confidence TEXT', 'granularidade_temporal TEXT', 'imported_at TEXT']) {
+        try { db.exec('ALTER TABLE metric_snapshots ADD COLUMN ' + col + ';'); }
+        catch (e) { if (!/already exists|duplicate column/i.test(e.message)) throw e; }
+      }
+      db.exec(`CREATE INDEX IF NOT EXISTS idx_snap_query ON metric_snapshots(company_id, marketplace, account_id, metric_type);
+        CREATE INDEX IF NOT EXISTS idx_snap_ids ON metric_snapshots(external_listing_id, external_variation_id, seller_sku);
+        CREATE INDEX IF NOT EXISTS idx_snap_period ON metric_snapshots(period_start, period_end, occurred_at);`);
+    },
+    down(db) { /* colunas adicionais ficam — remover derrubaria dados; índices são descartáveis */
+      for (const idx of ['idx_snap_query', 'idx_snap_ids', 'idx_snap_period']) { try { db.exec('DROP INDEX IF EXISTS ' + idx); } catch (e) {} }
+    },
+    validate(db) { try { db.prepare('SELECT metric_type FROM metric_snapshots LIMIT 1').all(); return true; } catch (e) { return false; } },
+  },
 ];
 
 function openDb(cfg) {

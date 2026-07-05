@@ -75,6 +75,8 @@ function createQueue(db, audit) {
 /* ---------------- import persistente (dedup sobrevive a restart) ---------------- */
 function createImportService(db, audit) {
   const perfilDe = det => det.perfil;
+  /* 10.E.2.5.3 — metric_type consultável a partir do perfil detectado */
+  const mtDe = batch => (V8IMP.PROFILES[batch.perfil] || {}).destino || null;
   return {
     /* upload já feito → cria lote e enfileira parse */
     createBatch({ fileId, escopo, usuario }) {
@@ -93,7 +95,9 @@ function createImportService(db, audit) {
         abas: [{ nome: 'sheet1', headers: parsed.headers, rows: parsed.rows }] };
       const det = V8IMP.detect(file);
       const fp = V8IMP.fingerprintFile(file);
-      const fpKey = ['imp', fp.file_hash, fp.sheet_signature].join('|');
+      /* 10.E.2.5.3 — fingerprint por ESCOPO: o mesmo arquivo em outra empresa/conta
+         é dado legítimo diferente; só bloqueia reimport idêntico no MESMO escopo. */
+      const fpKey = ['imp', escopo.companyId || '-', escopo.accountId || '-', fp.file_hash, fp.sheet_signature].join('|');
       const dup = db.prepare('SELECT batch_id FROM source_fingerprints WHERE chave = ?').get(fpKey);
       if (dup) { /* mesmo arquivo — bloqueado MESMO após restart, pois vive no banco */
         db.prepare('UPDATE import_batches SET estado = ?, resultado = ? WHERE id = ?')
@@ -144,21 +148,55 @@ function createImportService(db, audit) {
       const rows = db.prepare('SELECT * FROM import_rows WHERE batch_id = ?').all(batchId);
       let criados = 0, atualizados = 0, duplicadosEvitados = 0, ordem = 0;
       const logIns = db.prepare('INSERT INTO apply_log(batch_id,natural_key,valor_anterior,valor_novo,autor,em,ordem) VALUES(?,?,?,?,?,?,?)');
+      /* 10.E.2.5.3 — deriva colunas CONSULTÁVEIS (identidade + tempo) a partir do raw,
+         escopo e período do lote. Nada de data inventada: sem data de linha, guarda período. */
+      const deriva = r => {
+        const raw = JSON.parse(r.raw);
+        const data = raw['Data'] || raw['Data de criação do pedido'] || raw['Data de Criação do Pedido'] || null;
+        const estoque = r.granularidade === 'STATE_SNAPSHOT';
+        const gt = estoque ? 'SNAPSHOT'
+          : data ? 'DAILY'
+          : (batch.periodo_ini && batch.periodo_fim) ? 'RANGE_AGGREGATE' : 'UNKNOWN';
+        return {
+          metric_type: batch.perfil ? mtDe(batch) : null,
+          marketplace: escopo.marketplace || null, company_id: escopo.companyId || null, account_id: escopo.accountId || null,
+          external_listing_id: raw['ID do Item'] != null ? String(raw['ID do Item']) : null,
+          external_variation_id: raw['ID da Variação'] != null && raw['ID da Variação'] !== '' ? String(raw['ID da Variação']) : null,
+          seller_sku: raw['SKU da Variação'] || raw['Seller SKU ID'] || raw['Número de referência SKU'] || null,
+          master_sku: raw['SKU Principal'] || raw['SKU Pai'] || null,
+          occurred_at: data, snapshot_at: estoque ? (batch.periodo_fim || null) : null,
+          period_start: batch.periodo_ini || null, period_end: batch.periodo_fim || null,
+          temporal_confidence: data || estoque ? 'CONFIRMADA' : (batch.periodo_ini && batch.periodo_fim) ? 'PARCIAL' : 'AUSENTE',
+          granularidade_temporal: gt, imported_at: now(),
+        };
+      };
       for (const r of rows) {
+        const d = deriva(r);
         const existing = db.prepare('SELECT * FROM metric_snapshots WHERE natural_key = ?').get(r.natural_key);
         if (existing) {
           if (existing.fingerprint === r.fingerprint) { duplicadosEvitados++; continue; }
           logIns.run(batchId, r.natural_key, existing.raw, r.raw, usuario, now(), ++ordem);
-          db.prepare('UPDATE metric_snapshots SET raw = ?, batch_id = ?, fingerprint = ?, atualizado_em = ? WHERE natural_key = ?')
-            .run(r.raw, batchId, r.fingerprint, now(), r.natural_key);
+          db.prepare(`UPDATE metric_snapshots SET raw = ?, batch_id = ?, fingerprint = ?, atualizado_em = ?,
+            external_listing_id = ?, external_variation_id = ?, seller_sku = ?, master_sku = ?, occurred_at = ?,
+            snapshot_at = ?, period_start = ?, period_end = ?, temporal_confidence = ?, granularidade_temporal = ?, imported_at = ?
+            WHERE natural_key = ?`)
+            .run(r.raw, batchId, r.fingerprint, now(), d.external_listing_id, d.external_variation_id, d.seller_sku,
+              d.master_sku, d.occurred_at, d.snapshot_at, d.period_start, d.period_end, d.temporal_confidence,
+              d.granularidade_temporal, d.imported_at, r.natural_key);
           atualizados++; continue;
         }
         logIns.run(batchId, r.natural_key, null, r.raw, usuario, now(), ++ordem);
         db.prepare(`INSERT INTO metric_snapshots(natural_key, entidade, granularidade, explicativa, raw, batch_id,
-          fingerprint, escopo, origem, atualizado_em) VALUES(?,?,?,?,?,?,?,?,?,?)`)
+          fingerprint, escopo, origem, atualizado_em, metric_type, marketplace, company_id, account_id,
+          external_listing_id, external_variation_id, seller_sku, master_sku, occurred_at, snapshot_at,
+          period_start, period_end, temporal_confidence, granularidade_temporal, imported_at)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(r.natural_key, 'metric_snapshot', r.granularidade,
             ['CHANNEL_ATTRIBUTION', 'PROMOTION_METRIC', 'FINANCIAL_SUMMARY'].includes(r.granularidade) ? 1 : 0,
-            r.raw, batchId, r.fingerprint, batch.escopo, 'DADO IMPORTADO VIA PLANILHA', now());
+            r.raw, batchId, r.fingerprint, batch.escopo, 'DADO IMPORTADO VIA PLANILHA', now(),
+            d.metric_type, d.marketplace, d.company_id, d.account_id, d.external_listing_id, d.external_variation_id,
+            d.seller_sku, d.master_sku, d.occurred_at, d.snapshot_at, d.period_start, d.period_end,
+            d.temporal_confidence, d.granularidade_temporal, d.imported_at);
         criados++;
       }
       const resultado = { criados, atualizados, duplicadosEvitados };
@@ -276,6 +314,74 @@ function createWorker(db, queue, imports, storage, logger) {
 }
 
 /* ---------------- health checks ---------------- */
+/* =============================================================
+   10.E.2.5.3 — CAMADA DE CONSULTA DA INTELIGÊNCIA (fonte oficial: Postgres)
+   Lê metric_snapshots por empresa + marketplace + conta + período, com
+   busca por Item ID / Variation ID / SKU. Nunca soma snapshot de estoque;
+   respeita granularidade temporal; declara cobertura honesta.
+   ============================================================= */
+function createIntelligence(db) {
+  const num = v => { const n = Number(String(v == null ? '' : v).replace(/[^\d,.-]/g, '').replace(/\.(?=\d{3}\b)/g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+  /* filtro base por escopo + período + busca por ID/SKU */
+  function query(metricType, ctx) {
+    ctx = ctx || {};
+    const cond = ['metric_type = ?']; const args = [metricType];
+    if (ctx.company_id) { cond.push('company_id = ?'); args.push(ctx.company_id); }
+    if (ctx.marketplace) { cond.push('marketplace = ?'); args.push(ctx.marketplace); }
+    if (ctx.account_id) { cond.push('account_id = ?'); args.push(ctx.account_id); }
+    if (ctx.item_id) { cond.push('external_listing_id = ?'); args.push(String(ctx.item_id)); }
+    if (ctx.variation_id) { cond.push('external_variation_id = ?'); args.push(String(ctx.variation_id)); }
+    if (ctx.sku) { cond.push('(seller_sku = ? OR master_sku = ?)'); args.push(ctx.sku, ctx.sku); }
+    const rows = db.prepare(`SELECT * FROM metric_snapshots WHERE ${cond.join(' AND ')} ORDER BY atualizado_em DESC`).all(...args);
+    /* período: DAILY/SNAPSHOT por data exata; RANGE_AGGREGATE só se o recorte contém o agregado */
+    const per = (ctx.period_start && ctx.period_end) ? { ini: ctx.period_start, fim: ctx.period_end } : null;
+    let cobertura = 'SEM_FILTRO_DE_PERIODO';
+    const dentro = rows.filter(r => {
+      if (!per) return true;
+      const gt = r.granularidade_temporal;
+      if (gt === 'DAILY' || gt === 'SNAPSHOT') { const d = (r.occurred_at || r.snapshot_at || '').slice(0, 10); return d >= per.ini && d <= per.fim; }
+      if (gt === 'RANGE_AGGREGATE') { const ps = (r.period_start || '').slice(0, 10), pe = (r.period_end || '').slice(0, 10); return ps && pe && ps >= per.ini && pe <= per.fim; }
+      return false;
+    });
+    if (per) {
+      const agregForaDoDia = rows.filter(r => r.granularidade_temporal === 'RANGE_AGGREGATE' && !dentro.includes(r));
+      cobertura = dentro.length ? 'COBERTURA_PARCIAL' : agregForaDoDia.length ? 'DADO_SEM_DATA_EXATA' : 'SEM_DADOS_NO_PERIODO';
+      if (dentro.length && rows.every(r => r.granularidade_temporal === 'DAILY')) cobertura = 'COBERTURA_COMPLETA';
+    }
+    return { rows: dentro, todos: rows.length, cobertura, periodo: per };
+  }
+  return {
+    performance(ctx) {
+      const q = query('performance_item', ctx);
+      const itens = q.rows.map(r => { const raw = JSON.parse(r.raw); return {
+        item_id: r.external_listing_id, variation_id: r.external_variation_id, sku_pai: r.master_sku, sku_variacao: r.seller_sku,
+        produto: raw['Produto'] || null, marketplace: r.marketplace, conta: r.account_id,
+        impressions: num(raw['Impressão do Produto'] || raw['Impressões de Produto']), clicks: num(raw['Cliques Por Produto']),
+        cart_units: num(raw['Unidades (Adicionar ao Carrinho)']), orders_paid: num(raw['Produto Pago']),
+        sales_paid_brl: num(raw['Vendas (Pedido Pago) (BRL)']),
+        period_start: r.period_start, period_end: r.period_end, granularidade: r.granularidade_temporal, fonte: r.origem,
+        confianca: r.temporal_confidence, batch_id: r.batch_id, atualizado_em: r.atualizado_em };
+      });
+      return { itens, total: q.todos, cobertura: q.cobertura, periodo: q.periodo, timezone: 'America/Sao_Paulo',
+        nota: q.cobertura === 'DADO_SEM_DATA_EXATA' ? 'A fonte é um agregado por período — sem quebra diária para o recorte pedido.' : 'dados reais da base (Postgres), filtrados por escopo e período.' };
+    },
+    returns(ctx) { const q = query('devolucoes', ctx); return { eventos: q.rows.map(r => JSON.parse(r.raw)), total: q.todos, cobertura: q.cobertura }; },
+    inventory(ctx) { const q = query('estoque', ctx); return { snapshots: q.rows.map(r => JSON.parse(r.raw)), total: q.todos, nota: 'estoque é snapshot — nunca somado entre datas' }; },
+    orders(ctx) { const q = query('pedidos', ctx); return { pedidos: q.rows.map(r => JSON.parse(r.raw)), total: q.todos, cobertura: q.cobertura }; },
+    traffic(ctx) { const q = query('fonte_trafego', ctx); return { fontes: q.rows.map(r => JSON.parse(r.raw)), total: q.todos }; },
+    summary(ctx) {
+      const cond = []; const args = [];
+      if (ctx.company_id) { cond.push('company_id = ?'); args.push(ctx.company_id); }
+      if (ctx.marketplace) { cond.push('marketplace = ?'); args.push(ctx.marketplace); }
+      if (ctx.account_id) { cond.push('account_id = ?'); args.push(ctx.account_id); }
+      const where = cond.length ? 'WHERE ' + cond.join(' AND ') : '';
+      const porTipo = db.prepare(`SELECT metric_type, count(*) c FROM metric_snapshots ${where} GROUP BY metric_type`).all(...args);
+      const total = db.prepare(`SELECT count(*) c FROM metric_snapshots ${where}`).get(...args).c;
+      return { total, porTipo, fonte: 'Postgres (base oficial)', timezone: 'America/Sao_Paulo' };
+    },
+  };
+}
+
 function createHealth(db, cfg, queue) {
   const get = k => { const r = db.prepare('SELECT valor FROM system_state WHERE chave = ?').get(k); return r ? r.valor : null; };
   return {
@@ -334,4 +440,4 @@ function createBackup(db, cfg) {
   };
 }
 
-module.exports = { createQueue, createImportService, createWorker, createHealth, createBackup, JOB_STATES, JOB_TYPES };
+module.exports = { createQueue, createImportService, createIntelligence, createWorker, createHealth, createBackup, JOB_STATES, JOB_TYPES };

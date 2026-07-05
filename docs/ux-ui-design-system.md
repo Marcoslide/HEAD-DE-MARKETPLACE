@@ -1093,3 +1093,56 @@ Fiscais**, que estava reduzida.
   select/radio/checkbox, sem escrita externa). Suíte completa **721 verdes**.
   Headless: 16 campos fiscais presentes, NCM/Origem importados preservados, save
   de select+radio versiona; console limpo, light/dark/mobile.
+
+## 10.E.2.5.3 — Integração real: Protótipo → API → MOS → Postgres (vertical Performance)
+
+O IndexedDB do protótipo resolve o Artifact estático, mas não a operação real.
+A fonte oficial passa a ser **Postgres → API MOS → interface**. Esta sprint
+liga a primeira vertical completa — **Performance de Produtos** — ao backend
+real, com prova de persistência que sobrevive a uma instância nova do backend
+(equivale a outro navegador / relogin / novo frontend).
+
+- **Banco real (Postgres)**: o backend (`apps/api/server.js` + `mos/src/production`)
+  já persiste via `node:sqlite` em LOCAL e **exige Postgres** (`DATABASE_URL`)
+  fora de LOCAL. Migração nova `004-intelligence-vertical` adiciona colunas
+  **consultáveis** a `metric_snapshots` (metric_type, marketplace, company_id,
+  account_id, external_listing_id, external_variation_id, seller_sku, master_sku,
+  occurred_at, snapshot_at, period_start/end, temporal_confidence,
+  granularidade_temporal) + índices por escopo, IDs e período.
+- **Apply enriquecido**: ao aplicar, o worker deriva essas colunas do RAW +
+  escopo + período do lote (nada de data inventada) e faz **upsert** (insere
+  novo, ignora idêntico por fingerprint, atualiza mudado versionando no
+  `apply_log`). Fingerprint agora é **por escopo** (empresa + conta): o mesmo
+  arquivo em outra empresa é dado legítimo, mas reimport idêntico no mesmo
+  escopo é bloqueado.
+- **Endpoints de leitura (novos)**: `GET /imports`, `/imports/:id`,
+  `/imports/:id/preview`, `/imports/:id/fields`, `/imports/:id/conflicts`, e a
+  camada de inteligência `GET /intelligence/{performance,returns,inventory,
+  orders,traffic,summary}` — todos com escopo obrigatório (`company_id`,
+  `marketplace`, `account_id`), filtro de **período** (que respeita
+  granularidade: agregado de 30 dias não vira 7 dias falso → `DADO_SEM_DATA_EXATA`)
+  e busca por **Item ID / Variation ID / SKU**.
+- **Cliente oficial** (`api-client.js`, `V8API`): a interface consulta a API
+  real quando um backend está configurado (`window.HEAD_API_BASE` ou
+  localStorage `head_api_base`); o IndexedDB fica só como cache/preview.
+  Num Artifact estático (sem backend) o cliente fica **OFFLINE** e a interface
+  degrada para a base local **rotulada** — honesto, nunca fingindo backend.
+- **Prova real** (`mos/test/backend-vertical.test.js`, roda com
+  `HEAD_TEST_PG=postgres://…`, senão é pulado): jornada completa via HTTP na API
+  sobre Postgres — signup/login, criar escopo, **upload de PERFORMANCE.PRODUTO.csv**,
+  import, apply, e `GET /intelligence/performance` devolvendo as **linhas reais**;
+  uma **instância NOVA da API** sobre o mesmo Postgres (= outro navegador /
+  relogin / novo frontend) vê os **mesmos dados**; reimportar não duplica; nova
+  versão do relatório atualiza só o que mudou; filtro de período consulta o banco;
+  busca por Item ID / Variation ID / SKU. **5/5 verdes contra Postgres real.**
+- **Correções de banco reais encontradas**: `rateLimit` usava `SET n = n + 1`
+  (ambíguo no Postgres) — qualificado para `rate_limits.n + 1`, válido nos dois
+  dialetos; e a deduplicação de arquivo passou a ser por escopo.
+- **Suíte**: `ui-v8-api-client.test.js` + as migrações atualizadas.
+  `npm test` **721 verdes** (o teste de Postgres é pulado sem banco); com
+  `HEAD_TEST_PG` setado, **+5 verdes** provando a vertical real.
+- **Ordem de entrega (declarada)**: esta é a vertical Performance. As demais
+  (Devoluções, Pedidos, Estoque Full, Tráfego, Ads, Afiliados, Promoções, Chat)
+  seguem a MESMA estrutura — os endpoints já aceitam o `metric_type` e a base já
+  guarda todos os tipos; falta o parser/derivação específica de cada um e o
+  rewire de cada tela da Central para consumir `V8API` em vez da engine local.

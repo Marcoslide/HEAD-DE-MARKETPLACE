@@ -99,7 +99,7 @@ test('03-04 · PostgreSQL real recebe migrations, status e rollback', () => {
   assert.ok(st.length >= 3 && st.every(m => m.aplicada), 'migrations aplicadas no PG');
   assert.deepEqual(core.migrate(S.db), [], 'idempotente no PG');
   const rev = core.rollbackMigration(S.db);
-  assert.equal(rev, '003-hardening');
+  assert.equal(rev, '004-intelligence-vertical');
   assert.equal(core.migrationStatus(S.db).find(m => m.id === rev).aplicada, false);
   core.migrate(S.db); /* reaplica */
   /* constraints reais: natural_key é PK e e-mail é UNIQUE no PG */

@@ -37,7 +37,7 @@ function createSecurity(db, audit, logger) {
   function rateLimit(chave, max, janelaMin) {
     const janela = new Date().toISOString().slice(0, 16 - (janelaMin >= 60 ? 3 : 0));
     db.prepare(`INSERT INTO rate_limits(chave, janela, n) VALUES(?,?,1)
-      ON CONFLICT(chave, janela) DO UPDATE SET n = n + 1`).run(chave, janela);
+      ON CONFLICT(chave, janela) DO UPDATE SET n = rate_limits.n + 1`).run(chave, janela);
     const n = db.prepare('SELECT n FROM rate_limits WHERE chave=? AND janela=?').get(chave, janela).n;
     if (n > max) {
       audit.record({ action: 'rate_limit_excedido', status: 'blocked', detalhe: chave });

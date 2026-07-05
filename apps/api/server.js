@@ -10,7 +10,7 @@ const http = require('node:http');
 const { envConfig, openDb, migrate, createLogger, createAudit, uid } = require('../../mos/src/production/core.js');
 const { createSecurity } = require('../../mos/src/production/security.js');
 const { createStorage } = require('../../mos/src/production/storage.js');
-const { createQueue, createImportService, createHealth } = require('../../mos/src/production/jobs.js');
+const { createQueue, createImportService, createIntelligence, createHealth } = require('../../mos/src/production/jobs.js');
 
 function createApi(opts) {
   const cfg = envConfig(opts && opts.env, opts && opts.baseDir);
@@ -22,6 +22,7 @@ function createApi(opts) {
   const storage = createStorage(db, cfg, audit);
   const queue = createQueue(db, audit);
   const imports = createImportService(db, audit);
+  const intel = createIntelligence(db);
   const health = createHealth(db, cfg, queue);
 
   const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
@@ -110,6 +111,48 @@ function createApi(opts) {
         if (p.startsWith('/jobs/') && req.method === 'GET') {
           const j = queue.get(p.split('/')[2]);
           return j ? done(200, j) : done(404, { erro: 'job não encontrado' });
+        }
+        /* 10.E.2.5.3 — LEITURA da base real (Postgres). Todo GET exige escopo e o valida. */
+        const ctxDe = () => ({ groupId: url.searchParams.get('group_id'), company_id: url.searchParams.get('company_id'),
+          marketplace: url.searchParams.get('marketplace'), account_id: url.searchParams.get('account_id'),
+          period_start: url.searchParams.get('period_start'), period_end: url.searchParams.get('period_end'),
+          item_id: url.searchParams.get('item_id'), variation_id: url.searchParams.get('variation_id'), sku: url.searchParams.get('sku') });
+        const assertRead = c => sec.assertScope({ userId, groupId: c.groupId, companyId: c.company_id, perm: 'scope.read' });
+        if (p === '/imports' && req.method === 'GET') {
+          const c = ctxDe(); assertRead(c);
+          const rows = db.prepare('SELECT id, file_id, estado, perfil, periodo_ini, periodo_fim, resultado, criado_em FROM import_batches WHERE escopo LIKE ? ORDER BY criado_em DESC LIMIT 100')
+            .all('%"companyId":"' + (c.company_id || '') + '"%');
+          return done(200, { imports: rows });
+        }
+        if (p.match(/^\/imports\/[^/]+\/preview$/) && req.method === 'GET') {
+          const c = ctxDe(); assertRead(c); const id = p.split('/')[2];
+          const rows = db.prepare('SELECT linha, raw, granularidade, natural_key FROM import_rows WHERE batch_id = ? ORDER BY linha LIMIT 20').all(id);
+          return done(200, { batchId: id, preview: rows.map(r => ({ linha: r.linha, granularidade: r.granularidade, natural_key: r.natural_key, raw: JSON.parse(r.raw) })), nota: 'até 20 linhas reais' });
+        }
+        if (p.match(/^\/imports\/[^/]+\/fields$/) && req.method === 'GET') {
+          const c = ctxDe(); assertRead(c); const id = p.split('/')[2];
+          const r0 = db.prepare('SELECT raw FROM import_rows WHERE batch_id = ? LIMIT 1').get(id);
+          const cols = r0 ? Object.keys(JSON.parse(r0.raw)) : [];
+          const total = db.prepare('SELECT count(*) c FROM import_rows WHERE batch_id = ?').get(id).c;
+          return done(200, { batchId: id, campos: cols.map(col => ({ coluna: col })), totalColunas: cols.length, totalLinhas: total });
+        }
+        if (p.match(/^\/imports\/[^/]+\/conflicts$/) && req.method === 'GET') {
+          const c = ctxDe(); assertRead(c); const id = p.split('/')[2];
+          const rows = db.prepare("SELECT linha, natural_key, issue FROM import_rows WHERE batch_id = ? AND issue IS NOT NULL").all(id);
+          return done(200, { batchId: id, conflitos: rows });
+        }
+        if (p.match(/^\/imports\/[^/]+$/) && req.method === 'GET') {
+          const c = ctxDe(); assertRead(c); const id = p.split('/')[2];
+          const b = db.prepare('SELECT * FROM import_batches WHERE id = ?').get(id);
+          return b ? done(200, b) : done(404, { erro: 'lote não encontrado' });
+        }
+        if (p.startsWith('/intelligence/') && req.method === 'GET') {
+          const c = ctxDe(); sec.assertScope({ userId, groupId: c.groupId, companyId: c.company_id, perm: 'scope.read' });
+          const area = p.split('/')[2];
+          const fn = { performance: intel.performance, returns: intel.returns, inventory: intel.inventory,
+            orders: intel.orders, traffic: intel.traffic, summary: intel.summary }[area];
+          if (!fn) return done(404, { erro: 'área de inteligência desconhecida: ' + area });
+          return done(200, fn(c));
         }
         if (p === '/external-write' && req.method === 'POST') { sec.assertNoExternalWrite(body.action || 'publicar_externo'); }
         return done(404, { erro: 'rota não encontrada' });
