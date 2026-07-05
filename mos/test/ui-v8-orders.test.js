@@ -374,6 +374,75 @@ test('M12-M14 · ações do insight na UI; cruzamentos declaram o que falta; sil
   assert.equal(ok.estado, 'ANALISADO', 'cruzamento com fonte roda');
 });
 
+/* ---------- 10.E.3.1 · CORREÇÃO CRÍTICA DO CLASSIFICADOR ----------
+   Regressão real: Order.all.order_creation_date.20260604_20260704.xlsx
+   foi classificado como SHOPEE_HOT_LISTING (REFERENCE_ONLY) por causa da
+   coluna auxiliar "Hot Listing". Nunca mais: classificação por CONJUNTO
+   de colunas, identificadores com peso, evidência mínima, prioridade,
+   pontuação explicável e correção manual auditada. */
+test('C1 · planilha de pedidos com coluna "Hot Listing" é SHOPEE_ORDERS, nunca REFERENCE_ONLY', () => {
+  const d = V8IMP.detect(V8IMP.FIXTURES.ordersReal(PER));
+  assert.equal(d.perfil, 'SHOPEE_ORDERS', 'perfil sugerido: PEDIDOS SHOPEE');
+  assert.equal(d.destino, 'pedidos');
+  assert.notEqual(d.status, 'REFERENCE_ONLY', 'nunca marcar como REFERENCE_ONLY');
+  assert.equal(d.confiancaLabel, 'alta');
+  for (const c of ['ID do pedido', 'Status do pedido', 'Data de criação do pedido', 'Número de referência SKU', 'Valor Total'])
+    assert.ok(d.evidencias.includes(c), 'evidência ✓ ' + c);
+  assert.ok(Array.isArray(d.pontuacao) && d.pontuacao[0].perfil === 'SHOPEE_ORDERS', 'pontuação explicável');
+  assert.ok(!d.pontuacao.some(p => p.perfil === 'SHOPEE_HOT_LISTING'), 'Hot Listing fora da disputa com assinatura forte');
+  /* aplicação nunca é impedida pela coluna auxiliar */
+  const eng = engCom(V8IMP.FIXTURES.ordersReal(PER));
+  assert.equal(eng.batches[0].estado, 'APLICADO');
+  assert.equal(eng.batches[0].preview.perfilNome, 'Pedidos Shopee');
+});
+
+test('C2 · "Hot Listing" é campo auxiliar do pedido; perfil auxiliar só vale sem assinatura forte', () => {
+  const eng = engCom(V8IMP.FIXTURES.ordersReal(PER));
+  const o = V8IMP.ordersView(eng, {}).orders.find(x => x.id === '260620ABC001');
+  assert.equal(o.hotListing, 'Sim', 'Hot Listing mapeado como campo do pedido');
+  assert.equal(o.sku, 'QP-6090', 'Número de referência SKU mapeado');
+  assert.equal(o.datas.pagamento, '2026-06-20 10:15', 'Hora do pagamento do pedido mapeada');
+  assert.equal(o.datas.entrega, '2026-06-27', 'Domestic Delivered Date mapeada');
+  assert.equal(o.rastreamento, 'BR123456789SP');
+  assert.equal(o.frete, 18.9, 'Taxa de envio paga pelo comprador mapeada');
+  assert.equal(o.totalGlobal, 143.8); assert.equal(o.cupom, 'JULHO10');
+  assert.equal(o.taxas.comissao, 17.5); assert.equal(o.envio.metodo, 'Shopee Xpress');
+  const o3 = V8IMP.ordersView(eng, {}).orders.find(x => x.id === '260628GHI003');
+  assert.match(o3.cancelamentoMotivo, /desistiu/, 'Cancelar Motivo mapeado');
+  assert.equal(o3.datas.cancelamento, '2026-06-29');
+  assert.equal(eng.rawFiles[0].abas[0].headers.length, 37, 'TODAS as colunas na camada bruta');
+  /* arquivo que é SÓ hot listing continua reconhecível (sem assinatura forte) */
+  const dh = V8IMP.detect(V8IMP.FIXTURES.hotListingOnly());
+  assert.equal(dh.perfil, 'SHOPEE_HOT_LISTING', 'auxiliar só vence sem perfil forte');
+});
+
+test('C3 · combinação mínima de evidências: "ID do pedido" sozinho não vira pedidos; devolução não vira pedidos', () => {
+  const soId = V8IMP.detect({ abas: [{ nome: 'x', headers: ['ID do pedido', 'Coluna Qualquer'], rows: [] }] });
+  assert.notEqual(soId.perfil, 'SHOPEE_ORDERS', 'uma coluna isolada nunca classifica');
+  const dev = V8IMP.detect(V8IMP.FIXTURES.returnZip(PER).entries[0]);
+  assert.equal(dev.perfil, 'SHOPEE_RETURN_REFUND', 'evento tem prioridade sobre pedidos quando ident de evento presente');
+});
+
+test('C4 · correção manual do tipo: prévia permite trocar, lote antigo cancelado, trilha auditada', () => {
+  const eng = V8IMP.createEngine();
+  const b = V8IMP.stage(eng, V8IMP.FIXTURES.hotListingOnly(), ESC, {});
+  assert.equal(b.estado, 'BLOQUEADO', 'REFERENCE_ONLY continua honesto');
+  const r = V8IMP.reclassify(eng, b.id, 'CUSTOM_CSV_MAPPING', { usuario: 'Marcos' });
+  assert.ok(r.ok);
+  assert.equal(r.batch.det.origemClassificacao, 'CORREÇÃO MANUAL DO TIPO');
+  assert.equal(eng.batches[0].estado, 'CANCELADO', 'lote antigo cancelado, não apagado');
+  assert.ok(eng.audit.some(a => a.acao === 'tipo_corrigido_manualmente'), 'troca auditada');
+  assert.equal(V8IMP.reclassify(eng, r.batch.id, 'PERFIL_INEXISTENTE', {}).blocked, true);
+  /* aplicado não reclassifica sem rollback */
+  const eng2 = engCom(V8IMP.FIXTURES.orders(PER));
+  assert.match(V8IMP.reclassify(eng2, eng2.batches[0].id, 'SHOPEE_ORDERS', {}).reason, /rollback/);
+  /* UI: prévia com sugestão explicada e troca de tipo */
+  assert.match(impJs, /Perfil sugerido/, 'prévia mostra o perfil sugerido');
+  assert.match(impJs, /Por que foi identificado/, 'prévia explica as evidências');
+  assert.match(impJs, /Alterar tipo de importação/, 'usuário pode corrigir o tipo');
+  assert.match(impJs, /V8IMP\.reclassify/, 'troca usa o motor, não só a tela');
+});
+
 /* ---------- 40 / M15 · nada de proibido; suíte anterior segue verde ---------- */
 test('40+M15 · NÃO CRIAR: sem CRM/leads, sem upload falso, sem exclusão sem auditoria, sem escrita externa', () => {
   const all = [pedJs, creJs, impJs, read('file-reader.js')].join('');

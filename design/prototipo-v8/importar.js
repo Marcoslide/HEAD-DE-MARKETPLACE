@@ -274,39 +274,64 @@
       catch (err) { UI.$('#upPrev').innerHTML = `<div class="err-state" style="margin-top:10px"><b>FALHOU</b> — ${UI.esc(err.message)}. Nada foi importado.</div>`; return; }
       if (file.erro) { UI.$('#upPrev').innerHTML = `<div class="err-state" style="margin-top:10px"><b>${UI.esc(file.estado)}</b> — ${UI.esc(file.erro)}</div>`; return; }
       const res = V8IMP.stage(IM.eng, file, escopoDe(UI.$('#upLoja').value), { products: UI.state.products, usuario: D.meta.usuario });
-      const lotes = res.zip ? res.batches : [res];
+      let lotes = res.zip ? res.batches : [res];
       const ign = res.zip ? res.ignorados : [];
-      UI.$('#upPrev').innerHTML = `
+
+      /* prévia com classificação EXPLICÁVEL + correção manual do tipo (10.E.3.1) */
+      const tipoSelect = bt => `
+        <label style="display:flex;gap:8px;align-items:center;margin-top:8px"><span class="eyebrow">Alterar tipo de importação</span>
+          <select class="select" data-upretype="${bt.id}" style="flex:1" title="A detecção nunca depende de uma coluna solta — mas a palavra final é sua; a troca fica auditada.">
+            <option value="">manter: ${UI.esc(V8IMP.NOME_PERFIL[bt.det.perfil] || bt.det.perfil)}</option>
+            ${Object.entries(V8IMP.NOME_PERFIL).filter(([k]) => k !== bt.det.perfil).map(([k, nome]) => `<option value="${k}">${UI.esc(nome)}</option>`).join('')}
+          </select></label>`;
+      const sugestaoHtml = bt => `
+        <dt>Perfil sugerido</dt><dd><b>${UI.esc(bt.preview && bt.preview.perfilNome || V8IMP.NOME_PERFIL[bt.det.perfil] || bt.det.perfil)}</b> <span class="kbd">${bt.det.perfil}</span></dd>
+        <dt>Confiança</dt><dd>${UI.esc(bt.det.confiancaLabel || String(bt.det.confianca))} · classificação ${UI.esc(bt.det.origemClassificacao || 'AUTOMÁTICA')}</dd>
+        <dt>Por que foi identificado</dt><dd><span class="src">${(bt.det.evidencias || []).map(c => '✓ ' + UI.esc(c)).join(' &nbsp;') || 'sem evidências — mapeie manualmente'}</span></dd>`;
+
+      function renderLotes() {
+        UI.$('#upPrev').innerHTML = `
         ${res.zip ? `<p class="src" style="margin-top:10px">ZIP extraído no staging: ${lotes.length} planilha(s) reconhecida(s)${ign.length ? ` · ${ign.length} entrada(s) declarada(s) como não importável(is): ${ign.map(x => UI.esc(x.nome)).join(', ')}` : ''}</p>` : ''}
         ${lotes.map(bt => bt.duplicado
           ? `<div class="err-state" style="margin-top:10px"><b>ARQUIVO JÁ IMPORTADO</b> — ${UI.esc(bt.motivo)}</div>`
           : !bt.preview.aplicavel
-            ? `<div class="callout" style="margin-top:10px;border-left-color:var(--warn)"><b>${UI.esc(bt.arquivo)}</b> · ${UI.esc(bt.preview.perfil)} · ${UI.esc(bt.preview.motivo || 'aguardando mapeamento')} — não será aplicado.</div>`
+            ? `<div class="callout" style="margin-top:10px;border-left-color:var(--warn)"><b>${UI.esc(bt.arquivo)}</b> · ${UI.esc(V8IMP.NOME_PERFIL[bt.preview.perfil] || bt.preview.perfil)} <span class="kbd">${UI.esc(bt.preview.perfil)}</span> · ${UI.esc(bt.preview.motivo || 'aguardando mapeamento')} — não será aplicado.${tipoSelect(bt)}</div>`
             : `<div class="panel" style="margin-top:10px">
               <div class="sect-h" style="margin-top:0"><span class="h2" style="font-size:13px">${UI.esc(bt.arquivo)}</span>${UI.stBadge(bt.estado)}</div>
               <dl class="kv">
-                <dt>Perfil detectado</dt><dd><span class="kbd">${bt.det.perfil}</span> · confiança ${bt.det.confianca}</dd>
+                ${sugestaoHtml(bt)}
                 <dt>Destino · granularidade</dt><dd>${UI.esc(bt.preview.tipo)} · <span class="kbd">${bt.preview.granularidade}</span></dd>
                 <dt>Registros</dt><dd>${bt.preview.registros} · ${bt.preview.jaExistem} já existente(s) — serão atualizados, nunca somados</dd>
                 <dt>Conflitos · erros</dt><dd>${bt.preview.conflitos} conflito(s) · ${bt.preview.linhasComErro} linha(s) com erro (preservadas na camada bruta)</dd>
                 ${bt.preview.sobreposicao ? `<dt>Sobreposição</dt><dd><span class="st warn plain">${UI.esc(bt.preview.sobreposicao.aviso)}</span></dd>` : ''}
               </dl>
+              ${tipoSelect(bt)}
               <div style="display:flex;gap:8px;margin-top:10px">
                 <button class="btn primary sm" data-upapply="${bt.id}">Confirmar e aplicar</button>
                 <button class="btn sm ghost" data-upcancel="${bt.id}">Cancelar este lote</button>
               </div></div>`).join('')}`;
-      UI.$$('#upPrev [data-upapply]').forEach(btn => btn.onclick = () => {
-        const r = V8IMP.apply(IM.eng, btn.dataset.upapply, { papel, usuario: D.meta.usuario });
-        if (r.blocked) return UI.toast(r.reason, 'err');
-        UI.toast(`Lote ${r.job.id} ${r.job.estado}: ${r.job.aplicado.criados} criado(s), ${r.job.aplicado.atualizados} atualizado(s), ${r.job.aplicado.duplicadosEvitados} duplicado(s) evitado(s).`, 'ok');
-        btn.closest('.panel').querySelector('.sect-h').insertAdjacentHTML('beforeend', '<span class="st pos">APLICADO</span>');
-        btn.disabled = true; btn.title = 'lote já aplicado';
-        if (opts.onDone) opts.onDone(r.job);
-      });
-      UI.$$('#upPrev [data-upcancel]').forEach(btn => btn.onclick = () => {
-        const bt = IM.eng.batches.find(x => x.id === btn.dataset.upcancel);
-        if (bt && !bt.aplicado) { bt.estado = 'CANCELADO'; UI.toast('Lote cancelado — nada foi aplicado.', ''); btn.closest('.panel').style.opacity = .5; }
-      });
+        UI.$$('#upPrev [data-upapply]').forEach(btn => btn.onclick = () => {
+          const r = V8IMP.apply(IM.eng, btn.dataset.upapply, { papel, usuario: D.meta.usuario });
+          if (r.blocked) return UI.toast(r.reason, 'err');
+          UI.toast(`Lote ${r.job.id} ${r.job.estado}: ${r.job.aplicado.criados} criado(s), ${r.job.aplicado.atualizados} atualizado(s), ${r.job.aplicado.duplicadosEvitados} duplicado(s) evitado(s).`, 'ok');
+          btn.closest('.panel').querySelector('.sect-h').insertAdjacentHTML('beforeend', '<span class="st pos">APLICADO</span>');
+          btn.disabled = true; btn.title = 'lote já aplicado';
+          if (opts.onDone) opts.onDone(r.job);
+        });
+        UI.$$('#upPrev [data-upcancel]').forEach(btn => btn.onclick = () => {
+          const bt = IM.eng.batches.find(x => x.id === btn.dataset.upcancel);
+          if (bt && !bt.aplicado) { bt.estado = 'CANCELADO'; UI.toast('Lote cancelado — nada foi aplicado.', ''); btn.closest('.panel').style.opacity = .5; }
+        });
+        UI.$$('#upPrev [data-upretype]').forEach(sel => sel.onchange = () => {
+          if (!sel.value) return;
+          const r = V8IMP.reclassify(IM.eng, sel.dataset.upretype, sel.value, { usuario: D.meta.usuario, products: UI.state.products });
+          if (r.blocked) return UI.toast(r.reason, 'err');
+          lotes = lotes.map(bt => bt.id === r.anterior ? r.batch : bt);
+          UI.toast(`Tipo corrigido manualmente para ${V8IMP.NOME_PERFIL[sel.value] || sel.value} — lote anterior cancelado, correção auditada.`, 'ok');
+          renderLotes();
+        });
+      }
+      renderLotes();
     }
   };
 

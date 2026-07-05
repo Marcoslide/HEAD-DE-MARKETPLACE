@@ -49,6 +49,8 @@
       ['Nome do Cupom', 'Código', 'Resgates', 'Vendas Pagas'], 'voucher_period'),
     SHOPEE_FLASH_SALE: P('PARTIALLY_SUPPORTED', 'shopee', 'PROMOTION_METRIC', 'promocoes',
       ['Flash Sale', 'Período', 'Vendas'], 'promotion_period'),
+    /* AUXILIAR: "Hot Listing" também aparece como coluna dentro do export de pedidos —
+       nunca pode classificar um arquivo sozinha (só vence se NENHUM perfil forte qualificar) */
     SHOPEE_HOT_LISTING: P('REFERENCE_ONLY', 'shopee', 'LISTING_METRIC', 'performance',
       ['Hot Listing'], 'item_period'),
     SHOPEE_PARENT_SKU: P('SUPPORTED', 'shopee', 'STATE_SNAPSHOT', 'catalogo',
@@ -69,7 +71,8 @@
     CUSTOM_CSV_MAPPING: P('PARTIALLY_SUPPORTED', null, null, 'custom', [], 'custom'),
     /* ---------- 10.E.2 · fontes reais por área ---------- */
     SHOPEE_ORDERS: P('SUPPORTED', 'shopee', 'TRANSACTIONAL', 'pedidos',
-      ['ID do pedido', 'Status do pedido', 'Data de criação do pedido', 'Valor Total'], 'order'),
+      ['ID do pedido', 'Status do pedido', 'Data de criação do pedido', 'Nome do Produto',
+        'Número de referência SKU', 'Quantidade', 'Valor Total', 'Cidade', 'UF'], 'order'),
     SHOPEE_RETURN_REFUND: P('SUPPORTED', 'shopee', 'TRANSACTIONAL', 'devolucoes',
       ['ID do pedido', 'Tipo de evento', 'ID do evento', 'Valor reembolsado'], 'order_event'),
     SHOPEE_INVENTORY: P('SUPPORTED', 'shopee', 'STATE_SNAPSHOT', 'estoque',
@@ -80,21 +83,84 @@
       ['Visitantes', 'Visualizações da Página', 'Taxa de Rejeição', 'Período'], 'period_metric'),
   };
 
-  /* ---------------- detecção por assinatura ---------------- */
-  function detect(file) {
-    let best = null, bestScore = 0;
+  /* ---------------- detecção por CONJUNTO de colunas (10.E.3.1) ----------------
+     Correção crítica: um arquivo NUNCA é classificado pelo nome de uma única
+     coluna secundária ("Hot Listing" é campo auxiliar do pedido, não o tipo do
+     arquivo). A classificação usa: conjunto de colunas + peso por campo
+     (identificador pesa 3×) + combinação mínima de evidências + prioridade
+     entre perfis + pontuação explicável + correção manual pelo usuário. */
+  const SINONIMOS = {
+    'Número de referência SKU': ['SKU de referência', 'SKU'],
+    'Data de pagamento': ['Hora do pagamento do pedido'],
+    'Frete pago pelo comprador': ['Taxa de envio paga pelo comprador'],
+  };
+  /* identificadores (peso 3), evidência mínima e prioridade por perfil */
+  const DETECT_RULES = {
+    SHOPEE_ORDERS: { ident: ['ID do pedido', 'Status do pedido', 'Data de criação do pedido'], minIdent: 2, minHits: 4, prio: 10 },
+    SHOPEE_RETURN_REFUND: { ident: ['Tipo de evento', 'ID do evento'], minIdent: 2, minHits: 3, prio: 9 },
+    SHOPEE_HOT_LISTING: { aux: true, prio: -1 }, /* só vence se NENHUM perfil forte qualificar */
+  };
+  const NOME_PERFIL = {
+    SHOPEE_ORDERS: 'Pedidos Shopee', SHOPEE_RETURN_REFUND: 'Devoluções / Reembolsos / Cancelamentos',
+    SHOPEE_PARENT_SKU: 'Cadastro de Produtos', SHOPEE_PRODUCT_BASIC_INFO: 'Cadastro de Produtos (básico)',
+    SHOPEE_PRODUCT_TRAFFIC: 'Performance de Produtos', SHOPEE_PRODUCT_OVERVIEW: 'Performance de Produtos (overview)',
+    SHOPEE_TRAFFIC_OVERVIEW: 'Tráfego', SHOPEE_SHOP_STATS: 'Métricas da Loja', SHOPEE_SALES_OVERVIEW: 'Vendas e Funil',
+    SHOPEE_INVENTORY: 'Estoque Full', SHOPEE_AFFILIATE_PERFORMANCE: 'Afiliados', SHOPEE_CHAT_FAQ: 'Chat e Atendimento',
+    SHOPEE_PROMOTION_SUMMARY: 'Promoções', SHOPEE_VOUCHER: 'Cupons', CUSTOM_CSV_MAPPING: 'Outro / Referência',
+  };
+
+  function detect(file, opts) {
+    opts = opts || {};
     const headers = (file.abas && file.abas[0] && file.abas[0].headers) || [];
+    const has = col => headers.includes(col) || (SINONIMOS[col] || []).some(s => headers.includes(s));
+
+    /* correção manual do usuário vence a automática — registrada como tal */
+    if (opts.perfilManual && PROFILES[opts.perfilManual]) {
+      const p = PROFILES[opts.perfilManual];
+      return { perfil: opts.perfilManual, status: p.status, marketplace: p.marketplace, granularidade: p.gran,
+        destino: p.destino, confianca: 1, confiancaLabel: 'definida pelo usuário',
+        origemClassificacao: 'CORREÇÃO MANUAL DO TIPO', evidencias: p.assinatura.filter(has),
+        explicacao: 'tipo de importação escolhido manualmente — a escolha fica na trilha de auditoria',
+        periodo: file.periodo || null };
+    }
+
+    const candidatos = [];
     for (const [nome, p] of Object.entries(PROFILES)) {
       if (!p.assinatura.length) continue;
-      const acertos = p.assinatura.filter(h => headers.includes(h)).length;
-      const score = acertos / p.assinatura.length;
-      if (score > bestScore) { bestScore = score; best = nome; }
+      const regra = DETECT_RULES[nome] || {};
+      const ident = regra.ident || [];
+      const identHits = ident.filter(has);
+      const hits = p.assinatura.filter(has);
+      const minIdent = regra.minIdent != null ? regra.minIdent : (ident.length ? Math.min(2, ident.length) : 0);
+      const minHits = regra.minHits != null ? regra.minHits : Math.ceil(p.assinatura.length * 0.75);
+      if (identHits.length < minIdent || hits.length < minHits) continue; /* combinação mínima de evidências */
+      const pesoTotal = ident.length * 3 + Math.max(0, p.assinatura.length - ident.length);
+      const pontos = identHits.length * 3 + Math.max(0, hits.length - identHits.length);
+      candidatos.push({ nome, p, identHits, hits,
+        score: Math.round((pontos / Math.max(1, pesoTotal)) * 100) / 100,
+        prio: regra.prio || 0, aux: !!regra.aux });
     }
-    if (!best || bestScore < 0.75)
-      return { perfil: 'UNKNOWN', status: 'UNSUPPORTED', confianca: 0, motivo: 'assinatura de cabeçalho não reconhecida — mapeie manualmente antes de importar' };
-    const p = PROFILES[best];
-    return { perfil: best, status: p.status, marketplace: p.marketplace, granularidade: p.gran,
-      destino: p.destino, confianca: Math.round(bestScore * 100) / 100, periodo: file.periodo || null };
+    if (!candidatos.length)
+      return { perfil: 'UNKNOWN', status: 'UNSUPPORTED', confianca: 0, confiancaLabel: 'nenhuma',
+        origemClassificacao: 'AUTOMÁTICA', evidencias: [],
+        motivo: 'assinatura de cabeçalho não reconhecida — mapeie manualmente antes de importar' };
+
+    /* perfil auxiliar (ex.: Hot Listing) nunca compete com assinatura forte */
+    const fortes = candidatos.filter(c => !c.aux);
+    const pool = (fortes.length ? fortes : candidatos)
+      .sort((a, b) => (b.prio - a.prio) || (b.score - a.score) || (b.identHits.length - a.identHits.length) || (b.hits.length - a.hits.length));
+    const best = pool[0];
+    const identCompleto = best.identHits.length === ((DETECT_RULES[best.nome] || {}).ident || []).length;
+    return {
+      perfil: best.nome, status: best.p.status, marketplace: best.p.marketplace, granularidade: best.p.gran,
+      destino: best.p.destino, confianca: best.score,
+      confiancaLabel: identCompleto && best.score >= 0.75 ? 'alta' : best.score >= 0.6 ? 'média' : 'baixa',
+      origemClassificacao: 'AUTOMÁTICA', evidencias: best.hits, identificadores: best.identHits,
+      pontuacao: pool.slice(0, 3).map(c => ({ perfil: c.nome, score: c.score, evidencias: c.hits.length, prioridade: c.prio })),
+      alternativas: pool.slice(1, 5).map(c => c.nome),
+      explicacao: `identificadores: ${best.identHits.join(' · ') || 'nenhum exigido'} — campos reconhecidos: ${best.hits.join(' · ')}`,
+      periodo: file.periodo || null,
+    };
   }
 
   function fingerprintFile(file) {
@@ -213,7 +279,7 @@
         nota: 'ZIP extraído em staging — cada planilha reconhecida virou um lote próprio com confirmação humana.' };
     }
     const fp = fingerprintFile(file);
-    const det = detect(file);
+    const det = detect(file, { perfilManual: opts.perfilManual });
     const batchKey = KEYS.batch({ ...fp });
     if (eng.fileHashes.has(batchKey)) {
       const prev = eng.fileHashes.get(batchKey);
@@ -335,10 +401,37 @@
       pendentesRevisao: pendentes, conflitos, semCorrespondencia: semMatch, jaExistem, sobreposicao, linhasComErro,
       aplicavel: true, acoes: ['Importar apenas itens novos', 'Atualizar registros existentes', 'Revisar conflitos', 'Salvar como rascunho', 'Cancelar'],
     };
+    batch.preview.perfilNome = NOME_PERFIL[det.perfil] || det.perfil;
+    batch.preview.confiancaLabel = det.confiancaLabel;
+    batch.preview.evidencias = det.evidencias || [];
+    batch.preview.alternativas = det.alternativas || [];
+    batch.preview.origemClassificacao = det.origemClassificacao;
     batch.estado = conflitos ? 'CONFLITO_ENCONTRADO' : 'AGUARDANDO_REVISÃO';
     eng.fileHashes.set(batchKey, batch.id);
     audit(eng, 'staging_concluido', `${batch.id}: ${stagingRows.length} linha(s), ${conflitos} conflito(s), ${jaExistem} já existente(s)`);
     return batch;
+  }
+
+  /* ---------------- correção manual do tipo (reclassificação) ----------------
+     O usuário pode trocar o tipo de importação ANTES de aplicar: o lote antigo
+     é cancelado (trilha preservada), o fingerprint é liberado e o arquivo é
+     re-estagiado com o perfil escolhido — registrado como CORREÇÃO MANUAL. */
+  function reclassify(eng, batchId, novoPerfil, opts) {
+    opts = opts || {};
+    const batch = eng.batches.find(b => b.id === batchId);
+    if (!batch) return { blocked: true, reason: 'lote não encontrado' };
+    if (batch.aplicado) return { blocked: true, reason: 'lote já aplicado — reverta (rollback) antes de reclassificar' };
+    if (!PROFILES[novoPerfil]) return { blocked: true, reason: 'tipo de importação desconhecido: ' + novoPerfil };
+    const rf = eng.rawFiles.find(x => x.batchId === batchId);
+    if (!rf) return { blocked: true, reason: 'camada bruta do lote não encontrada' };
+    batch.estado = 'CANCELADO';
+    batch.reclassificadoPara = novoPerfil;
+    eng.fileHashes.delete(KEYS.batch({ ...batch.fp }));
+    eng.staging = eng.staging.filter(s => s.batchId !== batchId);
+    audit(eng, 'tipo_corrigido_manualmente', `${batchId}: ${batch.det.perfil} → ${novoPerfil} (por ${opts.usuario || 'Marcos'})`, { batchId });
+    const novo = stage(eng, { nome: batch.arquivo, sourceType: batch.sourceType, periodo: batch.periodo, abas: rf.abas },
+      batch.escopo, Object.assign({}, opts, { perfilManual: novoPerfil }));
+    return { ok: true, batch: novo, anterior: batchId };
   }
 
   /* ---------------- aplicação (idempotente, nunca soma) ---------------- */
@@ -554,20 +647,45 @@
       const statusAtual = valorEfetivo(snap, 'Status do pedido');
       const evs = eventos.filter(e => e.escopo.marketplace === snap.escopo.marketplace &&
         e.escopo.contaId === snap.escopo.contaId && e.external_order_id === snap.external_order_id);
+      const rw = snap.raw;
       return {
         key: snap.key, id: snap.external_order_id,
         marketplace: snap.escopo.marketplace, contaId: snap.escopo.contaId, lojaId: snap.escopo.lojaId, cnpjId: snap.escopo.cnpjId,
-        produto: snap.raw['Nome do Produto'], sku: snap.raw['SKU de referência'] || snap.raw['Número de referência SKU'] || null,
-        variacao: snap.raw['Nome da variação'] || null, quantidade: +snap.raw['Quantidade'] || null,
-        valorTotal: +snap.raw['Valor Total'] || 0, frete: +snap.raw['Frete pago pelo comprador'] || 0,
-        comissao: snap.raw['Taxa de comissão'] != null ? +snap.raw['Taxa de comissão'] : null,
-        cidade: snap.raw['Cidade'] || null, estado: snap.raw['UF'] || null, cepParcial: cepProtegido(snap.raw['CEP']),
-        comprador: snap.raw['Comprador'] || null, /* exibição exige RAW_DATA_VIEW — decisão na view, dado protegido */
+        produto: rw['Nome do Produto'], sku: rw['Número de referência SKU'] || rw['SKU de referência'] || rw['SKU'] || null,
+        variacao: rw['Nome da variação'] || null, quantidade: +rw['Quantidade'] || null,
+        valorTotal: +rw['Valor Total'] || 0,
+        frete: +rw['Frete pago pelo comprador'] || +rw['Taxa de envio paga pelo comprador'] || 0,
+        comissao: rw['Taxa de comissão'] != null ? +rw['Taxa de comissão'] : null,
+        /* mapeamento obrigatório do export real de pedidos (10.E.3.1) */
+        precoOriginal: rw['Preço original'] != null ? +rw['Preço original'] : null,
+        precoAcordado: rw['Preço acordado'] != null ? +rw['Preço acordado'] : null,
+        subtotal: rw['Subtotal do produto'] != null ? +rw['Subtotal do produto'] : null,
+        descontos: rw['Descontos'] != null ? +rw['Descontos'] : null,
+        cupom: rw['Cupom'] || null, peso: rw['Peso'] || null,
+        taxas: { transacao: rw['Taxa de transação'] != null ? +rw['Taxa de transação'] : null,
+          comissao: rw['Taxa de comissão'] != null ? +rw['Taxa de comissão'] : null,
+          servico: rw['Taxa de serviço'] != null ? +rw['Taxa de serviço'] : null,
+          envioReversa: rw['Taxa de envio reversa'] != null ? +rw['Taxa de envio reversa'] : null },
+        totalGlobal: rw['Total global'] != null ? +rw['Total global'] : null,
+        freteEstimado: rw['Valor estimado do frete'] != null ? +rw['Valor estimado do frete'] : null,
+        rastreamento: rw['Número de rastreamento'] || null,
+        envio: { opcao: rw['Opção de envio'] || null, metodo: rw['Método de envio'] || null,
+          previsto: rw['Data prevista de envio'] || null },
+        cancelamentoMotivo: rw['Cancelar Motivo'] || null,
+        devolucaoStatus: rw['Status da Devolução / Reembolso'] || null,
+        hotListing: rw['Hot Listing'] || null, /* campo AUXILIAR do pedido — nunca define o tipo do arquivo */
+        observacaoComprador: rw['Observação do comprador'] || null, nota: rw['Nota'] || null,
+        pais: rw['País'] || null,
+        cidade: rw['Cidade'] || null, estado: rw['UF'] || null, cepParcial: cepProtegido(rw['CEP']),
+        comprador: rw['Comprador'] || null, /* exibição exige RAW_DATA_VIEW — decisão na view, dado protegido */
         statusAtual, tab: orderTab(statusAtual),
         statusHistory: [...snap.versoes.map(v => ({ status: v.raw['Status do pedido'], em: v.em, batchId: v.batchId })),
-          { status: snap.raw['Status do pedido'], em: snap.atualizadoEm, batchId: snap.batchId }],
-        datas: { criacao: snap.raw['Data de criação do pedido'] || null, pagamento: snap.raw['Data de pagamento'] || null,
-          envio: snap.raw['Data de envio'] || null, entrega: snap.raw['Data de entrega'] || null },
+          { status: rw['Status do pedido'], em: snap.atualizadoEm, batchId: snap.batchId }],
+        datas: { criacao: rw['Data de criação do pedido'] || null,
+          pagamento: rw['Data de pagamento'] || rw['Hora do pagamento do pedido'] || null,
+          envio: rw['Data de envio'] || null,
+          entrega: rw['Data de entrega'] || rw['Domestic Delivered Date'] || null,
+          cancelamento: rw['Data da Finalização do Cancelamento'] || null },
         eventos: evs.map(e => ({ tipo: e.tipo_evento, eventId: e.event_id, motivo: e.raw['Motivo'] || null,
           valor: +e.raw['Valor reembolsado'] || 0, situacao: e.raw['Status da solicitação'] || null, em: e.raw['Data'] || e.importadoEm })),
         origem: snap.origem, arquivo: snap.sourceFile, ultimaAtualizacao: snap.atualizadoEm,
@@ -1078,6 +1196,48 @@
         { 'ID do pedido': '2607001', 'Status do pedido': 'A enviar', 'Data de criação do pedido': '2026-07-04', 'Data de pagamento': '2026-07-04', 'Nome do Produto': 'Espelho Adnet Orgânico', 'SKU de referência': 'ESP-ADN', 'Quantidade': 1, 'Valor Total': 159.9, 'Cidade': 'Belo Horizonte', 'UF': 'MG', 'CEP': '30140071', 'Comprador': 'P. K.' },
       ] }],
     }),
+    /* export REAL de pedidos Shopee (Order.all.order_creation_date...) — inclui a coluna
+       auxiliar "Hot Listing", que NUNCA pode classificar o arquivo (regressão 10.E.3.1) */
+    ordersRealHeaders: ['ID do pedido', 'Status do pedido', 'Hot Listing', 'Cancelar Motivo',
+      'Status da Devolução / Reembolso', 'Número de rastreamento', 'Opção de envio', 'Método de envio',
+      'Data de criação do pedido', 'Hora do pagamento do pedido', 'Data prevista de envio', 'Domestic Delivered Date',
+      'Data da Finalização do Cancelamento', 'Nome do Produto', 'Número de referência SKU', 'Nome da variação',
+      'Preço original', 'Preço acordado', 'Quantidade', 'Subtotal do produto', 'Descontos', 'Peso', 'Cupom',
+      'Valor Total', 'Taxa de envio paga pelo comprador', 'Taxa de envio reversa', 'Taxa de transação',
+      'Taxa de comissão', 'Taxa de serviço', 'Total global', 'Valor estimado do frete', 'Cidade', 'UF', 'País',
+      'CEP', 'Observação do comprador', 'Nota'],
+    ordersReal: periodo => ({
+      nome: 'Order.all.order_creation_date.20260604_20260704.xlsx', sourceType: 'PLANILHA_SHOPEE', periodo,
+      abas: [{ nome: 'orders', headers: FIXTURES.ordersRealHeaders, rows: [
+        { 'ID do pedido': '260620ABC001', 'Status do pedido': 'Concluído', 'Hot Listing': 'Sim',
+          'Status da Devolução / Reembolso': '—', 'Número de rastreamento': 'BR123456789SP',
+          'Opção de envio': 'Entrega padrão', 'Método de envio': 'Shopee Xpress',
+          'Data de criação do pedido': '2026-06-20 10:12', 'Hora do pagamento do pedido': '2026-06-20 10:15',
+          'Data prevista de envio': '2026-06-22', 'Domestic Delivered Date': '2026-06-27',
+          'Nome do Produto': 'Quadro Paisagem 60x90 Premium', 'Número de referência SKU': 'QP-6090',
+          'Nome da variação': 'única', 'Preço original': 149.9, 'Preço acordado': 124.9, 'Quantidade': 1,
+          'Subtotal do produto': 124.9, 'Descontos': 25, 'Peso': '1.2kg', 'Cupom': 'JULHO10',
+          'Valor Total': 124.9, 'Taxa de envio paga pelo comprador': 18.9, 'Taxa de transação': 2.8,
+          'Taxa de comissão': 17.5, 'Taxa de serviço': 2.5, 'Total global': 143.8, 'Valor estimado do frete': 16.2,
+          'Cidade': 'Belo Horizonte', 'UF': 'MG', 'País': 'BR', 'CEP': '31270901',
+          'Observação do comprador': 'entregar na portaria', 'Nota': '' },
+        { 'ID do pedido': '260625DEF002', 'Status do pedido': 'Não pago', 'Hot Listing': 'Não',
+          'Data de criação do pedido': '2026-06-25 22:40', 'Nome do Produto': 'Kit 3 Quadros Sala Moderna',
+          'Número de referência SKU': 'KIT3-SALA', 'Nome da variação': 'única', 'Preço original': 249.9,
+          'Preço acordado': 244.9, 'Quantidade': 1, 'Subtotal do produto': 244.9, 'Valor Total': 244.9,
+          'Cidade': 'São Paulo', 'UF': 'SP', 'País': 'BR', 'CEP': '04538132' },
+        { 'ID do pedido': '260628GHI003', 'Status do pedido': 'Cancelado', 'Hot Listing': 'Não',
+          'Cancelar Motivo': 'comprador desistiu antes do envio', 'Data de criação do pedido': '2026-06-28 08:03',
+          'Data da Finalização do Cancelamento': '2026-06-29', 'Nome do Produto': 'Porta Retrato Vidro Duplo 3D',
+          'Número de referência SKU': 'PR-3D', 'Quantidade': 2, 'Preço acordado': 89.9,
+          'Subtotal do produto': 179.8, 'Valor Total': 179.8, 'Cidade': 'Curitiba', 'UF': 'PR', 'País': 'BR', 'CEP': '80010010' },
+      ] }],
+    }),
+    /* arquivo que é SÓ Hot Listing (sem assinatura de pedidos) — único caso em que o perfil auxiliar vale */
+    hotListingOnly: () => ({
+      nome: 'hot_listing_ranking.xlsx', sourceType: 'PLANILHA_SHOPEE', periodo: null,
+      abas: [{ nome: 'hot', headers: ['Hot Listing', 'Posição na categoria'], rows: [{ 'Hot Listing': 'Quadro 60x90', 'Posição na categoria': 3 }] }],
+    }),
     returnZip: periodo => ({
       nome: 'Order.return_refund_cancel.zip', sourceType: 'PLANILHA_SHOPEE', periodo, zip: true,
       entries: [
@@ -1129,6 +1289,8 @@
   return { PROFILES, GRANULARIDADES, FONTES, JOB_ESTADOS, VINCULO, MASTER_ESTADOS, IMPORT_PERMS,
     detect, fingerprintFile, hash, createEngine, stage, apply, rollback, receitaConsolidada,
     suggestMaster, approveMaster, coverage, canImp, naturalKey, KEYS, FIXTURES, assertNoDemoMix,
+    /* 10.E.3.1 — classificador corrigido */
+    reclassify, NOME_PERFIL, DETECT_RULES, SINONIMOS,
     /* 10.E.2 */
     DATA_PERMS, DATA_PERMS_ALL, canData, orderTab, cepProtegido, ordersView, orderStats, geoStats, stockView,
     conversaoExplicita, valorEfetivo, correct, excludeFromAnalysis, restaurar, archiveFile, desativarVinculo,

@@ -417,3 +417,40 @@ adaptar cria cópia interna — o original permanece intacto. Tudo
   itens do contrato); suíte completa 507 verdes; validação headless com
   upload real de foto (filechooser), 13 auto-testes, 14 áreas × 2 temas ×
   4 larguras, zero erros de console.
+
+### 10.E.3.1 — Correção crítica do classificador de importação
+
+Regressão real: o export `Order.all.order_creation_date.*.xlsx` foi
+classificado como `SHOPEE_HOT_LISTING · REFERENCE_ONLY` porque a coluna
+auxiliar "Hot Listing" (que existe DENTRO do relatório de pedidos) tinha
+assinatura de 1 coluna e empatava com pontuação máxima.
+
+Correção no motor (`detect()`):
+- classificação por **conjunto de colunas**, nunca por coluna solta;
+- **identificadores com peso 3×** (`ID do pedido`, `Status do pedido`,
+  `Data de criação do pedido` para pedidos; `Tipo de evento` + `ID do
+  evento` para devoluções) e **combinação mínima de evidências** por perfil;
+- **prioridade entre perfis** (pedidos 10 > devoluções 9 > demais) e
+  perfil **auxiliar** (`Hot Listing`) que só vence quando NENHUMA
+  assinatura forte qualifica;
+- **pontuação explicável** (`evidencias`, `identificadores`, `pontuacao`,
+  `explicacao`, `confiancaLabel alta/média/baixa`) exibida na prévia como
+  "Perfil sugerido · Confiança · Por que foi identificado (✓ …)";
+- **correção manual**: `[ Alterar tipo de importação ]` na prévia →
+  `V8IMP.reclassify()` cancela o lote antigo (trilha preservada), libera o
+  fingerprint e re-estagia com `origemClassificacao: CORREÇÃO MANUAL DO
+  TIPO`, auditado;
+- **mapeamento obrigatório** do export real de pedidos (37 colunas):
+  Hot Listing como campo auxiliar, Cancelar Motivo, Status da Devolução /
+  Reembolso, rastreamento, opção/método de envio, Hora do pagamento,
+  Domestic Delivered Date, preços/subtotal/descontos/cupom, taxas
+  (transação/comissão/serviço/envio reversa), Total global, cidade/UF/
+  país/CEP protegido, observação e nota — todo o resto permanece na
+  camada bruta;
+- sinônimos de coluna (`Número de referência SKU` ≈ `SKU de referência`).
+
+Critério de aceite verificado no navegador com o XLSX real: perfil
+sugerido PEDIDOS SHOPEE, destino Pedidos, aplicação liberada — nunca
+REFERENCE_ONLY, nunca bloqueado pela coluna "Hot Listing". Testes C1–C4
+em `ui-v8-orders.test.js`; suíte completa 511 verdes, zero regressão nas
+detecções anteriores.
