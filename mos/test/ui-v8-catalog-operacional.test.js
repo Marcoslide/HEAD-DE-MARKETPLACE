@@ -215,6 +215,58 @@ test('43 · publicação nunca escreve externamente (só solicitação interna)'
   assert.match(engJs, /escritaExterna: false/);
 });
 
+/* P2-A — WhatsApp: "Criar anúncio deste produto na Shopee" cria/vincula Matriz + Rascunho + SKU + pendências */
+test('P2 · WhatsApp cria rascunho vinculado à Matriz com SKU e pendências', () => {
+  const cat = freshCat(); const p = cat.products[0];
+  const r = V8CAT.criarAnuncioComando(cat, 'Criar anúncio deste produto na Shopee', { produtoId: p.id });
+  assert.ok(r.ok && r.marketplace === 'Shopee' && r.sku === p.sku && r.draftId, 'rascunho criado com SKU');
+  assert.ok(Array.isArray(r.pendencias), 'lista de pendências');
+  const draft = cat.listings.find(l => l.id === r.draftId);
+  assert.ok(draft.interno && /RASCUNHO|AGUARDANDO/.test(draft.lifecycle), 'rascunho, não ativo');
+});
+
+/* P2-B — comando ambíguo (sem marketplace) pede confirmação */
+test('P2 · comando sem marketplace pede confirmação', () => {
+  const cat = freshCat();
+  const r = V8CAT.criarAnuncioComando(cat, 'Criar anúncio deste produto', { produtoId: cat.products[0].id });
+  assert.ok(r.precisaConfirmar && /marketplace/i.test(r.pergunta));
+});
+
+/* P2-C — foto via WhatsApp entra no anúncio certo por SKU, origem WHATSAPP_COMMAND */
+test('P2 · foto por WhatsApp vincula por SKU com origem WHATSAPP_COMMAND', () => {
+  const cat = freshCat();
+  const l = cat.listings.find(x => x.marketplace === 'shopee');
+  const r = V8CAT.anexarFotoComando(cat, `Coloque essa foto no anúncio ${l.skuPai} da Shopee`, { arquivo: 'w.jpg', dataUrl: 'data:image/png;base64,AAA' }, {});
+  assert.ok(r.ok && r.via === 'SKU', 'vinculada por SKU');
+  assert.ok(cat.media.some(m => m.origem === 'WHATSAPP_COMMAND' && m.usos.some(u => u.listingId === l.id)));
+});
+
+/* P2-D — comando de foto ambíguo pede confirmação por Item ID/SKU */
+test('P2 · foto por WhatsApp ambígua pede confirmação', () => {
+  const cat = freshCat();
+  const r = V8CAT.anexarFotoComando(cat, 'Coloque essa foto no anúncio Quadro', {}, {});
+  assert.ok(r.precisaConfirmar && (r.candidatos || []).length > 1);
+});
+
+/* P2-E — adaptar criativo vencedor entre marketplaces é PROPOSTA, nunca vencedor às cegas */
+test('P2 · adaptar criativo entre marketplaces é proposta com teste', () => {
+  const cat = freshCat(); const l = cat.listings[0];
+  assert.ok(V8CAT.adaptarCriativoVencedor(cat, l.skuPai, 'ml', {}).blocked, 'sem base comparável, não adapta');
+  V8CAT.addCreative(cat, { sku: l.skuPai, tipo: 'foto', metricaAvaliacao: 3.4, marketplace: 'shopee' }, {});
+  V8CAT.addCreative(cat, { sku: l.skuPai, tipo: 'foto', metricaAvaliacao: 2.1, marketplace: 'shopee' }, {});
+  const r = V8CAT.adaptarCriativoVencedor(cat, l.skuPai, 'ml', {});
+  assert.ok(r.ok && r.criativo.status === 'PROPOSTO' && /PROPOSTA/i.test(r.nota));
+});
+
+/* P2-F — Marketplaces: filtros recolhidos por padrão + toolbar compacta + WhatsApp */
+test('P2 · Marketplaces com filtros recolhidos, toolbar compacta e criação por WhatsApp', () => {
+  assert.match(catJs, /filtrosOpen: false/);
+  assert.match(catJs, /data-act="anfilt"/);
+  for (const b of ['data-act="ancols"', 'data-act="anord"', 'data-act="anacoes"']) assert.ok(catJs.includes(b), 'toolbar: ' + b);
+  assert.match(catJs, /data-act="whatscriar"/, 'criar por WhatsApp');
+  assert.match(catJs, /function sidePanelShopee/, 'painel lateral do editor Shopee');
+});
+
 /* 45 — estrutura das 3 áreas do Catálogo preservada + estados de ciclo de vida */
 test('45 · 3 áreas do Catálogo mantidas; 16 estados de ciclo de vida', () => {
   assert.match(catJs, /const MAIN_SUBS = \['Visão Geral', 'Rascunhos', 'Marketplaces'\]/);

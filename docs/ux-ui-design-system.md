@@ -976,3 +976,30 @@ de ser só dado de estoque/pedido e passa a ser **chave estratégica**.
   Shopee" / "Coloque essa foto no anúncio X"); adaptação de criativo vencedor
   entre marketplaces. A base de motor (Matriz, identidade, SKU-chave, mídia,
   publicação) já suporta esses passos.
+
+### 10.E.3.3 — Parte 2: filtros recolhíveis, painel lateral, criação por WhatsApp
+
+- **Marketplaces com toolbar compacta**: a tela de operação por marketplace
+  passa a mostrar só **Busca + [Filtros] [Colunas] [Ordenar] [Ações]**. Os
+  filtros ficam **recolhidos por padrão** (`CAT.filtrosOpen`) e só aparecem
+  **chips dos filtros ativos** (busca, filtro rápido, diagnóstico), cada um com
+  ✕ para limpar. O seletor de colunas e ordenação continuam acessíveis.
+- **Painel lateral do editor Shopee** (`sidePanelShopee`): coluna fixa com
+  Resumo do anúncio, identidade externa (Item ID, ID interno, Produto Master,
+  SKU, Variation ID, confiança/origem do vínculo), contagem de fotos/capa e
+  Pendências, além de atalhos (Abrir Matriz / Visão do SKU / Inteligência).
+- **Criação por WhatsApp** (`criarAnuncioComando`/`anexarFotoComando`): o comando
+  "Criar anúncio deste produto na Shopee" identifica marketplace + produto (por
+  nome ou SKU), busca/cria a Matriz, cria o Rascunho, reusa o SKU e responde com
+  status + pendências — **sem publicar fora**. Comando sem marketplace/produto
+  **pede confirmação**. "Coloque essa foto no anúncio X" busca por **Item ID →
+  SKU → nome** (nome só sugere), pede confirmação se ambíguo, e anexa a foto com
+  origem `WHATSAPP_COMMAND`. Um simulador em Rascunhos exercita o fluxo.
+- **Adaptar criativo entre marketplaces** (`adaptarCriativoVencedor`): leva o
+  criativo de melhor métrica de um SKU para outro canal como **PROPOSTA** (nunca
+  "vencedor" às cegas — exige teste no destino).
+- **Testes**: `ui-v8-catalog-operacional.test.js` +6 blocos (WhatsApp cria/anexa,
+  ambiguidade pede confirmação, adaptação é proposta, toolbar compacta + painel
+  lateral). Suíte **698 verdes**. Headless: toolbar compacta, filtros
+  expandem/recolhem, painel lateral, criação por WhatsApp; console limpo,
+  light/dark/mobile.

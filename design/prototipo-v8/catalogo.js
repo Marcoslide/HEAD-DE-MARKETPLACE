@@ -30,6 +30,7 @@
     cols: { categoria: true, custo: true, atualizacao: true },
     anCols: { sku: true, ids: true, precos: true, vendidos: true, perf: true, ranking: true, fonte: true },
     anuncioMkt: 'ml', anuncioTab: 'Todos', anQ: '', anQuick: '',
+    filtrosOpen: false,       /* 10.E.3.3 P2 — filtros recolhidos por padrão */
     lsel: new Set(), /* seleção de anúncios (listings) */
     drafts: [
       { id: 'd1', produtoId: 'p7', mkt: 'tiktok', status: D.STATUS.PRONTO_REVISAO, nota: 'draft interno gerado da oportunidade priorizada' },
@@ -143,6 +144,7 @@
       <div class="fbar" style="margin-top:12px">
         <button class="btn sm primary" data-act="upcatshopee">Importar rascunho (cadastro Shopee)</button>
         <button class="btn sm ghost" data-act="novorascunho">Criar rascunho da loja</button>
+        <button class="btn sm ghost" data-act="whatscriar">Criar anúncio via WhatsApp</button>
         <span class="src">rascunho → adaptar p/ marketplace → revisar campos → aprovar internamente → vira anúncio interno</span>
       </div>
       <div class="tabs" style="margin-top:12px;flex-wrap:wrap">
@@ -467,20 +469,33 @@
     return `
       ${cadastroListingsPanel()}
       ${contribProdutoPanel()}
+      ${CAT.mkt ? '' : `<div class="fbar" style="margin-top:12px">${D.MKTS.map(m => `<button class="fchip ${m.key === mk ? 'on' : ''}" data-act="anmkt" data-mkt="${m.key}" ${UI.ctx.marketplace ? 'title="marketplace fixado pela barra global"' : ''}>${m.nome}</button>`).join('')}</div>`}
+      ${(() => {
+        /* 10.E.3.3 P2 — barra compacta: busca + [Filtros] [Colunas] [Ordenar] [Ações];
+           filtros recolhidos por padrão; chips SÓ para filtros ativos. */
+        const ativos = (CAT.anQuick ? 1 : 0) + (CAT.diagFiltro ? 1 : 0) + (CAT.anQ ? 1 : 0);
+        return `
       <div class="fbar" style="margin-top:12px">
-        ${D.MKTS.map(m => `<button class="fchip ${m.key === mk ? 'on' : ''}" data-act="anmkt" data-mkt="${m.key}" ${UI.ctx.marketplace ? 'title="marketplace fixado pela barra global"' : ''}>${m.nome}</button>`).join('')}
         <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
-          <input id="anQ" placeholder="Nome, SKU, ID do anúncio, ID externo, EAN, marca…" value="${UI.esc(CAT.anQ)}" aria-label="Buscar anúncios"></label>
+          <input id="anQ" placeholder="Buscar produto, SKU ou ID do Item…" value="${UI.esc(CAT.anQ)}" aria-label="Buscar anúncios"></label>
         <span style="flex:1"></span>
-        <select class="select" data-act="anquick" title="Filtros rápidos completos">
-          <option value="">filtro rápido…</option>${QUICK_ALL.map(k => `<option value="${k}" ${CAT.anQuick === k ? 'selected' : ''}>${k.replace(/_/g, ' ')}</option>`).join('')}</select>
-        <button class="fchip" data-act="ancols">colunas</button>
-        <button class="btn sm" disabled title="${UI.esc(L.disabledReason('sync'))}">sincronizar anúncios</button>
+        <button class="fchip ${CAT.filtrosOpen ? 'on' : ''}" data-act="anfilt">Filtros${ativos ? ` · <b>${ativos}</b>` : ''}</button>
+        <button class="fchip" data-act="ancols">Colunas</button>
+        <button class="fchip" data-act="anord">Ordenar</button>
+        <button class="fchip" data-act="anacoes">Ações</button>
       </div>
-      <div class="fbar" style="margin:6px 0 0">${QUICK_CHIPS.map(([k, lbl]) => `<button class="fchip ${CAT.anQuick === k ? 'on' : ''}" data-act="anchip" data-k="${k}">${lbl}</button>`).join('')}
-        ${CAT.anQuick ? `<button class="fchip" data-act="anchip" data-k="">limpar filtro</button>` : ''}
-        ${CAT.diagFiltro ? `<button class="fchip on" data-act="diagclear">diagnóstico: ${UI.esc(CAT.diagFiltro)} ✕</button>` : ''}</div>
-      <div class="tabs" style="margin-top:8px">${Object.keys(TABS).map(t => `<button class="tab ${t === CAT.anuncioTab ? 'on' : ''}" data-act="antab" data-tab="${t}">${t}<span class="cnt">${all.filter(TABS[t]).length}</span></button>`).join('')}</div>
+      ${ativos ? `<div class="fbar" style="margin:6px 0 0">
+        ${CAT.anQ ? `<button class="fchip on" data-act="anqclear">busca: "${UI.esc(CAT.anQ.slice(0, 18))}" ✕</button>` : ''}
+        ${CAT.anQuick ? `<button class="fchip on" data-act="anchip" data-k="">${CAT.anQuick.replace(/_/g, ' ')} ✕</button>` : ''}
+        ${CAT.diagFiltro ? `<button class="fchip on" data-act="diagclear">diagnóstico: ${UI.esc(CAT.diagFiltro)} ✕</button>` : ''}
+      </div>` : ''}
+      ${CAT.filtrosOpen ? `<div class="panel" style="margin-top:8px"><div class="sect-h" style="margin-top:0"><span class="h2">Filtros</span><span class="src">Empresa · Canal · Conta · Status · Categoria · Marca · IDs · SKU · GTIN · Preço · Estoque · CTR · Conversão · Diagnóstico · Fonte</span></div>
+        <div class="fbar" style="flex-wrap:wrap">${QUICK_CHIPS.map(([k, lbl]) => `<button class="fchip ${CAT.anQuick === k ? 'on' : ''}" data-act="anchip" data-k="${k}">${lbl}</button>`).join('')}</div>
+        <div class="fbar" style="margin-top:8px"><select class="select" data-act="anquick" title="Filtros rápidos completos">
+          <option value="">todos os filtros rápidos…</option>${QUICK_ALL.map(k => `<option value="${k}" ${CAT.anQuick === k ? 'selected' : ''}>${k.replace(/_/g, ' ')}</option>`).join('')}</select>
+          <button class="btn sm ghost" data-act="anadv">Filtros avançados</button></div></div>` : ''}
+      <div class="tabs" style="margin-top:8px">${Object.keys(TABS).map(t => `<button class="tab ${t === CAT.anuncioTab ? 'on' : ''}" data-act="antab" data-tab="${t}">${t}<span class="cnt">${all.filter(TABS[t]).length}</span></button>`).join('')}</div>`;
+      })()}
 
       ${list.length ? `
       <div class="tblwrap" style="margin-top:12px">
@@ -1232,10 +1247,11 @@
           <button class="btn sm primary" data-act="epublicar" data-lid="${l.id}">Solicitar publicação</button>
         </div>
         <div class="editor-shopee-grid" style="display:flex;gap:14px;margin-top:12px;align-items:flex-start">
-          <div class="editor-sidenav" style="display:flex;flex-direction:column;gap:4px;min-width:190px">
+          <div class="editor-sidenav" style="display:flex;flex-direction:column;gap:4px;min-width:180px">
             ${SHOPEE_SECOES.map(([label, aba], i) => `<button class="tab ${aba === CAT.edAba ? 'on' : ''}" style="text-align:left;justify-content:flex-start" data-act="eaba" data-aba="${aba}"><b>${i + 1}.</b> ${label}</button>`).join('')}
           </div>
           <div class="editor-body" style="flex:1;min-width:0">${corpo}</div>
+          ${sidePanelShopee(l, id)}
         </div>
       </div>`);
     } else {
@@ -1253,6 +1269,74 @@
     wireDragFotos();
     const foco = UI.$('#modal .input.foco'); if (foco) setTimeout(() => foco.focus(), 40);
   };
+
+  /* 10.E.3.3 P2 — simulador do fluxo de criação por WhatsApp */
+  function openWhatsCriar() {
+    const ex = prods()[0];
+    UI.openModal(`<div class="editor">
+      <div class="drawer-h"><div><div class="eyebrow">Criar anúncio por WhatsApp · simulação</div>
+        <h2 class="h1" style="font-size:17px">"Criar anúncio deste produto na Shopee"</h2></div>
+        <button class="btn ghost sm" onclick="UI.closeModal()">✕ fechar</button></div>
+      <p class="sub" style="margin-top:6px">O Head identifica Empresa → Canal → Marketplace → Conta, busca/cria a Matriz da Loja, cria o Rascunho, reusa o SKU e aponta as pendências. Nada é publicado fora.</p>
+      <label style="display:block;margin-top:12px"><span class="eyebrow">Mensagem</span><br>
+        <input class="input" id="whatsTxt" style="width:100%;margin-top:4px" value="Criar anúncio do ${UI.esc(ex ? ex.nome : 'produto')} na Shopee"></label>
+      <div class="fbar" style="margin-top:10px"><button class="btn primary" data-act="whatsgo">Enviar</button><span class="src">tente também sem marketplace para ver a pergunta de confirmação</span></div>
+      <div id="whatsOut" style="margin-top:12px"></div>
+    </div>`);
+    UI.$('#modal').onclick = onClick;
+  }
+
+  /* 10.E.3.3 P2 — Ordenar e Ações (barra compacta da tela de Marketplaces) */
+  function openAnOrder() {
+    const OPÇÕES = [['nome', 'Nome'], ['preco', 'Preço'], ['estoque', 'Estoque'], ['vendidos90d', 'Vendidos 90d'], ['atualizadoEm', 'Última atualização']];
+    UI.openModal(`<h3 class="h2">Ordenar anúncios</h3>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
+        ${OPÇÕES.map(([k, l]) => `<button class="btn ghost" data-act="anordk" data-k="${k}" style="justify-content:space-between">${l}${CAT.sortKey === k ? ` <span class="src">${CAT.sortDir === 'asc' ? '↑' : '↓'}</span>` : ''}</button>`).join('')}
+      </div>`);
+    UI.$('#modal').onclick = onClick;
+  }
+  function openAnAcoes() {
+    const n = CAT.lsel.size;
+    UI.openModal(`<h3 class="h2">Ações</h3>
+      <p class="sub" style="margin-top:4px">${n} anúncio(s) selecionado(s).</p>
+      <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">
+        <button class="btn ghost" data-act="sub" data-sub="Edição em Massa">Edição em massa</button>
+        <button class="btn ghost" data-act="sub" data-sub="Duplicar e Adaptar">Duplicar / Adaptar para outro marketplace</button>
+        <button class="btn ghost" data-act="upcatshopee">Importar cadastro</button>
+        <button class="btn ghost" data-act="sub" data-sub="Comparar Marketplaces">Comparar marketplaces</button>
+      </div>`);
+    UI.$('#modal').onclick = onClick;
+  }
+
+  /* 10.E.3.3 P2 — painel lateral do editor Shopee (resumo + identidade + pendências + vínculos) */
+  function sidePanelShopee(l, id) {
+    const cat = CAT.eng();
+    const ide = V8CAT.identidadeExterna(cat, l);
+    const fotos = V8CAT.fotosDe(cat, l.id);
+    const pend = (V8CAT.diagnosticoProduto ? V8CAT.diagnosticoProduto(cat, l) : []).filter(d => d.impacto !== 'baixo');
+    const row = (k, v) => `<div class="ctxitem"><span>${k}</span><span class="src">${v == null || v === '' ? '—' : UI.esc(String(v))}</span></div>`;
+    return `<div class="editor-sidepanel" style="min-width:230px;max-width:270px">
+      <div class="ctxcard" style="margin-top:0"><div class="h"><b>Resumo do anúncio</b><span class="st ${l.itemIdExterno ? 'ok' : 'warn'} plain">${l.itemIdExterno ? 'ativo' : 'rascunho'}</span></div>
+        ${row('Empresa · Canal', (UI.ctx.empresaNome || 'Empresa') + ' · ' + l.mktNome)}
+        ${row('Conta', l.contaId)}
+        ${row('Shopee Item ID', l.itemIdExterno)}
+        ${row('ID interno', ide.internal_listing_id)}
+        ${row('Produto Master', (allProds().find(p => p.id === l.produtoId) || {}).nome)}
+        ${row('SKU principal', l.skuPai)}
+        ${row('Variation ID', ide.external_variation_id)}
+        ${row('Fotos', fotos.length + (fotos.some(f => f.uso.principal) ? ' · capa definida' : ' · sem capa'))}
+        ${row('Vínculo', ide.identity_confidence + ' (' + ide.identity_origin + ')')}
+      </div>
+      <div class="ctxcard" style="margin-top:10px"><div class="h"><b>Pendências</b><span class="st ${pend.length ? 'warn' : 'ok'} plain">${pend.length}</span></div>
+        ${pend.length ? pend.slice(0, 5).map(d => `<div class="ctxitem"><span>${UI.esc(d.tipo || 'ponto')}</span><span class="src">${UI.esc((d.fato || d.acao || '').slice(0, 40))}</span></div>`).join('') : '<div class="ctxitem"><span class="src">sem pendência bloqueante detectada</span></div>'}
+      </div>
+      <div class="fbar" style="margin-top:10px;flex-direction:column;align-items:stretch;gap:6px">
+        <button class="btn sm ghost" data-act="ematriz" data-pid="${l.produtoId}">Abrir Matriz da Loja</button>
+        <button class="btn sm ghost" data-act="eskudrawer" data-sku="${UI.esc(l.skuPai || '')}">Abrir visão do SKU</button>
+        <button class="btn sm ghost" data-act="eintel" data-lid="${l.id}">Inteligência e Dados Internos</button>
+      </div>
+    </div>`;
+  }
 
   const hashish = s => Math.abs([...String(s || '')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7));
   const impEng = () => (window.IMPORTAR && IMPORTAR.eng) || null;
@@ -1664,7 +1748,7 @@
     else if (act === 'f-margem') { tgl('margemMin', 60); body(); }
     else if (act === 'f-ml') { if (F.marketplace === 'ml') { delete F.marketplace; delete F.statusMkt; } else { F.marketplace = 'ml'; F.statusMkt = 'ATIVO'; } body(); }
     else if (act === 'f-clear') { CAT.filters = {}; body(); }
-    else if (act === 'adv') openAdvanced();
+    else if (act === 'adv' || act === 'anadv') openAdvanced();
     else if (act === 'upcat') IMPORTAR.uploadModal({ titulo: 'Carregar cadastro de produtos Shopee', dica: 'Referência: Shopee_mass_upload basic_template / mass_update_parent_sku (XLSX). Vínculo por ID → SKU variação → SKU pai; conflito de SKU bloqueia; nenhum produto é duplicado automaticamente.', onDone: () => render(CAT.sub) });
     /* 10.E.2.4 — cadastro Shopee (dentro do Catálogo) */
     else if (act === 'diagfiltro') { CAT.diagFiltro = b.dataset.tipo; CAT.sub = 'Anúncios'; UI.$('#crumb').textContent = 'Catálogo · Anúncios'; render('Anúncios'); }
@@ -1730,12 +1814,25 @@
     else if (act === 'drawer') CAT.openDrawer(b.dataset.id);
     else if (act === 'anmkt') { CAT.anuncioMkt = b.dataset.mkt; if (CAT.sub === 'Marketplaces' && CAT.mkt) CAT.mkt = b.dataset.mkt; body(); }
     else if (act === 'antab') { CAT.anuncioTab = b.dataset.tab; body(); }
+    else if (act === 'anfilt') { CAT.filtrosOpen = !CAT.filtrosOpen; body(); }
+    else if (act === 'anqclear') { CAT.anQ = ''; body(); }
+    else if (act === 'anord') openAnOrder();
+    else if (act === 'anacoes') openAnAcoes();
     else if (act === 'gocresc') UI.go('crescimento');
     /* ---------- 10.E.3.2: navegação Rascunhos / Marketplaces ---------- */
     else if (act === 'openmkt') { CAT.mkt = b.dataset.mkt; CAT.sub = 'Marketplaces'; CAT.anuncioMkt = b.dataset.mkt; CAT.anuncioTab = 'Todos'; UI.$('#crumb') && (UI.$('#crumb').textContent = 'Catálogo · Marketplaces'); render('Marketplaces'); }
     else if (act === 'backmkts') { CAT.mkt = null; render('Marketplaces'); }
     else if (act === 'rasctab') { CAT.rascTab = b.dataset.tab; body(); }
     else if (act === 'novorascunho') UI.toast('Criar rascunho da loja: use um Produto Master (Abrir produto → adaptar) — nada é publicado externamente.', '');
+    else if (act === 'whatscriar') openWhatsCriar();
+    else if (act === 'whatsgo') {
+      const cat = CAT.eng(); const txt = (UI.$('#whatsTxt') || {}).value || '';
+      const r = V8CAT.criarAnuncioComando(cat, txt, { usuario: D.meta.usuario, papel: papel() });
+      const box = UI.$('#whatsOut'); if (!box) return;
+      if (r.precisaConfirmar) { box.innerHTML = `<div class="callout warn">${UI.esc(r.pergunta)}</div>`; return; }
+      box.innerHTML = `<div class="callout"><pre style="white-space:pre-wrap;margin:0;font-family:inherit">${UI.esc(r.resposta)}</pre></div>
+        <div class="fbar" style="margin-top:8px">${r.draftId ? `<button class="btn sm primary" data-act="editor" data-id="${r.draftId}">Abrir rascunho criado</button>` : ''}<span class="src">rascunho interno — nada foi publicado fora</span></div>`;
+    }
     else if (act === 'prepmkt') { CAT.openDrawer(b.dataset.id); UI.toast('Prepare para um marketplace pela aba "Perfis por marketplace" / Adaptar — gera rascunho do canal.', ''); }
     /* ---------- 10.E.3: listings, editor, mídia, massa, adaptação ---------- */
     else if (act === 'editor') CAT.openEditor(b.dataset.id);
@@ -1749,6 +1846,7 @@
         <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn primary" id="ancolApply">Aplicar</button></div>`);
       UI.$('#ancolApply').onclick = () => { UI.$$('#modal [data-ancol]').forEach(i => CAT.anCols[i.dataset.ancol] = i.checked); UI.closeModal(); body(); };
     }
+    else if (act === 'anordk') { const k = b.dataset.k; if (CAT.sortKey === k) CAT.sortDir = CAT.sortDir === 'asc' ? 'desc' : 'asc'; else { CAT.sortKey = k; CAT.sortDir = 'asc'; } UI.closeModal(); body(); }
     else if (act === 'lsel') { CAT.lsel.has(b.dataset.id) ? CAT.lsel.delete(b.dataset.id) : CAT.lsel.add(b.dataset.id); body(); }
     else if (act === 'lselall') {
       const cat = CAT.eng(), ids = new Set(prods().map(p => p.id));

@@ -877,6 +877,76 @@
     };
   }
 
+  /* ---------- 10.E.3.3 P2 · FLUXO CONVERSACIONAL (WhatsApp) ---------- */
+  const MKT_ALIAS = { 'shopee': 'shopee', 'mercado livre': 'ml', 'mercado-livre': 'ml', 'mercadolivre': 'ml', 'meli': 'ml', 'ml': 'ml', 'tiktok': 'tiktok', 'tik tok': 'tiktok', 'magalu': 'magalu', 'magazine luiza': 'magalu' };
+  function detectarMkt(txt) { const t = String(txt || '').toLowerCase(); for (const k of Object.keys(MKT_ALIAS)) if (t.includes(k)) return MKT_ALIAS[k]; return null; }
+  /* "Criar anúncio deste produto na Shopee" → Matriz → Rascunho → SKU → pendências */
+  function criarAnuncioComando(cat, texto, ctx) {
+    ctx = ctx || {};
+    const mk = detectarMkt(texto) || ctx.marketplace;
+    if (!mk) return { precisaConfirmar: true, pergunta: 'Para qual marketplace? (Shopee, Mercado Livre, TikTok Shop ou Magalu)' };
+    let p = ctx.produtoId ? cat.products.find(x => x.id === ctx.produtoId) : null;
+    if (!p) {
+      const t = String(texto || '').toLowerCase();
+      /* casa se o NOME ou o SKU do produto aparece na mensagem (mais robusto que fatiar a frase) */
+      p = cat.products.find(x => t.includes(x.nome.toLowerCase()) || t.includes(x.sku.toLowerCase()));
+      if (!p) { const nome = t.replace(/criar (um )?an[uú]ncio( deste produto| do produto| de| do| da)?/i, '').replace(/na shopee|no mercado livre|no meli|no tiktok|no magalu/i, '').trim(); p = nome ? cat.products.find(x => x.nome.toLowerCase().includes(nome)) : null; }
+    }
+    if (!p) return { precisaConfirmar: true, pergunta: 'Qual produto? Não identifiquei pelo nome — me diga o produto ou o SKU exato.' };
+    const matriz = matrizDaLoja(cat, p.id);
+    let draft = cat.listings.find(l => l.produtoId === p.id && l.marketplace === mk && l.interno);
+    if (!draft) {
+      const base = cat.listings.find(l => l.produtoId === p.id);
+      if (base && base.marketplace !== mk) { const r = adaptListing(cat, base.id, mk, ctx); draft = r.draft; }
+      else if (base) { const r = duplicateListing(cat, base.id, ctx); draft = r.copia; draft.marketplace = mk; draft.mktNome = MKT_NOME[mk]; }
+    }
+    if (draft) draft.lifecycle = 'RASCUNHO_DO_MARKETPLACE';
+    const pend = [];
+    if (!matriz.gtinEan) pend.push('GTIN/EAN'); if (!matriz.peso) pend.push('Peso'); if (!matriz.marca) pend.push('Marca');
+    if (!matriz.dimensoes) pend.push('Dimensões da embalagem'); if (!matriz.fotosOriginais) pend.push('Foto principal');
+    if (draft) draft.lifecycle = pend.length ? 'AGUARDANDO_COMPLEMENTO' : 'AGUARDANDO_REVISAO';
+    cat._audit('whats_criar_anuncio', `${p.nome} → ${MKT_NOME[mk]} · rascunho ${draft ? draft.id : '—'} · ${pend.length} pendência(s)`, { origem: 'WHATSAPP_COMMAND' });
+    return { ok: true, marketplace: MKT_NOME[mk], produto: p.nome, sku: p.sku, draftId: draft ? draft.id : null,
+      lifecycle: draft ? draft.lifecycle : null, status: pend.length ? 'Aguardando complemento' : 'Pronto para revisão', pendencias: pend,
+      resposta: `Produto: ${p.nome}\nDestino: ${MKT_NOME[mk]}\nSKU: ${p.sku}\nStatus: ${pend.length ? 'Aguardando complemento' : 'Pronto para revisão'}${pend.length ? '\nPendências:\n- ' + pend.join('\n- ') : ''}` };
+  }
+  /* "Coloque essa foto no anúncio X" → busca por ID/SKU/nome (prioriza ID e SKU), confirma se ambíguo */
+  function anexarFotoComando(cat, texto, media, ctx) {
+    ctx = ctx || {}; media = media || {};
+    const mk = detectarMkt(texto);
+    let cands = cat.listings.filter(l => !mk || l.marketplace === mk);
+    const idMatch = (String(texto).match(/\b(\d{6,})\b/) || [])[1];
+    const skuMatch = (String(texto).match(/\b([A-Za-z0-9]{2,}-[A-Za-z0-9-]+)\b/) || [])[1];
+    let via = null;
+    if (idMatch) { const f = cands.filter(l => l.itemIdExterno === idMatch); if (f.length) { cands = f; via = 'Item ID'; } }
+    if (!via && skuMatch) { const f = cands.filter(l => (l.skuPai || '').toLowerCase() === skuMatch.toLowerCase()); if (f.length) { cands = f; via = 'SKU'; } }
+    if (!via) {
+      const nome = String(texto).toLowerCase().replace(/coloque essa foto no an[uú]ncio|adicione a foto (no|ao) an[uú]ncio|no an[uú]ncio/gi, '').replace(/da shopee|do mercado livre|do tiktok|do magalu/gi, '').trim();
+      if (nome) { cands = cands.filter(l => (l.titulo || '').toLowerCase().includes(nome)); via = 'nome (sugestão)'; }
+    }
+    if (!cands.length) return { precisaConfirmar: true, pergunta: 'Não encontrei o anúncio — me diga o Item ID ou o SKU.' };
+    if (cands.length > 1) return { precisaConfirmar: true, pergunta: 'Encontrei mais de um anúncio — confirme por Item ID ou SKU:', candidatos: cands.slice(0, 6).map(l => ({ id: l.id, titulo: l.titulo, marketplace: l.mktNome, itemId: l.itemIdExterno, sku: l.skuPai })) };
+    const l = cands[0];
+    const r = addMediaReal(cat, { produtoId: l.produtoId, listingId: l.id, arquivo: media.arquivo || 'foto-whatsapp.jpg', dataUrl: media.dataUrl || null, pesoKb: media.pesoKb || null, origem: 'WHATSAPP_COMMAND', skuVariacao: l.skuPai }, ctx);
+    if (r.blocked) return r;
+    const total = fotosDe(cat, l.id).length;
+    cat._audit('whats_foto', `${l.id} · via ${via} · origem WHATSAPP_COMMAND`, { origem: 'WHATSAPP_COMMAND' });
+    return { ok: true, duplicada: r.duplicada || false, anuncio: l.titulo, marketplace: l.mktNome, sku: l.skuPai, via, posicao: total, origem: 'WhatsApp',
+      resposta: `Foto adicionada:\nAnúncio: ${l.titulo}\nMarketplace: ${l.mktNome}\nSKU: ${l.skuPai || '—'}\nPosição: ${total} de ${total}\nOrigem: WhatsApp\nStatus: ${r.duplicada ? 'já existia (hash) — não duplicada' : 'carregada e disponível para revisão'}` };
+  }
+  /* adaptar o criativo de melhor métrica de um SKU para outro marketplace (proposta, nunca "vencedor" às cegas) */
+  function adaptarCriativoVencedor(cat, sku, destinoMkt, opts) {
+    opts = opts || {};
+    const ac = analiseCriativo(cat, sku);
+    if (!ac.comparavel) return { blocked: true, reason: 'sem base comparável entre criativos — não adapta às cegas; rode um teste antes' };
+    const melhor = ac.melhor;
+    const novo = addCreative(cat, { sku, tipo: melhor.tipo, mediaId: melhor.mediaId, marketplace: destinoMkt, origem: 'ADAPTADO_DE_OUTRO_CANAL',
+      hipoteseTeste: 'reaproveitar criativo de melhor métrica observada em outro canal — validar com teste no destino', status: 'PROPOSTO' }, opts);
+    if (novo.blocked) return novo;
+    cat._audit('criativo_adaptado', `SKU ${sku} · melhor criativo → ${MKT_NOME[destinoMkt] || destinoMkt} (proposta)`, { autor: opts.usuario || 'Marcos' });
+    return { ok: true, criativo: novo.creative, base: melhor, nota: 'adaptação é PROPOSTA — o que venceu num canal não vence no outro sem teste.' };
+  }
+
   /* ---------- duplicar e adaptar (rascunho interno; original intacto) ---------- */
   const ADAPT_RULES = {
     ml: { nome: 'Mercado Livre', tituloMax: 60, exige: ['ean', 'marca'], video: false,
@@ -1567,5 +1637,6 @@
     /* 10.E.3.3 — catálogo operacional: ciclo de vida, matriz, identidade, SKU-chave, criativos, experimentos, publicação */
     LIFECYCLE, TRANSICOES, transicionar, estadoInicial, matrizDaLoja, identidadeExterna,
     mediaHash, reorderMedia, addMediaReal, vincularMediaSku, addCreative, criativosDoSku, analiseCriativo,
-    EXP_STATUS, criarExperimento, avaliarExperimento, solicitarPublicacao, registrarRetornoOficial, skuDossie };
+    EXP_STATUS, criarExperimento, avaliarExperimento, solicitarPublicacao, registrarRetornoOficial, skuDossie,
+    detectarMkt, criarAnuncioComando, anexarFotoComando, adaptarCriativoVencedor };
 }));
