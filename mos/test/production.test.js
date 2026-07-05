@@ -257,7 +257,7 @@ test('32-33 · migrations: status, idempotência e rollback', () => {
   const st = core.migrationStatus(db);
   assert.ok(st.every(m => m.aplicada && m.reversivel), 'status completo');
   const revertida = core.rollbackMigration(db);
-  assert.equal(revertida, '005-financial-reconciliation');
+  assert.equal(revertida, '006-orders-vertical');
   assert.equal(core.migrationStatus(db).find(m => m.id === revertida).aplicada, false);
   core.migrate(db); /* reaplicar funciona */
   db.close();

@@ -72,5 +72,16 @@
     reconMovements: (ctx, filtro) => req('GET', '/financial-reconciliation/movements' + qs(Object.assign({}, ctx, filtro))),
     reconProjection: ctx => req('GET', '/financial-reconciliation/projection' + qs(ctx)),
     reconDivergences: ctx => req('GET', '/financial-reconciliation/divergences' + qs(ctx)),
+
+    /* 10.F.2 — Pedidos oficiais (Postgres via API) */
+    ordersSummary: ctx => req('GET', '/orders/summary' + qs(ctx)),
+    ordersList: (ctx, filtro) => req('GET', '/orders' + qs(Object.assign({}, ctx, filtro))),
+    order: id => req('GET', '/orders/' + id),
+    orderItems: id => req('GET', '/orders/' + id + '/items'),
+    orderEvents: id => req('GET', '/orders/' + id + '/events'),
+    orderFinancialIdentity: id => req('GET', '/orders/' + id + '/financial-identity'),
+    orderReconciliation: id => req('GET', '/orders/' + id + '/reconciliation'),
+    ordersProfitability: ctx => req('GET', '/orders/profitability' + qs(ctx)),
+    ordersUnreconciled: ctx => req('GET', '/orders/unreconciled' + qs(ctx)),
   };
 }));

@@ -218,6 +218,53 @@ const MIGRATIONS = [
     },
     validate(db) { try { db.prepare('SELECT reconciliation_status FROM financial_reconciliation_case LIMIT 1').all(); return true; } catch (e) { return false; } },
   },
+  {
+    /* 10.F.2 — PEDIDOS reais no Postgres. Pedido vira entidade operacional e
+       financeira (order + order_item + order_event), cruzada com a carteira via
+       financial_reconciliation_case. Identidade estável (sem status/valor); RAW
+       preservado; nome de produto nunca é chave de item. */
+    id: '006-orders-vertical',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS orders(
+          internal_order_id TEXT PRIMARY KEY, company_id TEXT, operation_id TEXT,
+          marketplace TEXT, marketplace_account_id TEXT, external_order_id TEXT, external_parent_order_id TEXT,
+          order_number TEXT, order_created_at TEXT, paid_at TEXT, shipped_at TEXT, delivered_at TEXT,
+          cancelled_at TEXT, returned_at TEXT, order_status TEXT, payment_status TEXT, fulfillment_status TEXT,
+          shipping_mode TEXT, fulfillment_mode TEXT, buyer_city TEXT, buyer_state TEXT, buyer_country TEXT,
+          gross_products_value REAL, buyer_shipping_paid REAL, seller_discount_value REAL, platform_discount_value REAL,
+          coupon_value REAL, voucher_value REAL, pix_discount_value REAL, total_paid_by_buyer REAL, currency TEXT,
+          expected_net_value REAL, source TEXT, source_file TEXT, source_sheet TEXT, source_row INTEGER,
+          raw_payload TEXT, normalized_payload TEXT, dedup_key TEXT, created_at TEXT, updated_at TEXT, audit_version INTEGER);
+        CREATE TABLE IF NOT EXISTS order_item(
+          order_item_id TEXT PRIMARY KEY, internal_order_id TEXT, company_id TEXT, marketplace TEXT,
+          marketplace_account_id TEXT, external_order_id TEXT, external_order_item_id TEXT,
+          product_master_id TEXT, internal_listing_id TEXT, external_listing_id TEXT, external_variation_id TEXT,
+          seller_sku TEXT, variation_sku TEXT, gtin_ean TEXT, product_name_original TEXT, variation_name_original TEXT,
+          quantity REAL, unit_price REAL, gross_item_value REAL, discount_allocated_value REAL, shipping_allocated_value REAL,
+          commission_allocated_value REAL, service_fee_allocated_value REAL, affiliate_fee_allocated_value REAL,
+          refund_allocated_value REAL, adjustment_allocated_value REAL, net_received_allocated_value REAL,
+          cost_product_estimated REAL, packaging_cost_estimated REAL, production_cost_estimated REAL,
+          ads_allocated_value REAL, fixed_cost_allocated_value REAL, estimated_profit_value REAL,
+          profitability_status TEXT, identity_confidence TEXT, identity_origin TEXT, needs_review INTEGER,
+          source TEXT, raw_payload TEXT, dedup_key TEXT, created_at TEXT, updated_at TEXT);
+        CREATE TABLE IF NOT EXISTS order_event(
+          event_id TEXT PRIMARY KEY, internal_order_id TEXT, event_type TEXT, old_status TEXT, new_status TEXT,
+          occurred_at TEXT, source TEXT, actor_type TEXT, actor_id TEXT, metadata TEXT, created_at TEXT);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ord_dedup ON orders(dedup_key);
+        CREATE INDEX IF NOT EXISTS idx_ord_scope ON orders(company_id, marketplace, marketplace_account_id, order_status);
+        CREATE INDEX IF NOT EXISTS idx_ord_ext ON orders(external_order_id);
+        CREATE INDEX IF NOT EXISTS idx_ord_time ON orders(order_created_at, paid_at, delivered_at);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_oi_dedup ON order_item(dedup_key);
+        CREATE INDEX IF NOT EXISTS idx_oi_order ON order_item(external_order_id);
+        CREATE INDEX IF NOT EXISTS idx_oi_ids ON order_item(external_listing_id, external_variation_id, seller_sku);
+        CREATE INDEX IF NOT EXISTS idx_oe_order ON order_event(internal_order_id);`);
+    },
+    down(db) {
+      db.exec('DROP TABLE IF EXISTS order_event; DROP TABLE IF EXISTS order_item; DROP TABLE IF EXISTS orders;');
+    },
+    validate(db) { try { db.prepare('SELECT order_status FROM orders LIMIT 1').all(); return true; } catch (e) { return false; } },
+  },
 ];
 
 function openDb(cfg) {

@@ -1414,3 +1414,46 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   Sistema com título, 0 duplicados, página única de Decisões/Missões, 9 abas
   internas da Central, SEO abre dentro da Central, console limpo). `npm test`
   **747 verdes**.
+
+## SPRINT 10.F.2 — Pedidos reais no Postgres + cruzamento oficial · Incremento 1
+
+> Fecha o ciclo da venda: **Pedido → Carteira → Conciliação → Recebimento →
+> Lucratividade**. Ao importar o pedido, os casos que estavam
+> `RECEBIDO_SEM_CONFERENCIA` (dinheiro entrou, mas sem pedido para conferir)
+> passam a `CONCILIADO` / `AGUARDANDO_LIBERACAO` / `DIVERGENTE`.
+
+- **Motor** (`design/prototipo-v8/pedidos-engine.js`, `V8PED`; compartilhado
+  Node + navegador; `mos/test/ui-v8-pedidos.test.js` **6/6**):
+  - `parseOrders` localiza o cabeçalho real do export de Pedidos Shopee
+    (`ID do pedido · Status · Data de criação · Nome do Produto · Número de
+    referência SKU · Quantidade · Valor Total · Cidade · UF`) mesmo com preâmbulo,
+    e **agrupa os itens por pedido** (uma linha = um item), preservando a RAW.
+  - `identidadeItem`: prioridade **Item ID > Variation ID > SKU > GTIN**; sem
+    identificador forte → `NEEDS_REVIEW`. **Nome de produto nunca é chave.**
+  - `expectativaFinanceira`: líquido esperado por fórmula; sem comissão cadastrada,
+    **declara** o que falta. `ratearPorItem`: taxa única do pedido rateada sem
+    duplicar por SKU. `rentabilidadeItem`: sem custo interno → `SEM_DADOS_SUFICIENTES`.
+- **Postgres** (`core.js` migração `006-orders-vertical`): `orders`, `order_item`,
+  `order_event` com índices (company/marketplace/account/status/order/ids/time).
+- **Serviço** (`mos/src/production/orders.js`, `createOrders(db)`): `importOrders`
+  faz upsert idempotente por **identidade estável** (marketplace+conta+pedido; itens
+  por +Item ID/Variation ID/SKU — nunca por status/valor), atualiza só o que mudou
+  (`COALESCE`, não apaga campo ausente) e preserva RAW; grava `order_event`. Em
+  seguida **cruza com a carteira**: semeia a expectativa no `financial_reconciliation_case`
+  e roda a reconciliação — daí o **flip** de `RECEBIDO_SEM_CONFERENCIA` → `CONCILIADO`.
+  Leituras: `list/byId/items/events/financialIdentity/reconciliation/profitability/summary/unreconciled`.
+- **API** (`apps/api/server.js`): `GET /orders`, `/orders/:id`, `/orders/:id/items`,
+  `/orders/:id/events`, `/orders/:id/financial-identity`, `/orders/:id/reconciliation`,
+  `/orders/summary`, `/orders/profitability`, `/orders/unreconciled` — com `assertScope`
+  e busca por SKU/Item ID/Variation ID. `api-client.js` ganhou os métodos `orders*`.
+- **Prova real contra Postgres** (`mos/test/orders-pg.test.js`): parser com preâmbulo;
+  carteira sozinha → caso `RECEBIDO_SEM_CONFERENCIA`; importa o pedido → **vira
+  `CONCILIADO`** (recebido explica o esperado); pedido entregue há pouco →
+  `AGUARDANDO_LIBERACAO`; pedido de 2 itens agrupado, item sem SKU/ID → revisão;
+  busca por SKU; RAW preservado; **reimportação sem duplicar**; status novo atualiza
+  sem apagar; **instância NOVA do backend vê os mesmos pedidos, itens e vínculos**.
+  **2/2 verdes**; com Conciliação e Performance, **9/9 no Postgres real** (serial).
+- **Incremento 2 (declarado)**: a tela **Pedidos** (subabas Todos/Pagos/Enviados/
+  Atrasados/…) e o **detalhe do pedido** (Resumo · Itens e SKUs · Operação ·
+  Identidade Financeira · Conciliação · Devoluções · Histórico) consumindo a API.
+- `npm test` **753 verdes** (3 Postgres pulados sem banco).

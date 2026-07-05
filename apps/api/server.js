@@ -12,6 +12,7 @@ const { createSecurity } = require('../../mos/src/production/security.js');
 const { createStorage } = require('../../mos/src/production/storage.js');
 const { createQueue, createImportService, createIntelligence, createHealth } = require('../../mos/src/production/jobs.js');
 const { createReconciliation } = require('../../mos/src/production/reconciliation.js');
+const { createOrders } = require('../../mos/src/production/orders.js');
 
 function createApi(opts) {
   const cfg = envConfig(opts && opts.env, opts && opts.baseDir);
@@ -25,6 +26,7 @@ function createApi(opts) {
   const imports = createImportService(db, audit);
   const intel = createIntelligence(db);
   const recon = createReconciliation(db);
+  const orders = createOrders(db);
   const health = createHealth(db, cfg, queue);
 
   const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
@@ -169,6 +171,23 @@ function createApi(opts) {
           if (seg === 'projection') return done(200, recon.projection(esc, url.searchParams.get('now')));
           if (seg === 'divergences') return done(200, { cases: recon.divergences(esc) });
           return done(404, { erro: 'recurso de conciliação desconhecido: ' + seg });
+        }
+        /* 10.F.2 — PEDIDOS oficiais (leitura). Fonte é o Postgres; a tela consome. */
+        if (p.startsWith('/orders') && req.method === 'GET') {
+          const c = ctxDe(); assertRead(c);
+          const e = { company_id: c.company_id, marketplace: c.marketplace, marketplace_account_id: c.account_id };
+          const seg = p.split('/'); /* ['', 'orders', ':id?', 'sub?'] */
+          if (p === '/orders/summary') return done(200, orders.summary(e));
+          if (p === '/orders/profitability') return done(200, { items: orders.profitability(e, {}) });
+          if (p === '/orders/unreconciled') return done(200, { cases: orders.unreconciled(e) });
+          if (p === '/orders') return done(200, { orders: orders.list(e, { status: url.searchParams.get('status'), order: url.searchParams.get('external_order_id'), sku: url.searchParams.get('sku'), item_id: url.searchParams.get('item_id'), variation_id: url.searchParams.get('variation_id') }) });
+          const id = seg[2];
+          if (id && seg[3] === 'items') return done(200, { items: orders.items(id) });
+          if (id && seg[3] === 'events') { const o = orders.byId(id); return o ? done(200, { events: orders.events(o.internal_order_id) }) : done(404, { erro: 'pedido não encontrado' }); }
+          if (id && seg[3] === 'financial-identity') { const fi = orders.financialIdentity(id); return fi ? done(200, fi) : done(404, { erro: 'pedido não encontrado' }); }
+          if (id && seg[3] === 'reconciliation') { const rc = orders.reconciliation(id); return rc ? done(200, rc) : done(404, { erro: 'pedido não encontrado' }); }
+          if (id && !seg[3]) { const o = orders.byId(id); return o ? done(200, o) : done(404, { erro: 'pedido não encontrado' }); }
+          return done(404, { erro: 'recurso de pedidos desconhecido' });
         }
         if (p === '/external-write' && req.method === 'POST') { sec.assertNoExternalWrite(body.action || 'publicar_externo'); }
         return done(404, { erro: 'rota não encontrada' });
