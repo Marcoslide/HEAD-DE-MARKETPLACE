@@ -802,3 +802,49 @@ O scaffolding restante do prompt — Import Ledger como página, seletor
 Empresa/Loja/Conta em wizard dedicado, cabeçalhos "onde baixar na Shopee" por
 aba e o toggle de análise consolidada — fica como continuação, apoiado nesta
 base de fontes reais.
+
+## 10.E.3.2 — Navegação do Catálogo: 3 áreas para o dono trabalhar
+
+O Catálogo tinha virado um **menu técnico de banco de dados** (~22 abas:
+Produtos Master, Anúncios, Variações, Fotos, Atributos, SKU e Vínculos,
+Anúncio Master, Importar, Campos, Edição em Massa, Duplicar, Saúde,
+Comparar, Histórico, Fontes…). Isso é arquitetura para desenvolvedor navegar.
+O dono e a equipe precisam de uma arquitetura para **trabalhar sem se perder**.
+
+O menu principal do Catálogo passa a ter **exatamente 3 áreas** (`MAIN_SUBS`):
+
+- **Visão Geral** — central de comando. Abre por padrão. Traz o resumo por
+  marketplace (ativos, pendências, não publicados) e ações rápidas contextuais
+  (Abrir Rascunhos, Abrir Shopee/Mercado Livre, Importar Cadastro, Ver
+  Pendências, Comparar Marketplaces).
+- **Rascunhos** — tudo que ainda **não é anúncio ativo**, com subabas por
+  origem (`RASC_TABS`: Rascunhos da Loja, Shopee, Mercado Livre, TikTok Shop,
+  Magalu, Outros). Botões "Importar" e "Criar rascunho da loja". Regra visível:
+  rascunho **nunca vira anúncio real automaticamente** — não se mistura com
+  ativo.
+- **Marketplaces** — hub. Sem marketplace escolhido, mostra o **picker** de
+  plataformas (`MKT_LIST`: Shopee, Mercado Livre, TikTok Shop, Magalu). Ao
+  escolher um, entra na operação daquele marketplace: breadcrumb "← Marketplaces",
+  botão "Importar Cadastro <nome>" e a tabela de anúncios com **status nativo ×
+  status Head** e diagnóstico (o contrato do redesign 10.E.3.1 continua).
+
+**Migração é só de navegação — nada foi removido.** As 15 áreas técnicas saem
+do menu principal mas continuam no sistema, agora **contextuais** (`CONTEXTUAIS`
++ `PAI_DE` mapeiam cada área ao seu pai). Quando uma área técnica é aberta por
+contexto, o topo mostra um breadcrumb com **botão de volta à área principal**
+(`← <área pai>`). Todos os renderers (`visaoGeral`, `anuncios`, `produtos`,
+`variacoes`, `midia`, `importarCadastro`, `camposCadastro`, `edicaoMassa`,
+`duplicarAdaptar`, `saude`, `compararMkts`, `historicoVersoes`,
+`fontesArquivos`, `anuncioMaster`, `CAT.openEditor`) e o **editor de 14 abas**
+seguem intactos. Dados, masters, listings, variações, histórico, vínculos e
+permissões não são apagados; import e editor não quebram; nenhuma escrita
+externa é disparada.
+
+- **Testes**: `ui-v8-catalog-nav.test.js` (10 blocos: menu = 3 áreas; abre em
+  Visão Geral; técnicas fora do menu mas presentes; subabas de Rascunhos;
+  picker/breadcrumb de Marketplaces; status nativo×Head; editor de 14 abas;
+  importar/pendências contextuais; renderers preservados; breadcrumb de volta +
+  sem escrita externa). Headless (15/15): 3 abas, Visão Geral com resumo,
+  Rascunhos por origem, Marketplaces picker→Shopee, editor 14 abas, Saúde
+  acessível por contexto, dark + mobile, console limpo. Suíte completa **638
+  verdes**.

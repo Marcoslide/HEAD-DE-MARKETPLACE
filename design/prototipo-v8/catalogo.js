@@ -10,13 +10,21 @@
 (function () {
   'use strict';
   const L = V8LOGIC, D = V8DATA;
-  const SUBS = ['Visão Geral', 'Produtos Master', 'Anúncios', 'Rascunhos', 'Ativos', 'Pausados', 'Não Publicados',
+  /* 10.E.3.2 — navegação principal reduzida para 3 áreas; tudo o mais é contextual.
+     As demais áreas continuam existindo (dispatch em SUBS) mas saem do menu principal. */
+  const MAIN_SUBS = ['Visão Geral', 'Rascunhos', 'Marketplaces'];
+  const SUBS = ['Visão Geral', 'Rascunhos', 'Marketplaces', 'Produtos Master', 'Anúncios', 'Ativos', 'Pausados', 'Não Publicados',
     'Em Revisão', 'Com Erro ou Bloqueio', 'Variações', 'Fotos e Vídeos', 'Atributos e Especificações',
     'SKU e Vínculos', 'Anúncio Master', 'Importar Cadastro', 'Campos de Cadastro', 'Edição em Massa', 'Duplicar e Adaptar',
     'Saúde e Pendências', 'Comparar Marketplaces', 'Histórico e Versões', 'Fontes e Arquivos'];
+  /* marketplaces operáveis + subabas de status por marketplace */
+  const MKT_LIST = [['shopee', 'Shopee'], ['ml', 'Mercado Livre'], ['tiktok', 'TikTok Shop'], ['magalu', 'Magalu']];
+  const MKT_STATUS = ['Todos', 'Ativos', 'Não publicados', 'Pausados', 'Em análise', 'Em revisão', 'Violação ou bloqueio', 'Rascunhos'];
 
   const CAT = window.CATALOGO = {
     sub: 'Visão Geral',
+    mkt: null,                /* marketplace operado em "Marketplaces > [mkt]" */
+    rascTab: 'Todos',         /* subaba de Rascunhos por origem */
     filters: {},              /* mantidos ao navegar entre subáreas */
     sortKey: 'nome', sortDir: 'asc',
     cols: { categoria: true, custo: true, atualizacao: true },
@@ -43,17 +51,37 @@
   };
 
   /* ---------------- shell da área ---------------- */
+  /* nome principal ao qual cada subárea antiga pertence (para destacar a aba certa + migração) */
+  const PAI_DE = { 'Marketplaces': 'Marketplaces', 'Produtos Master': 'Marketplaces', 'Anúncios': 'Marketplaces',
+    'Ativos': 'Marketplaces', 'Pausados': 'Marketplaces', 'Não Publicados': 'Marketplaces', 'Em Revisão': 'Marketplaces',
+    'Com Erro ou Bloqueio': 'Marketplaces', 'Variações': 'Marketplaces', 'Fotos e Vídeos': 'Marketplaces',
+    'Atributos e Especificações': 'Marketplaces', 'SKU e Vínculos': 'Marketplaces', 'Anúncio Master': 'Marketplaces',
+    'Importar Cadastro': 'Marketplaces', 'Campos de Cadastro': 'Marketplaces', 'Edição em Massa': 'Marketplaces',
+    'Duplicar e Adaptar': 'Marketplaces', 'Saúde e Pendências': 'Visão Geral', 'Comparar Marketplaces': 'Marketplaces',
+    'Histórico e Versões': 'Marketplaces', 'Fontes e Arquivos': 'Marketplaces', 'Rascunhos': 'Rascunhos', 'Visão Geral': 'Visão Geral' };
+  const CONTEXTUAIS = ['Produtos Master', 'Anúncios', 'Variações', 'Fotos e Vídeos', 'Atributos e Especificações',
+    'SKU e Vínculos', 'Anúncio Master', 'Importar Cadastro', 'Campos de Cadastro', 'Edição em Massa', 'Duplicar e Adaptar',
+    'Saúde e Pendências', 'Comparar Marketplaces', 'Histórico e Versões', 'Fontes e Arquivos'];
+  const TITULO_CTX = { 'Importar Cadastro': 'Importar Cadastro', 'Campos de Cadastro': 'Campos recebidos',
+    'Saúde e Pendências': 'Saúde e Pendências', 'Edição em Massa': 'Edição em massa', 'Duplicar e Adaptar': 'Duplicar e adaptar',
+    'Comparar Marketplaces': 'Comparar marketplaces', 'Histórico e Versões': 'Histórico e versões',
+    'Fontes e Arquivos': 'Fontes e arquivos', 'Produtos Master': 'Produtos Master', 'Anúncios': 'Anúncios',
+    'Variações': 'Variações', 'Fotos e Vídeos': 'Fotos e vídeos', 'Atributos e Especificações': 'Atributos',
+    'SKU e Vínculos': 'SKU e vínculos', 'Anúncio Master': 'Anúncio Master' };
   function render(sub) {
     if (sub === 'Produtos') sub = 'Produtos Master'; /* compat com navegação antiga */
     if (sub && SUBS.includes(sub)) CAT.sub = sub;
     const el = UI.$('#v-catalogo');
+    const abaAtiva = PAI_DE[CAT.sub] || 'Visão Geral';
+    const ctx = CONTEXTUAIS.includes(CAT.sub);
     el.innerHTML = `
-      <div class="eyebrow">catálogo · central operacional de produtos e anúncios</div>
+      <div class="eyebrow">catálogo · operação de produtos e anúncios</div>
       <h1 class="h1">Catálogo</h1>
-      <p class="sub" style="margin-top:6px">Product Master é a <b>verdade interna</b>; cada anúncio é a projeção em um marketplace — editar um canal nunca sobrescreve outro. ${UI.esc(D.STATUS.DADO_SIMULADO)} · rotulado.</p>
+      <p class="sub" style="margin-top:6px">Três áreas: <b>Visão Geral</b> (como está a operação), <b>Rascunhos</b> (o que aguarda revisão/preparação) e <b>Marketplaces</b> (anúncios reais por plataforma). O detalhe técnico abre dentro do produto ou do anúncio.</p>
       <div class="tabs" style="margin-top:16px;flex-wrap:wrap">
-        ${SUBS.map(s => `<button class="tab ${s === CAT.sub ? 'on' : ''}" data-act="sub" data-sub="${s}">${s}${s === 'Saúde e Pendências' ? `<span class="cnt">${V8CAT.health(CAT.eng()).reduce((a, f) => a + f.itens.length, 0)}</span>` : ''}</button>`).join('')}
+        ${MAIN_SUBS.map(s => `<button class="tab ${s === abaAtiva && !ctx ? 'on' : ''}" data-act="sub" data-sub="${s}">${s}${s === 'Marketplaces' ? '' : ''}</button>`).join('')}
       </div>
+      ${ctx ? `<div class="fbar" style="margin-top:10px"><button class="btn sm ghost" data-act="sub" data-sub="${abaAtiva}">← ${UI.esc(abaAtiva)}</button><span class="src">contexto: ${UI.esc(TITULO_CTX[CAT.sub] || CAT.sub)} — parte interna, acessada quando necessário</span></div>` : ''}
       <div id="catBody" style="margin-top:16px"></div>`;
     body();
     el.onclick = onClick;
@@ -71,10 +99,11 @@
     ensureConverged();
     const el = UI.$('#catBody');
     if (CAT.sub === 'Visão Geral') el.innerHTML = visaoGeral();
+    else if (CAT.sub === 'Marketplaces') el.innerHTML = marketplacesHub();
     else if (CAT.sub === 'Produtos Master') el.innerHTML = produtos();
     else if (CAT.sub === 'Anúncios') el.innerHTML = anuncios();
     else if (STATUS_TABS[CAT.sub]) { CAT.anuncioTab = STATUS_TABS[CAT.sub]; el.innerHTML = anuncios(); }
-    else if (CAT.sub === 'Rascunhos') el.innerHTML = rascunhos();
+    else if (CAT.sub === 'Rascunhos') el.innerHTML = rascunhosHub();
     else if (CAT.sub === 'Variações') el.innerHTML = variacoes();
     else if (CAT.sub === 'Fotos e Vídeos') el.innerHTML = midia();
     else if (CAT.sub === 'Atributos e Especificações') el.innerHTML = atributos();
@@ -92,6 +121,82 @@
     UI.refreshBadges();
   }
 
+  /* ================= 10.E.3.2 · HUB RASCUNHOS (por origem) ================= */
+  const MKT_KEY_NOME = Object.fromEntries(MKT_LIST);
+  function todosRascunhos() {
+    const cat = CAT.eng();
+    const dynamic = UI.state.jobs.filter(j => j.acao === 'gerar_rascunhos').flatMap(j => j.itens.map(id => ({ id: j.id + ':' + id, produtoId: id, mkt: 'loja', titulo: null, status: D.STATUS.PRONTO_REVISAO, nota: 'gerado por job em massa', tipo: 'produto' })));
+    const adaptados = cat.listings.filter(l => l.status === 'RASCUNHO' && !l.arquivado)
+      .map(l => ({ id: l.id, produtoId: l.produtoId, mkt: l.marketplace, titulo: l.titulo, status: 'RASCUNHO', nota: l.adaptacao ? 'adaptado de ' + (l.adaptacao.de || '—') : 'rascunho interno', tipo: 'listing', pend: l.adaptacao ? l.adaptacao.pendente : [] }));
+    const demo = CAT.drafts.map(d => Object.assign({ tipo: 'produto', titulo: null }, d));
+    return [...adaptados, ...demo, ...dynamic];
+  }
+  const RASC_TABS = [['Todos', null], ['Rascunhos da Loja', 'loja'], ['Shopee', 'shopee'], ['Mercado Livre', 'ml'], ['TikTok Shop', 'tiktok'], ['Magalu', 'magalu'], ['Outros', 'outros']];
+  function rascunhosHub() {
+    const all = todosRascunhos();
+    const cur = RASC_TABS.find(t => t[0] === CAT.rascTab) || RASC_TABS[0];
+    const filtra = d => cur[1] == null ? true : cur[1] === 'loja' ? (d.mkt === 'loja' || d.mkt === '—' || !d.mkt) : cur[1] === 'outros' ? !MKT_KEY_NOME[d.mkt] && d.mkt !== 'loja' : d.mkt === cur[1];
+    const list = all.filter(filtra);
+    const cnt = key => all.filter(d => key == null ? true : key === 'loja' ? (d.mkt === 'loja' || d.mkt === '—' || !d.mkt) : key === 'outros' ? !MKT_KEY_NOME[d.mkt] && d.mkt !== 'loja' : d.mkt === key).length;
+    return `
+      <div class="callout" style="margin-top:0">Rascunho é <b>${UI.esc(D.STATUS.ACAO_INTERNA)}</b>: preparado dentro do sistema. Nunca vira anúncio real automaticamente, nunca publica fora. Importação incompleta entra aqui, não em Ativos.</div>
+      <div class="fbar" style="margin-top:12px">
+        <button class="btn sm primary" data-act="upcatshopee">Importar rascunho (cadastro Shopee)</button>
+        <button class="btn sm ghost" data-act="novorascunho">Criar rascunho da loja</button>
+        <span class="src">rascunho → adaptar p/ marketplace → revisar campos → aprovar internamente → vira anúncio interno</span>
+      </div>
+      <div class="tabs" style="margin-top:12px;flex-wrap:wrap">
+        ${RASC_TABS.map(([nome, key]) => `<button class="tab ${nome === CAT.rascTab ? 'on' : ''}" data-act="rasctab" data-tab="${nome}">${nome}<span class="cnt">${cnt(key)}</span></button>`).join('')}
+      </div>
+      ${list.length ? `<div class="tblwrap" style="margin-top:12px"><table class="tbl"><thead><tr>
+        <th class="nosort">Rascunho</th><th class="nosort">Produto Master</th><th class="nosort">Destino</th><th class="nosort">Status interno</th><th class="nosort">Pendências</th><th class="nosort">Ações</th></tr></thead><tbody>
+        ${list.map(d => {
+          const p = allProds().find(x => x.id === d.produtoId);
+          const mkNome = d.mkt === 'loja' || !d.mkt ? 'Rascunho da Loja' : (MKT_KEY_NOME[d.mkt] || 'Outros');
+          const pend = (d.pend && d.pend.length) ? d.pend.join(' · ') : (p && p.pendencias ? p.pendencias.join(' · ') : '—');
+          return `<tr><td class="tmain">${UI.esc(d.titulo || (p ? p.nome : d.produtoId))}<span class="tsub">${UI.esc(d.id)}</span></td>
+            <td><span class="src">${UI.esc(p ? p.sku : '—')}</span></td>
+            <td><span class="kbd">${UI.esc(mkNome)}</span></td>
+            <td>${UI.stBadge(d.status)}</td>
+            <td><span class="src">${UI.esc(pend)}</span></td>
+            <td><span class="rowact">${d.tipo === 'listing' ? `<button class="btn sm" data-act="editcad" data-id="${d.id}">abrir no editor</button>` : `<button class="btn sm" data-act="drawer" data-id="${d.produtoId}">abrir produto</button>`}
+              ${d.mkt === 'loja' || !d.mkt ? `<button class="btn sm ghost" data-act="prepmkt" data-id="${d.produtoId}">preparar p/ marketplace</button>` : `<button class="btn sm ghost" data-act="canceldraft" data-id="${d.id}">arquivar</button>`}</span></td></tr>`;
+        }).join('')}
+      </tbody></table></div>` : `<div class="panel" style="margin-top:12px"><div class="empty"><b>Sem rascunhos em ${UI.esc(CAT.rascTab)}</b>Rascunhos nascem de importação incompleta, de Duplicar/Adaptar ou de "Criar rascunho da loja".</div></div>`}`;
+  }
+
+  /* ================= 10.E.3.2 · HUB MARKETPLACES (operação por plataforma) ================= */
+  function marketplacesHub() {
+    const cat = CAT.eng();
+    if (!CAT.mkt) {
+      const ls = V8CAT.ativos(cat);
+      const card = ([key, nome]) => {
+        const doMkt = ls.filter(l => l.marketplace === key);
+        const ativos = doMkt.filter(l => l.status === 'ATIVO').length;
+        const rasc = doMkt.filter(l => l.status === 'RASCUNHO').length;
+        const pend = doMkt.filter(l => V8CAT.diagnosticoProduto(cat, l).length).length;
+        return `<button class="obcard" data-act="openmkt" data-mkt="${key}" style="text-align:left">
+          <div style="display:flex;justify-content:space-between;align-items:center"><b>${nome}</b><span class="st ${doMkt.length ? 'pos' : ''} plain">${doMkt.length} anúncio(s)</span></div>
+          <div class="src" style="margin-top:6px">Ativos ${ativos} · Rascunhos ${rasc} · Com sinal ${pend}</div>
+          <div class="src" style="margin-top:4px">abrir operação →</div></button>`;
+      };
+      return `
+        <div class="callout" style="margin-top:0">Escolha o marketplace para operar seus anúncios reais. Cada plataforma preserva o <b>status nativo</b> e o <b>status Head</b>; editar um canal nunca toca outro.</div>
+        <div class="obpick" style="margin-top:12px">${MKT_LIST.map(card).join('')}
+          <button class="obcard" data-act="openmkt" data-mkt="outros" style="text-align:left"><b>Outros</b><div class="src" style="margin-top:6px">canais adicionais configurados</div></button></div>`;
+    }
+    const nome = MKT_KEY_NOME[CAT.mkt] || 'Outros';
+    CAT.anuncioMkt = CAT.mkt;
+    return `
+      <div class="fbar" style="margin-top:0">
+        <button class="btn sm ghost" data-act="backmkts">← Marketplaces</button>
+        <span class="h2" style="align-self:center">${UI.esc(nome)}</span>
+        <span style="flex:1"></span>
+        <button class="btn sm primary" data-act="upcatshopee">Importar Cadastro ${UI.esc(nome)}</button>
+      </div>
+      ${anuncios()}`;
+  }
+
   /* ---------------- Visão Geral (dashboard executivo do catálogo) ---------------- */
   function visaoGeral() {
     const cat = CAT.eng();
@@ -104,8 +209,27 @@
     const diags = {};
     for (const l of ls) for (const d of V8CAT.diagnosticoProduto(cat, l)) (diags[d.tipo] = diags[d.tipo] || []).push(l.id);
     const diagTop = Object.entries(diags).sort((a, b) => b[1].length - a[1].length).slice(0, 8);
+    /* resumo por marketplace (comparação simples) */
+    const porMkt = MKT_LIST.map(([key, nome]) => {
+      const dm = ls.filter(l => l.marketplace === key);
+      return { key, nome, total: dm.length, ativos: dm.filter(l => l.status === 'ATIVO').length,
+        rascunhos: dm.filter(l => l.status === 'RASCUNHO').length, naoPub: dm.filter(l => l.status === 'NAO_PUBLICADO').length,
+        pausados: dm.filter(l => l.status === 'PAUSADO').length, pend: dm.filter(l => V8CAT.diagnosticoProduto(cat, l).length).length };
+    }).filter(m => m.total);
     return `
-      <div class="callout" style="margin-top:0">Central operacional do Catálogo. Cada indicador declara <b>fonte, período, cobertura e qualidade</b> — nenhum número sem origem. Publicação externa: ${UI.esc(D.STATUS.ESCRITA_BLOQUEADA)}.</div>
+      <div class="callout" style="margin-top:0">Central de comando do Catálogo — como está a operação, o que precisa de atenção e onde estão os anúncios. Cada indicador declara <b>fonte, período, cobertura e qualidade</b>. Publicação externa: ${UI.esc(D.STATUS.ESCRITA_BLOQUEADA)}.</div>
+      <div class="fbar" style="margin-top:12px;flex-wrap:wrap">
+        <button class="btn sm primary" data-act="sub" data-sub="Rascunhos">Abrir Rascunhos</button>
+        <button class="btn sm" data-act="openmkt" data-mkt="shopee">Abrir Shopee</button>
+        <button class="btn sm" data-act="openmkt" data-mkt="ml">Abrir Mercado Livre</button>
+        <button class="btn sm ghost" data-act="upcatshopee">Importar Cadastro</button>
+        <button class="btn sm ghost" data-act="sub" data-sub="Saúde e Pendências">Ver Pendências</button>
+        <button class="btn sm ghost" data-act="sub" data-sub="Comparar Marketplaces">Comparar Marketplaces</button>
+      </div>
+      ${porMkt.length ? `<div class="panel" style="margin-top:12px"><div class="sect-h" style="margin-top:0"><span class="h2">Resumo por marketplace</span><span class="src">clique para operar</span></div>
+        <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Marketplace</th><th class="nosort">Anúncios</th><th class="nosort">Ativos</th><th class="nosort">Rascunhos</th><th class="nosort">Não publicados</th><th class="nosort">Pausados</th><th class="nosort">Com sinal</th><th class="nosort"></th></tr></thead><tbody>
+        ${porMkt.map(m => `<tr><td class="tmain">${UI.esc(m.nome)}</td><td>${m.total}</td><td>${m.ativos}</td><td>${m.rascunhos}</td><td>${m.naoPub}</td><td>${m.pausados}</td><td>${m.pend ? `<span class="st warn plain">${m.pend}</span>` : '—'}</td><td><span class="rowact"><button class="btn sm ghost" data-act="openmkt" data-mkt="${m.key}">operar →</button></span></td></tr>`).join('')}
+        </tbody></table></div></div>` : ''}
       <div class="panel" style="margin-top:12px">
         <div class="sect-h" style="margin-top:0"><span class="h2">Status operacional Head</span><span class="src">estado comum entre marketplaces · status nativo preservado por anúncio</span></div>
         <div class="mesa-grid">
@@ -1437,9 +1561,15 @@
     else if (act === 'selclear') { L.clearSelection(UI.state); body(); }
     else if (act === 'bulk') doBulk(b.dataset.bulk);
     else if (act === 'drawer') CAT.openDrawer(b.dataset.id);
-    else if (act === 'anmkt') { CAT.anuncioMkt = b.dataset.mkt; body(); }
+    else if (act === 'anmkt') { CAT.anuncioMkt = b.dataset.mkt; if (CAT.sub === 'Marketplaces' && CAT.mkt) CAT.mkt = b.dataset.mkt; body(); }
     else if (act === 'antab') { CAT.anuncioTab = b.dataset.tab; body(); }
     else if (act === 'gocresc') UI.go('crescimento');
+    /* ---------- 10.E.3.2: navegação Rascunhos / Marketplaces ---------- */
+    else if (act === 'openmkt') { CAT.mkt = b.dataset.mkt; CAT.sub = 'Marketplaces'; CAT.anuncioMkt = b.dataset.mkt; CAT.anuncioTab = 'Todos'; UI.$('#crumb') && (UI.$('#crumb').textContent = 'Catálogo · Marketplaces'); render('Marketplaces'); }
+    else if (act === 'backmkts') { CAT.mkt = null; render('Marketplaces'); }
+    else if (act === 'rasctab') { CAT.rascTab = b.dataset.tab; body(); }
+    else if (act === 'novorascunho') UI.toast('Criar rascunho da loja: use um Produto Master (Abrir produto → adaptar) — nada é publicado externamente.', '');
+    else if (act === 'prepmkt') { CAT.openDrawer(b.dataset.id); UI.toast('Prepare para um marketplace pela aba "Perfis por marketplace" / Adaptar — gera rascunho do canal.', ''); }
     /* ---------- 10.E.3: listings, editor, mídia, massa, adaptação ---------- */
     else if (act === 'editor') CAT.openEditor(b.dataset.id);
     else if (act === 'editorAba') CAT.openEditor(b.dataset.id, b.dataset.aba);
