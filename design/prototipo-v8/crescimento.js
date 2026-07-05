@@ -151,17 +151,17 @@
      ÁREAS DE DADOS — dashboard + fonte + upload próprio + bruto
      ============================================================= */
   const AREAS_DADOS = {
-    'Métricas Principais': { dest: ['funil', 'trafego'], ref: 'shop-stats / salesoverview (XLSX)',
-      regra: 'métrica diária tem chave marketplace + conta + data + tipo — reimportar ATUALIZA o dia; nunca somamos R$ 10.000 + R$ 10.500 do mesmo dia.' },
-    'Performance de Produtos': { dest: ['performance', 'catalogo'], ref: 'parentskudetail / producttraffic (XLSX)',
+    'Métricas Principais': { dest: ['funil', 'trafego', 'metricas'], ref: 'shop-stats / salesoverview / metricas principais (XLSX multiabas)',
+      regra: 'métrica diária tem chave marketplace + conta + data + tipo — reimportar ATUALIZA o dia; nunca somamos R$ 10.000 + R$ 10.500 do mesmo dia. A linha consolidada de período NUNCA entra na série diária.' },
+    'Performance de Produtos': { dest: ['performance', 'catalogo', 'contrib_produto'], ref: 'parentskudetail / producttraffic / contribuição por produto (XLSX)',
       regra: 'conversão nunca aparece sem fórmula: pedidos ÷ cliques, com numerador e denominador visíveis.' },
-    'Tráfego': { dest: ['trafego_visao'], ref: 'traffic_overview (XLSX)',
-      regra: 'fonte agregada por período — não existe abertura diária aqui e ela não será inventada.' },
+    'Tráfego': { dest: ['trafego_visao', 'fonte_trafego'], ref: 'traffic_overview / fontes de tráfego (XLSX)',
+      regra: 'fonte agregada por período — cada fonte (Card, Recomendação, Pesquisa, Afiliado, Ads…) explica a origem da venda; nada é interpolado.' },
     'Devoluções e Cancelamentos': { dest: ['devolucoes'], ref: 'Order.return_refund_cancel (ZIP)',
       regra: 'o ZIP é extraído no staging; eventos cruzam pelo ID do pedido — nunca criam pedido novo.' },
     'Estoque Full': { dest: ['estoque'], ref: 'Current Inventory Report (XLSX)',
       regra: 'cada leitura é um snapshot (marketplace + conta + armazém + SKU + momento); a mais recente é o atual, o histórico fica.' },
-    'Afiliados': { dest: ['afiliados', 'atribuicao'], ref: 'ProductPerformance (CSV)',
+    'Afiliados': { dest: ['afiliados', 'atribuicao', 'fonte_trafego'], ref: 'ProductPerformance (CSV) / fontes de tráfego (XLSX)',
       regra: 'afiliados explicam a ORIGEM da venda — nunca duplicam o faturamento total.' },
     'Chat e Atendimento': { dest: ['atendimento'], ref: 'export de métricas de chat (XLSX)',
       regra: 'apenas métricas — nenhuma conversa privada aparece sem permissão.' },
@@ -195,7 +195,81 @@
           </div>`}`;
   }
 
+  /* 10.E.2.3 — formatação brasileira e painéis da base multiabas real */
+  const brl = v => v == null ? '—' : 'R$ ' + (+v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const pct = v => v == null ? '—' : (+v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+  const provTag = (fonte, aba, per, gran) => `<div class="src" style="margin-top:6px">dados importados reais · fonte: <b>${UI.esc(fonte)}</b> · aba: <b>${UI.esc(aba)}</b> · período: ${per ? per.ini + ' a ' + per.fim : '—'} · granularidade: ${UI.esc(gran || '')}</div>`;
+
+  function metricasReaisPanel() {
+    const mv = V8IMP.metricasView(eng(), filtroCtx());
+    if (mv.semDados) return '';
+    return mv.bases.map(b => {
+      const t = b.totais;
+      const kpi = (lbl, val) => `<div class="mesa-kpi"><span class="lbl">${lbl}</span><span class="val">${val}</span></div>`;
+      const dias = b.diario.slice().sort((x, y) => String(x.data).localeCompare(String(y.data)));
+      return `<div class="panel" style="margin-top:12px">
+        <div class="sect-h" style="margin-top:0"><span class="h2">Base real — ${UI.esc(b.nomeBase)}</span>
+          <span class="st ok plain">IMPORTADO</span></div>
+        <div class="mesa-grid" style="margin-top:8px">
+          ${kpi('Vendas', brl(t.gross_sales_brl))}
+          ${kpi('Pedidos', num(t.orders_created))}
+          ${kpi('Visitantes', num(t.visitors))}
+          ${kpi('Conversão', pct(t.order_conversion_rate))}
+          ${kpi('Vendas por pedido', brl(t.revenue_per_order_brl))}
+          ${kpi('Cancelados', num(t.cancelled_orders))}
+          ${kpi('Devolvidos', num(t.returned_or_refunded_orders))}
+          ${kpi('Compradores', num(t.buyers))}
+        </div>
+        ${provTag(b.fonte, b.aba, b.periodo, b.periodo.granularidade)}
+        <div class="tblwrap" style="margin-top:10px"><table class="tbl" style="min-width:0"><thead><tr>
+          <th class="nosort">Data</th><th class="nosort">Vendas</th><th class="nosort">Pedidos</th><th class="nosort">Visitantes</th><th class="nosort">Conversão</th><th class="nosort">Cancelados</th><th class="nosort">Devolvidos</th></tr></thead><tbody>
+          ${dias.map(d => `<tr><td class="tmain">${UI.esc(d.data)}</td><td>${brl(d.metricas.gross_sales_brl)}</td><td>${num(d.metricas.orders_created)}</td><td>${num(d.metricas.visitors)}</td><td>${pct(d.metricas.order_conversion_rate)}</td><td>${num(d.metricas.cancelled_orders)}</td><td>${num(d.metricas.returned_or_refunded_orders)}</td></tr>`).join('')}
+        </tbody></table></div>
+        <p class="src" style="margin-top:6px">a linha consolidada de período (${b.periodo.ini} a ${b.periodo.fim}) alimenta os totais acima e <b>não</b> aparece como um dia na tabela — série diária: ${b.dias} dia(s).</p>
+      </div>`;
+    }).join('');
+  }
+
+  function fontesReaisPanel(classes, titulo) {
+    const tv = V8IMP.trafficSourcesView(eng(), filtroCtx());
+    if (tv.semDados) return '';
+    const fontes = tv.fontes.filter(f => classes.includes(f.classe));
+    if (!fontes.length) return '';
+    const f0 = fontes[0];
+    return `<div class="panel" style="margin-top:12px">
+      <div class="sect-h" style="margin-top:0"><span class="h2">${UI.esc(titulo)} — fontes importadas</span><span class="st ok plain">IMPORTADO</span></div>
+      <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">Fonte</th><th class="nosort">Vendas</th><th class="nosort">Impressões</th><th class="nosort">Cliques</th><th class="nosort">Pedidos</th><th class="nosort">CTR</th><th class="nosort">Conversão</th><th class="nosort">Compradores</th></tr></thead><tbody>
+        ${fontes.map(f => `<tr><td class="tmain">${UI.esc(f.fonte)}<span class="tsub">${UI.esc(f.aba)}</span></td><td>${brl(f.sales)}</td><td>${num(f.impressions)}</td><td>${num(f.clicks)}</td><td>${num(f.orders)}</td><td>${pct(f.ctr)}</td><td>${pct(f.conversion)}</td><td>${num(f.buyers)}</td></tr>`).join('')}
+      </tbody></table></div>
+      ${provTag(f0.fonteArquivo, f0.aba, f0.periodo, 'por fonte (período)')}
+    </div>`;
+  }
+
+  function produtosReaisPanel() {
+    const pc = V8IMP.productContribView(eng(), filtroCtx());
+    if (pc.semDados) return '';
+    const p0 = pc.produtos[0];
+    return `<div class="panel" style="margin-top:12px">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Contribuição por produto — base real</span><span class="st ok plain">IMPORTADO</span></div>
+      <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">ID</th><th class="nosort">Produto</th><th class="nosort">Status</th><th class="nosort">Vendas</th><th class="nosort">Cliques</th><th class="nosort">Pedidos</th><th class="nosort">CTR</th><th class="nosort">Conversão</th><th class="nosort">Vínculo</th></tr></thead><tbody>
+        ${pc.produtos.slice(0, 12).map(p => `<tr><td class="tmain">${UI.esc(p.item_id)}</td><td>${UI.esc(p.produto || '—')}</td><td><span class="src">${UI.esc(p.status || '—')}</span></td><td>${brl(p.sales)}</td><td>${num(p.clicks)}</td><td>${num(p.orders)}</td><td>${pct(p.ctr)}</td><td>${pct(p.conversion)}</td><td><span class="st warn plain">${UI.esc(p.vinculo)}</span></td></tr>`).join('')}
+      </tbody></table></div>
+      ${provTag(p0.fonteArquivo, p0.aba, p0.periodo, 'por produto (período)')}
+      <p class="src" style="margin-top:6px">${pc.revisaoHumana.length} vínculo(s) de anúncio marcados para <b>revisão humana</b> — o ID do Item sugere o anúncio, mas vínculo incerto nunca vincula sozinho.</p>
+    </div>`;
+  }
+
   function conteudoArea(nome, snaps) {
+    if (nome === 'Métricas Principais') { const p = metricasReaisPanel(); if (p) return p + conteudoAreaBase(nome, snaps); }
+    if (nome === 'Tráfego') { const p = fontesReaisPanel(['trafego', 'ads'], 'Tráfego'); if (p) return p + conteudoAreaBase(nome, snaps); }
+    if (nome === 'Afiliados') { const p = fontesReaisPanel(['afiliados'], 'Afiliados'); if (p) return p + conteudoAreaBase(nome, snaps); }
+    if (nome === 'Performance de Produtos') { const p = produtosReaisPanel(); if (p) return p + conteudoAreaBase(nome, snaps); }
+    return conteudoAreaBase(nome, snaps);
+  }
+
+  function conteudoAreaBase(nome, snaps) {
     if (!snaps.length) return '';
     const tbl = (headers, rowsHtml, nota) => `<div class="panel" style="margin-top:12px">
       <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>${headers.map(h => `<th class="nosort">${h}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>
@@ -254,8 +328,9 @@
 
   function ads() {
     const list = prods();
+    const adsPanel = fontesReaisPanel(['ads'], 'Ads');
     return `
-      <div class="callout" style="margin-top:0"><b>Sem dados de Ads importados nesta instância</b> — quando o export de Ads entrar, esta subárea ganha fonte própria. Enquanto isso, o gate interno continua valendo: <b>Ads nunca é resposta para produto ruim ou margem ruim</b>.</div>
+      ${adsPanel || `<div class="callout" style="margin-top:0"><b>Sem dados de Ads importados nesta instância</b> — quando o export de Ads entrar, esta subárea ganha fonte própria. Enquanto isso, o gate interno continua valendo: <b>Ads nunca é resposta para produto ruim ou margem ruim</b>.</div>`}
       <div class="panel" style="margin-top:12px">
         <div class="sect-h" style="margin-top:0"><span class="h2">Gate de Ads — quem pode acelerar</span></div>
         ${list.map(p => {

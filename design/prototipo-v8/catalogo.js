@@ -215,6 +215,25 @@
     'sem_ranking', 'pos_1_10', 'pos_11_50', 'perdeu_posicao', 'ganhou_posicao', 'ctr_baixo', 'conversao_baixa',
     'margem_baixa', 'devolucao_alta', 'conflito_sku', 'sem_master'];
 
+  /* 10.E.2.3 — contribuição por produto importada (base real Shopee) */
+  function contribProdutoPanel() {
+    const ie = window.IMPORTAR ? IMPORTAR.eng : null;
+    if (!ie || !V8IMP.productContribView) return '';
+    const pc = V8IMP.productContribView(ie, {});
+    if (pc.semDados) return '';
+    const brl = v => v == null ? '—' : 'R$ ' + (+v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const pctf = v => v == null ? '—' : (+v * 100).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + '%';
+    const p0 = pc.produtos[0];
+    return `<div class="panel" style="margin-top:12px">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Performance Comercial — contribuição por produto (base real)</span><span class="st ok plain">IMPORTADO</span></div>
+      <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">ID do Item</th><th class="nosort">Produto</th><th class="nosort">Status</th><th class="nosort">Vendas</th><th class="nosort">Pedidos</th><th class="nosort">Cliques</th><th class="nosort">Conversão</th><th class="nosort">Tag</th><th class="nosort">Vínculo</th></tr></thead><tbody>
+        ${pc.produtos.slice(0, 12).map(p => `<tr><td class="tmain">${UI.esc(p.item_id)}</td><td>${UI.esc(p.produto || '—')}</td><td><span class="src">${UI.esc(p.status || '—')}</span></td><td>${brl(p.sales)}</td><td>${UI.esc(String(p.orders ?? '—'))}</td><td>${UI.esc(String(p.clicks ?? '—'))}</td><td>${pctf(p.conversion)}</td><td>${p.vendido ? '<span class="st pos plain">vendido</span>' : '<span class="src">—</span>'}</td><td><span class="st warn plain">${UI.esc(p.vinculo)}</span></td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="src" style="margin-top:6px">dados importados reais · fonte: <b>${UI.esc(p0.fonteArquivo)}</b> · aba: <b>${UI.esc(p0.aba)}</b> · período: ${p0.periodo ? p0.periodo.ini + ' a ' + p0.periodo.fim : '—'} · ${pc.revisaoHumana.length} vínculo(s) para revisão humana (ID do Item sugere o anúncio, mas incerteza nunca vincula sozinha).</p>
+    </div>`;
+  }
+
   function anuncios() {
     const cat = CAT.eng();
     const mk = UI.ctx.marketplace || CAT.anuncioMkt;
@@ -230,7 +249,8 @@
     const sel = CAT.lsel;
     const C = CAT.anCols;
     return `
-      <div class="fbar" style="margin-top:0">
+      ${contribProdutoPanel()}
+      <div class="fbar" style="margin-top:12px">
         ${D.MKTS.map(m => `<button class="fchip ${m.key === mk ? 'on' : ''}" data-act="anmkt" data-mkt="${m.key}" ${UI.ctx.marketplace ? 'title="marketplace fixado pela barra global"' : ''}>${m.nome}</button>`).join('')}
         <label class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/></svg>
           <input id="anQ" placeholder="Nome, SKU, ID do anúncio, ID externo, EAN, marca…" value="${UI.esc(CAT.anQ)}" aria-label="Buscar anúncios"></label>

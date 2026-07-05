@@ -556,3 +556,59 @@ decisão/missão/aprendizado.
   completa 535 verdes; validação headless do critério de aceite completo
   (38 colunas na tela, mapeamento manual, Mesa/Home/Silêncio/Conhecimento
   atualizados), 15 auto-testes, 16 áreas × 2 temas × 4 larguras, zero erros.
+
+## Sprint 10.E.2.3 — Importação MULTIABAS real (Métricas Shopee)
+
+Correção estrutural: o arquivo real `metricas principais .xlsx` tem **8 abas**
+com **blocos internos** (linha consolidada de período + linhas diárias +
+tabelas por fonte + tabelas por produto). Antes, o sistema lia só a primeira
+aba como tabela plana ("linha 1 = cabeçalho"), tratava a linha agregada
+`04/06/2026-03/07/2026` como um dia e não convertia números brasileiros —
+pedidos vaziam e vendas ficavam R$ 0,00. Agora:
+
+- **Leitura multiabas/multiblocos** (`V8FILE.segmentBlocks`): toda aba é
+  segmentada em blocos independentes detectando linhas vazias, linhas de
+  título, cabeçalhos reais e cabeçalhos repetidos. `parseXlsxBuffer` devolve
+  `abas: [{ nome, headers, rows, blocos, matriz }]` (o primeiro bloco continua
+  em headers/rows para compatibilidade). Cada bloco reconhecido vira um lote
+  próprio (mesmo princípio do ZIP), com **aba + bloco na proveniência**.
+- **Números brasileiros** (`V8FILE.parseBrNumber` / `V8IMP.brNum`):
+  `335.392,51 → 335392.51` · `0,63% → 0.0063` · `1.375 → 1375`. O texto bruto
+  fica preservado na camada bruta; a normalização acontece na leitura.
+- **Classificação por LINHA** (nunca por posição): `DAILY_METRIC` (data única),
+  `PERIOD_SUMMARY` (intervalo `dd/mm/aaaa-dd/mm/aaaa` → granularidade período,
+  início/fim; **NUNCA** entra na série/gráfico diário — alimenta os totais),
+  `TRAFFIC_SOURCE`, `PRODUCT_CONTRIBUTION`, `RAW_REFERENCE` (preservado).
+- **Perfis novos**: `SHOPEE_METRICAS_DIARIAS` (Pedido Feito / Produto Pago — a
+  aba separa a base, já que o cabeçalho é idêntico), `SHOPEE_TRAFFIC_SOURCE`
+  (Card do Produto, Recomendação, Pesquisar, Afiliado, Anúncios, Lives,
+  Vídeos), `SHOPEE_PRODUCT_CONTRIBUTION` (ID do Item + Produto + Status +
+  métricas genéricas). `FIELD_MAP` ganhou os campos mínimos do contrato
+  (`gross_sales_brl`, `orders_created`, `visitors`, `order_conversion_rate`,
+  cancelados/devolvidos/compradores etc.).
+- **Leitores da base**: `metricasView` (totais do período pela linha
+  consolidada + série diária, com fonte/aba/período/granularidade),
+  `trafficSourcesView` (classifica trafego × afiliados × ads),
+  `productContribView` (contribuição por produto; vínculo incerto por ID do
+  Item vai para **revisão humana**, nunca vincula sozinho).
+- **Interface multiabas** no modal de upload: "Abas detectadas ✓…", "Blocos
+  reconhecidos", "Registros por tipo", "Campos preservados" e ações
+  [Importar todas as abas reconhecidas] / [Selecionar abas manualmente]. Cada
+  bloco mostra aba/bloco de origem e a quebra de linhas (resumo de período ×
+  diárias). A cadeia de 15 passos recalcula Métricas Principais, Tráfego,
+  Afiliados, Ads, Catálogo, Mesa, Home, Silêncio e Conhecimento.
+- **Áreas alimentadas**: Central de Inteligência → Métricas Principais mostra
+  vendas/pedidos/visitantes/conversão/cancelamentos/devoluções como **dados
+  importados reais** (fonte, aba, período, granularidade); Tráfego/Afiliados/
+  Ads recebem as fontes; Catálogo → Anúncios mostra a contribuição por produto
+  com tag de vendido e vínculo para revisão; Mesa ganha o **Analista de
+  Métricas Principais** (9º agente).
+- **Reimportação concilia, não soma**: fingerprint por bloco (aba + conteúdo)
+  → reimportar o arquivo idêntico não cria snapshot novo nem dobra os totais.
+- **Números de validação** (04/06/2026 a 03/07/2026): Pedido Feito
+  R$ 335.392,51 · 1.375 pedidos · 115.043 visitantes · 0,63%; Produto Pago
+  R$ 292.591,59 · 1.211 pedidos · 115.043 visitantes · 0,56%.
+- **Testes**: `ui-v8-multiaba.test.js` (13 itens cobrindo os 12 critérios de
+  aceite + contrato de UI); suíte completa **548 verdes**; validação headless
+  com **XLSX real multiabas** subido pela tela mostrando os valores exatos na
+  interface, com console limpo.

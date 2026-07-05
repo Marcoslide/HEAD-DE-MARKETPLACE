@@ -81,6 +81,19 @@
       ['Afiliado', 'Cliques', 'Vendas do Afiliado', 'Comissão'], 'period_metric'),
     SHOPEE_TRAFFIC_OVERVIEW: P('SUPPORTED', 'shopee', 'PERIOD_METRIC', 'trafego_visao',
       ['Visitantes', 'Visualizações da Página', 'Taxa de Rejeição', 'Período'], 'period_metric'),
+    /* ---------- 10.E.2.3 · Métricas Principais Shopee (multiabas, blocos internos) ---------- */
+    /* "Pedido Feito" e "Produto Pago" têm o MESMO cabeçalho — a aba é que separa a base.
+       A linha consolidada (04/06/2026-03/07/2026) e as linhas diárias convivem no mesmo bloco;
+       a classificação por linha (PERIOD_SUMMARY × DAILY_METRIC) acontece no staging. */
+    SHOPEE_METRICAS_DIARIAS: P('SUPPORTED', 'shopee', 'DAILY_METRIC', 'metricas',
+      ['Data', 'Vendas (BRL)', 'Pedidos', 'Visitantes', 'Taxa de Conversão de Pedidos', 'Vendas por Pedido'], 'day_metric'),
+    /* Fontes de tráfego (Card do Produto, Recomendação, Pesquisar, Afiliado, Anúncios, Lives, Vídeos…) */
+    SHOPEE_TRAFFIC_SOURCE: P('SUPPORTED', 'shopee', 'CHANNEL_ATTRIBUTION', 'fonte_trafego',
+      ['Fonte de Tráfego', 'Vendas', 'Impressões', 'Cliques', 'CTR'], 'period_metric'),
+    /* Contribuição por produto (ID do Item + Produto + Status + métricas GENÉRICas: Impressões/Cliques,
+       nunca "Impressões de Produto"/"Cliques por Produto" — esses são do perfil de performance) */
+    SHOPEE_PRODUCT_CONTRIBUTION: P('SUPPORTED', 'shopee', 'LISTING_METRIC', 'contrib_produto',
+      ['ID do Item', 'Produto', 'Status Atual do Item', 'Vendas', 'Impressões', 'Cliques', 'Pedidos', 'Unidades'], 'item_period'),
   };
 
   /* ---------------- detecção por CONJUNTO de colunas (10.E.3.1) ----------------
@@ -98,6 +111,10 @@
   const DETECT_RULES = {
     SHOPEE_ORDERS: { ident: ['ID do pedido', 'Status do pedido', 'Data de criação do pedido'], minIdent: 2, minHits: 4, prio: 10 },
     SHOPEE_RETURN_REFUND: { ident: ['Tipo de evento', 'ID do evento'], minIdent: 2, minHits: 3, prio: 9 },
+    /* 10.E.2.3 — métricas/fontes/contribuição têm conjuntos de colunas disjuntos e prioridade própria */
+    SHOPEE_METRICAS_DIARIAS: { ident: ['Data', 'Vendas (BRL)', 'Pedidos'], minIdent: 3, minHits: 4, prio: 9 },
+    SHOPEE_TRAFFIC_SOURCE: { ident: ['Fonte de Tráfego'], minIdent: 1, minHits: 4, prio: 9 },
+    SHOPEE_PRODUCT_CONTRIBUTION: { ident: ['ID do Item', 'Produto', 'Status Atual do Item', 'Impressões', 'Cliques'], minIdent: 5, minHits: 6, prio: 8 },
     SHOPEE_HOT_LISTING: { aux: true, prio: -1 }, /* só vence se NENHUM perfil forte qualificar */
   };
   const NOME_PERFIL = {
@@ -107,7 +124,53 @@
     SHOPEE_TRAFFIC_OVERVIEW: 'Tráfego', SHOPEE_SHOP_STATS: 'Métricas da Loja', SHOPEE_SALES_OVERVIEW: 'Vendas e Funil',
     SHOPEE_INVENTORY: 'Estoque Full', SHOPEE_AFFILIATE_PERFORMANCE: 'Afiliados', SHOPEE_CHAT_FAQ: 'Chat e Atendimento',
     SHOPEE_PROMOTION_SUMMARY: 'Promoções', SHOPEE_VOUCHER: 'Cupons', CUSTOM_CSV_MAPPING: 'Outro / Referência',
+    SHOPEE_METRICAS_DIARIAS: 'Métricas Principais', SHOPEE_TRAFFIC_SOURCE: 'Fontes de Tráfego',
+    SHOPEE_PRODUCT_CONTRIBUTION: 'Contribuição por Produto',
   };
+  /* nome amigável da base de métricas por aba */
+  const NOME_BASE = { pedido_feito: 'Pedido Feito', produto_pago: 'Produto Pago' };
+  const slugAba = nome => {
+    const n = String(nome || '').toLowerCase();
+    if (/pedido\s*feito|pedido\s*realizado|order\s*created/.test(n)) return 'pedido_feito';
+    if (/produto\s*pago|pedido\s*pago|paid/.test(n)) return 'produto_pago';
+    return n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'base';
+  };
+  /* mapeamento canônico das colunas de métricas principais (BR → campo) */
+  const MET_COLS = {
+    'Vendas (BRL)': 'gross_sales_brl', 'Vendas Sem os Descontos da Shopee': 'sales_before_shopee_discount_brl',
+    'Pedidos': 'orders_created', 'Vendas por Pedido': 'revenue_per_order_brl',
+    'Cliques Por Produto': 'product_clicks', 'Cliques por Produto': 'product_clicks', 'Visitantes': 'visitors',
+    'Taxa de Conversão de Pedidos': 'order_conversion_rate', 'Pedidos Cancelados': 'cancelled_orders',
+    'Vendas Canceladas': 'cancelled_sales_brl', 'Pedidos Devolvidos / Reembolsados': 'returned_or_refunded_orders',
+    'Vendas Devolvidas / Reembolsadas': 'returned_or_refunded_sales_brl', '# de compradores': 'buyers',
+    '# de novos compradores': 'new_buyers', '# de compradores existentes': 'returning_buyers',
+    '# de compradores em potencial': 'potential_buyers', 'Repetir Índice de Compras': 'repeat_purchase_rate',
+  };
+  const FONTE_COLS = {
+    'Vendas': 'sales', 'Impressões': 'impressions', 'Cliques': 'clicks', 'Pedidos': 'orders', 'Unidades': 'units',
+    'CTR': 'ctr', 'Conversão': 'conversion', 'Taxa de Conversão': 'conversion', 'Vendas por Pedido': 'sales_per_order',
+    'Vendas por pedido': 'sales_per_order', 'Compradores': 'buyers', 'Impressões únicas': 'unique_impressions',
+    'Cliques únicos': 'unique_clicks',
+  };
+  const PROD_COLS = Object.assign({ 'Taxa de Vendas': 'sales_rate' }, FONTE_COLS);
+  /* números brasileiros — engine autossuficiente (mesma regra do V8FILE.parseBrNumber) */
+  function brNum(v) {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return v;
+    let s = String(v).trim();
+    if (s === '-' || s === '—' || /^n\/?a$/i.test(s)) return null;
+    const pct = /%\s*$/.test(s);
+    s = s.replace(/%/g, '').replace(/R\$\s*/i, '').replace(/\s+/g, '');
+    if (s === '' || s === '-') return null;
+    if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+    else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+    const n = Number(s);
+    if (isNaN(n)) return null;
+    return pct ? Math.round((n / 100) * 1e6) / 1e6 : n;
+  }
+  const isoBr = s => { const m = /(\d{2})\/(\d{2})\/(\d{4})/.exec(String(s || '')); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
+  const rangeBr = s => { const m = String(s || '').match(/(\d{2}\/\d{2}\/\d{4})\s*[-–a]+\s*(\d{2}\/\d{2}\/\d{4})/); return m ? { ini: isoBr(m[1]), fim: isoBr(m[2]) } : null; };
+  const normCols = (r, mapa) => { const o = {}; for (const [col, campo] of Object.entries(mapa)) if (r[col] != null && r[col] !== '') o[campo] = brNum(r[col]); return o; };
 
   function detect(file, opts) {
     opts = opts || {};
@@ -212,6 +275,13 @@
     stock: r => ['stk', r.marketplace, r.contaId, r.armazem, r.sku_ref, r.momento].join('|'),
   };
   function naturalKey(gran, r) {
+    /* 10.E.2.3 — métricas principais: linha consolidada (período) nunca colide com linha diária */
+    if (r.metric_type === 'metricas') {
+      if (r.tipoLinha === 'PERIOD_SUMMARY' || gran === 'PERIOD_METRIC') return ['mp', r.marketplace, r.contaId, r.baseMetrica, r.periodo_ini, r.periodo_fim].join('|');
+      return ['md', r.marketplace, r.contaId, r.baseMetrica, r.data].join('|');
+    }
+    if (r.metric_type === 'fonte_trafego') return ['ft', r.marketplace, r.contaId, r.sourceSheet || '', r.fonte, r.periodo_ini, r.periodo_fim].join('|');
+    if (r.metric_type === 'contrib_produto') return ['cp', r.marketplace, r.contaId, r.sourceSheet || '', r.item_id, r.periodo_ini, r.periodo_fim].join('|');
     /* PEDIDOS: marketplace + conta + ID do pedido = pedido único (nunca duplica) */
     if (r.metric_type === 'pedidos' && gran === 'TRANSACTIONAL') return KEYS.order(r);
     /* DEVOLUÇÃO/REEMBOLSO/CANCELAMENTO: + tipo + ID do evento quando existir */
@@ -260,6 +330,51 @@
     return true;
   }
 
+  /* ---------------- staging multiabas / multiblocos (10.E.2.3) ----------------
+     Cada aba pode conter vários blocos independentes. Cada bloco reconhecido
+     vira um lote próprio, com aba+bloco na proveniência. Blocos vazios ou sem
+     cabeçalho são declarados como preservados (referência), nunca importados. */
+  function stageMulti(eng, file, escopo, opts) {
+    const abasOut = [];
+    const resumo = { abas: 0, blocos: 0, ignorados: 0, registros: 0, camposPreservados: 0, porTipo: {} };
+    for (const aba of (file.abas || [])) {
+      const blocos = (aba.blocos && aba.blocos.length) ? aba.blocos
+        : [{ headers: aba.headers || [], rows: aba.rows || [], titulo: aba.titulo || null }];
+      const blocosOut = [];
+      blocos.forEach((bl, bi) => {
+        const rotulo = bl.titulo || ('bloco ' + (bi + 1));
+        if (!bl.headers || !bl.headers.length || !bl.rows || !bl.rows.length) {
+          resumo.ignorados++;
+          blocosOut.push({ ignorado: true, aba: aba.nome, bloco: rotulo,
+            motivo: 'bloco vazio ou sem cabeçalho reconhecível — preservado como referência, não importado' });
+          return;
+        }
+        const child = { nome: file.nome, tamanho: file.tamanho || null, formato: file.formato || null,
+          sourceType: file.sourceType, periodo: bl.periodo || file.periodo || null,
+          abas: [{ nome: aba.nome, headers: bl.headers.slice(), rows: bl.rows.slice(), titulo: bl.titulo || null }] };
+        const b = stage(eng, child, escopo, opts);
+        if (b && b.id) { b.abaOrigem = aba.nome; b.blocoOrigem = rotulo; }
+        blocosOut.push(b);
+        resumo.blocos++;
+        const tipo = (b && b.det && b.det.destino) || (b && b.duplicado ? 'duplicado' : 'não reconhecido');
+        const linhas = (b && b.linhas) || 0;
+        resumo.porTipo[tipo] = (resumo.porTipo[tipo] || 0) + linhas;
+        resumo.registros += linhas;
+      });
+      abasOut.push({ nome: aba.nome, blocos: blocosOut, reconhecidos: blocosOut.filter(b => b && b.id).length });
+      resumo.abas++;
+    }
+    const campos = new Set();
+    (file.abas || []).forEach(a => ((a.blocos && a.blocos.length) ? a.blocos : [{ headers: a.headers }])
+      .forEach(b => (b.headers || []).forEach(h => h && campos.add(h))));
+    resumo.camposPreservados = campos.size;
+    const batches = abasOut.flatMap(a => a.blocos.filter(b => b && b.id));
+    audit(eng, 'importacao_multiaba', `${file.nome}: ${resumo.abas} aba(s), ${resumo.blocos} bloco(s) reconhecido(s), ${resumo.ignorados} preservado(s)`);
+    return { multi: true, arquivo: file.nome, tamanho: file.tamanho || null, periodo: file.periodo || null,
+      abas: abasOut, resumo, batches,
+      nota: 'arquivo multiabas — cada bloco reconhecido virou um lote próprio com aba e bloco na proveniência.' };
+  }
+
   /* ---------------- staging ---------------- */
   function stage(eng, file, escopo, opts) {
     opts = opts || {};
@@ -281,6 +396,14 @@
       return { zip: true, arquivo: file.nome, batches, ignorados,
         nota: 'ZIP extraído em staging — cada planilha reconhecida virou um lote próprio com confirmação humana.' };
     }
+
+    /* 10.E.2.3 — arquivo com várias abas OU aba com vários blocos internos:
+       cada bloco reconhecido vira um lote próprio (mesmo princípio do ZIP),
+       carregando aba/bloco na proveniência. Nunca é tratado como tabela plana. */
+    const temMultiplasAbas = (file.abas || []).length > 1;
+    const temMultiplosBlocos = (file.abas || []).some(a => a.blocos && a.blocos.length > 1);
+    if (temMultiplasAbas || temMultiplosBlocos) return stageMulti(eng, file, escopo, opts);
+
     const fp = fingerprintFile(file);
     const det = detect(file, { perfilManual: opts.perfilManual });
     const batchKey = KEYS.batch({ ...fp });
@@ -351,23 +474,52 @@
       } else if (det.destino === 'estoque') {
         base.armazem = r['Armazém']; base.sku_ref = r['SKU'];
         base.momento = r['Momento da leitura'] || file.momento || ((file.periodo || {}).fim) || HOJE;
+      } else if (det.destino === 'fonte_trafego') {
+        /* 10.E.2.3 — tabela de fontes de tráfego: cada linha é uma fonte (Card, Afiliado, Ads…) */
+        base.fonte = r['Fonte de Tráfego'] || r['Fonte'] || r['Origem'] || ('fonte ' + (i + 1));
+        base.item_id = base.fonte;
+        base.metricas = normCols(r, FONTE_COLS);
+        base.classeFonte = /afiliado/i.test(base.fonte) ? 'afiliados' : /anúncio|anuncio|\bads\b/i.test(base.fonte) ? 'ads' : 'trafego';
       } else if (gran === 'CHANNEL_ATTRIBUTION') {
         base.item_id = r['ID do Item'] || r['Afiliado'] || null;
       }
+      /* 10.E.2.3 — contribuição por produto: mapeia métricas BR e mantém vínculo por ID/SKU */
+      if (det.destino === 'contrib_produto') {
+        base.produtoNome = r['Produto'] || null;
+        base.statusItem = r['Status Atual do Item'] || null;
+        base.metricas = normCols(r, PROD_COLS);
+      }
       if ((gran === 'STATE_SNAPSHOT' || gran === 'LISTING_METRIC') && det.destino !== 'estoque') {
-        base.item_id = r['ID do Item'];
+        base.item_id = r['ID do Item'] != null ? String(r['ID do Item']) : null;
         const v = linkRow(r, escopo, products, eng.observations);
         base.vinculo = v;
         if (v.estado === 'VÍNCULO CONFIRMADO POR ID') vincConfirmadoId++;
         else if (v.estado === 'VÍNCULO CONFIRMADO POR SKU') vincConfirmadoSku++;
         else if (v.estado === 'VÍNCULO SUGERIDO POR NOME') { vincSugerido++; pendentes++; }
         else if (v.estado === 'CONFLITO DE SKU') { conflitos++; pendentes++; }
-        else { semMatch++; if (gran === 'STATE_SNAPSHOT') pendentes++; }
+        else { semMatch++; if (det.destino === 'contrib_produto') pendentes++; }
       }
-      if (gran === 'DAILY_METRIC') base.data = r['Data'];
+      /* 10.E.2.3 — MÉTRICAS PRINCIPAIS: classificação por linha (nunca por posição).
+         A linha consolidada (04/06/2026-03/07/2026) vira PERIOD_SUMMARY e NUNCA entra
+         em gráfico diário; datas únicas viram DAILY_METRIC; o resto é RAW_REFERENCE. */
+      if (det.destino === 'metricas') {
+        base.baseMetrica = slugAba(file.abas[0].nome);
+        base.nomeBase = NOME_BASE[base.baseMetrica] || file.abas[0].nome;
+        base.metricas = normCols(r, MET_COLS);
+        const rng = rangeBr(r['Data']);
+        if (rng) {
+          base.tipoLinha = 'PERIOD_SUMMARY'; base.granularidade = 'PERIOD_METRIC';
+          base.periodo_ini = rng.ini; base.periodo_fim = rng.fim; base.granLabel = 'período (agregada)'; base.data = null;
+        } else {
+          const iso = isoBr(r['Data']) || (typeof r['Data'] === 'string' && /^\d{4}-\d{2}-\d{2}/.test(r['Data']) ? r['Data'] : null);
+          if (iso) { base.tipoLinha = 'DAILY_METRIC'; base.granularidade = 'DAILY_METRIC'; base.data = iso; base.periodo_ini = iso; base.periodo_fim = iso; base.granLabel = 'diária'; }
+          else { base.tipoLinha = 'RAW_REFERENCE'; base.granularidade = 'PERIOD_METRIC'; base.granLabel = 'referência preservada'; base.data = null; }
+        }
+      } else if (gran === 'DAILY_METRIC') base.data = r['Data'];
       if (gran === 'PROMOTION_METRIC') { base.promotion_name = r['Nome da promoção']; base.voucher_code = r['Código']; }
       base.metric_type = det.destino;
-      base.normalizedFingerprint = hash(naturalKey(gran, base) + '|' + JSON.stringify(r));
+      base.granularidade = base.granularidade || gran;
+      base.normalizedFingerprint = hash(naturalKey(base.granularidade, base) + '|' + JSON.stringify(r));
       stagingRows.push(base);
     });
     eng.staging.push(...stagingRows);
@@ -376,7 +528,7 @@
     /* conciliação: o que já existe, o que sobrepõe */
     let jaExistem = 0, sobreposicao = null;
     for (const s of stagingRows) {
-      const k = naturalKey(gran, s);
+      const k = naturalKey(s.granularidade, s);
       if (eng.snapshots.some(x => x.key === k)) jaExistem++;
     }
     if (file.periodo && (gran === 'LISTING_METRIC' || gran === 'PERIOD_METRIC' || gran === 'DAILY_METRIC')) {
@@ -409,6 +561,18 @@
     batch.preview.evidencias = det.evidencias || [];
     batch.preview.alternativas = det.alternativas || [];
     batch.preview.origemClassificacao = det.origemClassificacao;
+    batch.preview.aba = file.abas[0].nome;
+    batch.preview.titulo = file.abas[0].titulo || null;
+    /* 10.E.2.3 — blocos por tipo de linha (resumo de período × diárias × fontes × produtos) */
+    if (det.destino === 'metricas') {
+      batch.preview.blocos = {
+        resumoPeriodo: stagingRows.filter(s => s.tipoLinha === 'PERIOD_SUMMARY').length,
+        metricasDiarias: stagingRows.filter(s => s.tipoLinha === 'DAILY_METRIC').length,
+        referencia: stagingRows.filter(s => s.tipoLinha === 'RAW_REFERENCE').length,
+      };
+      batch.preview.base = NOME_BASE[slugAba(file.abas[0].nome)] || file.abas[0].nome;
+    } else if (det.destino === 'fonte_trafego') batch.preview.blocos = { fontes: stagingRows.length };
+    else if (det.destino === 'contrib_produto') batch.preview.blocos = { produtos: stagingRows.length };
     batch.estado = conflitos ? 'CONFLITO_ENCONTRADO' : 'AGUARDANDO_REVISÃO';
     eng.fileHashes.set(batchKey, batch.id);
     audit(eng, 'staging_concluido', `${batch.id}: ${stagingRows.length} linha(s), ${conflitos} conflito(s), ${jaExistem} já existente(s)`);
@@ -475,6 +639,11 @@
         raw: s.raw, item_id: s.item_id || null, data: s.data || null,
         external_order_id: s.external_order_id || null, tipo_evento: s.tipo_evento || null, event_id: s.event_id || null,
         armazem: s.armazem || null, sku_ref: s.sku_ref || null, momento: s.momento || null,
+        /* 10.E.2.3 — métricas normalizadas + proveniência de aba/bloco/linha */
+        metricas: s.metricas || null, tipoLinha: s.tipoLinha || null, baseMetrica: s.baseMetrica || null,
+        nomeBase: s.nomeBase || null, fonte: s.fonte || null, classeFonte: s.classeFonte || null,
+        produtoNome: s.produtoNome || null, statusItem: s.statusItem || null,
+        sourceSheet: s.sourceSheet || null, granLabel: s.granLabel || null, vinculo: s.vinculo || null,
         periodo_ini: s.periodo_ini, periodo_fim: s.periodo_fim, metric_type: s.metric_type,
         escopo: { companyId: s.companyId, cnpjId: s.cnpjId, lojaId: s.lojaId, contaId: s.contaId, marketplace: s.marketplace },
         sourceType: s.sourceType, sourceFile: s.sourceFile, reportType: s.reportType,
@@ -492,14 +661,21 @@
             skuPai: s.raw['SKU Pai'] || null, skuVariacao: s.raw['SKU da variação'] || null,
             status: s.raw['Status Atual do Item'] || null,
             produtoId: s.vinculo ? s.vinculo.produtoId : null, vinculo: s.vinculo ? s.vinculo.estado : 'SKU AUSENTE',
-            vendasPagas: +s.raw['Vendas de Pedidos Pagos'] || +s.raw['Vendas'] || 0,
-            unidadesPagas: +s.raw['Unidades Pagas'] || +s.raw['Unidades'] || 0,
-            conversao: +s.raw['Taxa de Conversão de Pedidos'] || null, ctr: +s.raw['CTR'] || null,
+            /* 10.E.2.3 — métricas BR já normalizadas (contribuição por produto) têm prioridade sobre o bruto */
+            vendasPagas: (s.metricas && s.metricas.sales) || +s.raw['Vendas de Pedidos Pagos'] || +s.raw['Vendas'] || 0,
+            unidadesPagas: (s.metricas && s.metricas.units) || +s.raw['Unidades Pagas'] || +s.raw['Unidades'] || 0,
+            pedidos: (s.metricas && s.metricas.orders) || null,
+            conversao: (s.metricas && s.metricas.conversion) || +s.raw['Taxa de Conversão de Pedidos'] || null,
+            ctr: (s.metricas && s.metricas.ctr) || +s.raw['CTR'] || null,
+            contribProduto: s.metric_type === 'contrib_produto' ? s.metricas : null,
             origem: origemDe(s.sourceType), batchId, master: 'SEM MASTER DEFINIDO' };
           eng.observations.push(obs);
         } else {
-          if (+s.raw['Vendas'] || +s.raw['Vendas de Pedidos Pagos']) obs.vendasPagas = +s.raw['Vendas de Pedidos Pagos'] || +s.raw['Vendas'] || obs.vendasPagas;
-          if (s.raw['CTR']) obs.ctr = +s.raw['CTR'];
+          if (s.metricas && s.metricas.sales != null) obs.vendasPagas = s.metricas.sales;
+          else if (+s.raw['Vendas'] || +s.raw['Vendas de Pedidos Pagos']) obs.vendasPagas = +s.raw['Vendas de Pedidos Pagos'] || +s.raw['Vendas'] || obs.vendasPagas;
+          if (s.metric_type === 'contrib_produto' && s.metricas) obs.contribProduto = s.metricas;
+          if (s.metricas && s.metricas.ctr != null) obs.ctr = s.metricas.ctr;
+          else if (s.raw['CTR']) obs.ctr = +s.raw['CTR'];
           if (s.vinculo && s.vinculo.produtoId && !obs.produtoId) { obs.produtoId = s.vinculo.produtoId; obs.vinculo = s.vinculo.estado; }
         }
       }
@@ -1033,7 +1209,20 @@
       return periodOnly ? 'COBERTURA PARCIAL' : 'ANALISADO';
     });
 
-    /* 6 · Afiliados */
+    /* 6 · Métricas Principais (10.E.2.3 — base multiabas real) */
+    agente('Analista de Métricas Principais', ['metricas'], bs => {
+      const mv = metricasView(eng, filtro);
+      if (mv.semDados) return 'AGUARDANDO DADOS';
+      for (const b of mv.bases) {
+        const t = b.totais;
+        push('Analista de Métricas Principais', 'APRENDIZADO', `${b.nomeBase}: R$ ${(t.gross_sales_brl || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} em ${t.orders_created || 0} pedidos`,
+          `${t.visitors || 0} visitante(s) · conversão ${((t.order_conversion_rate || 0) * 100).toFixed(2)}% (pedidos ÷ visitantes) · ${b.dias} dia(s) na série; a linha consolidada de período não entra como um dia`, bs,
+          { hipotese: `cancelados ${t.cancelled_orders || 0} · devolvidos ${t.returned_or_refunded_orders || 0} — acompanhar antes de mexer em preço` });
+      }
+      return 'ANALISADO';
+    });
+
+    /* 7 · Afiliados */
     agente('Analista de Afiliados', ['afiliados', 'atribuicao'], bs => {
       const afs = eng.snapshots.filter(s => s.metric_type === 'afiliados' && !s.excluidoDaAnalise);
       for (const s of afs) {
@@ -1046,7 +1235,7 @@
       return 'ANALISADO';
     });
 
-    /* 7 · Atendimento */
+    /* 8 · Atendimento */
     agente('Analista de Atendimento', ['atendimento'], bs => {
       const ch = eng.snapshots.filter(s => s.metric_type === 'atendimento');
       const taxas = ch.map(s => +s.raw['Taxa de resposta']).filter(v => !isNaN(v));
@@ -1059,7 +1248,7 @@
       return 'ANALISADO';
     });
 
-    /* 8 · Estratégia (meta-agente: só trabalha com ≥2 fontes) */
+    /* 9 · Estratégia (meta-agente: só trabalha com ≥2 fontes) */
     (() => {
       const destAplicados = [...new Set(eng.batches.filter(b => b.aplicado && !b.arquivado).map(b => b.det.destino))];
       if (destAplicados.length < 2) {
@@ -1245,7 +1434,29 @@
     'Código': FM('voucher_code', 'Identificador', 'Cupom', ['Central']),
     'Produto': FM('product_name', 'Produto', 'Anúncio', ['Catálogo', 'Central']),
     'Unidades': FM('units', 'Número', 'Métrica agregada', ['Central']),
-    'Vendas': FM('sales', 'Moeda', 'Métrica agregada', ['Central']),
+    'Vendas': FM('sales', 'Moeda', 'Métrica agregada', ['Central', 'Catálogo']),
+    /* ---------- 10.E.2.3 · Métricas Principais Shopee (Pedido Feito / Produto Pago) ---------- */
+    'Vendas (BRL)': FM('gross_sales_brl', 'Moeda', 'Métrica diária', ['Central', 'Métricas Principais', 'Centro de Custos']),
+    'Vendas Sem os Descontos da Shopee': FM('sales_before_shopee_discount_brl', 'Moeda', 'Métrica diária', ['Central', 'Centro de Custos']),
+    'Vendas por Pedido': FM('revenue_per_order_brl', 'Moeda', 'Métrica diária', ['Central', 'Métricas Principais']),
+    'Cliques Por Produto': FM('product_clicks', 'Número', 'Métrica diária', ['Central', 'Tráfego']),
+    'Pedidos Cancelados': FM('cancelled_orders', 'Número', 'Cancelamento', ['Central', 'Métricas Principais']),
+    'Vendas Canceladas': FM('cancelled_sales_brl', 'Moeda', 'Cancelamento', ['Central', 'Centro de Custos']),
+    'Pedidos Devolvidos / Reembolsados': FM('returned_or_refunded_orders', 'Número', 'Devolução', ['Central', 'Métricas Principais']),
+    'Vendas Devolvidas / Reembolsadas': FM('returned_or_refunded_sales_brl', 'Moeda', 'Devolução', ['Central', 'Centro de Custos']),
+    '# de compradores': FM('buyers', 'Número', 'Métrica diária', ['Central', 'Métricas Principais']),
+    '# de novos compradores': FM('new_buyers', 'Número', 'Métrica diária', ['Central']),
+    '# de compradores existentes': FM('returning_buyers', 'Número', 'Métrica diária', ['Central']),
+    '# de compradores em potencial': FM('potential_buyers', 'Número', 'Métrica diária', ['Central']),
+    'Repetir Índice de Compras': FM('repeat_purchase_rate', 'Percentual', 'Métrica diária', ['Central']),
+    'Fonte de Tráfego': FM('traffic_source', 'Texto', 'Tráfego', ['Central', 'Tráfego', 'Afiliado', 'Ads']),
+    'Impressões': FM('impressions', 'Número', 'Métrica agregada', ['Central', 'Tráfego']),
+    'Impressões únicas': FM('unique_impressions', 'Número', 'Métrica agregada', ['Central', 'Tráfego']),
+    'Cliques únicos': FM('unique_clicks', 'Número', 'Métrica agregada', ['Central', 'Tráfego']),
+    'Conversão': FM('conversion_rate', 'Percentual', 'Métrica agregada', ['Central', 'Tráfego']),
+    'Taxa de Conversão': FM('conversion_rate', 'Percentual', 'Métrica agregada', ['Central', 'Tráfego']),
+    'Taxa de Vendas': FM('sales_rate', 'Percentual', 'Anúncio', ['Catálogo']),
+    'Compradores': FM('buyers', 'Número', 'Métrica agregada', ['Central', 'Tráfego', 'Catálogo']),
   };
 
   function inferType(valor, coluna) {
@@ -1407,6 +1618,69 @@
       nota: 'quando o dado real existe, o indicador demo equivalente é desativado e a análise recalculada' };
   }
 
+  /* =============================================================
+     10.E.2.3 — LEITORES DA BASE MULTIABAS (métricas, fontes, produtos)
+     Todo número vem com fonte, aba, período e granularidade. A linha
+     consolidada (PERIOD_SUMMARY) alimenta os totais do período e NUNCA
+     entra na série diária.
+     ============================================================= */
+  const ADITIVOS_MET = ['gross_sales_brl', 'sales_before_shopee_discount_brl', 'orders_created', 'product_clicks',
+    'visitors', 'cancelled_orders', 'cancelled_sales_brl', 'returned_or_refunded_orders', 'returned_or_refunded_sales_brl',
+    'buyers', 'new_buyers', 'returning_buyers', 'potential_buyers'];
+  function aggMetricas(lista) {
+    const out = {};
+    for (const m of lista) for (const k of ADITIVOS_MET) if (m && m[k] != null) out[k] = Math.round(((out[k] || 0) + m[k]) * 100) / 100;
+    if (out.orders_created != null && out.visitors) out.order_conversion_rate = Math.round((out.orders_created / out.visitors) * 1e6) / 1e6;
+    if (out.gross_sales_brl != null && out.orders_created) out.revenue_per_order_brl = Math.round((out.gross_sales_brl / out.orders_created) * 100) / 100;
+    return out;
+  }
+  function metricasView(eng, filtro) {
+    filtro = filtro || {};
+    const snaps = eng.snapshots.filter(s => s.metric_type === 'metricas' && !s.excluidoDaAnalise &&
+      (!filtro.contaId || s.escopo.contaId === filtro.contaId));
+    if (!snaps.length) return { semDados: true, bases: [] };
+    const byBase = {};
+    for (const s of snaps) {
+      const b = s.baseMetrica || 'base';
+      const acc = byBase[b] || (byBase[b] = { base: b, nomeBase: s.nomeBase || NOME_BASE[b] || b, periodo: null, diario: [],
+        fonte: s.sourceFile, aba: s.sourceSheet, marketplace: s.escopo.marketplace, origem: s.origem });
+      if (s.tipoLinha === 'PERIOD_SUMMARY') acc.periodo = { ini: s.periodo_ini, fim: s.periodo_fim, metricas: s.metricas };
+      else if (s.tipoLinha === 'DAILY_METRIC') acc.diario.push({ data: s.data, metricas: s.metricas });
+    }
+    const bases = Object.values(byBase).map(b => {
+      b.diario.sort((x, y) => (x.data < y.data ? -1 : x.data > y.data ? 1 : 0));
+      const totais = b.periodo ? b.periodo.metricas : aggMetricas(b.diario.map(d => d.metricas));
+      const ini = b.periodo ? b.periodo.ini : (b.diario[0] && b.diario[0].data) || null;
+      const fim = b.periodo ? b.periodo.fim : (b.diario[b.diario.length - 1] && b.diario[b.diario.length - 1].data) || null;
+      return { base: b.base, nomeBase: b.nomeBase, fonte: b.fonte, aba: b.aba, marketplace: b.marketplace, origem: b.origem,
+        periodo: { ini, fim, granularidade: b.periodo ? 'agregada de período (linha consolidada)' : 'agregada das diárias' },
+        totais, temResumoPeriodo: !!b.periodo, diario: b.diario, dias: b.diario.length };
+    });
+    return { semDados: false, bases };
+  }
+  function trafficSourcesView(eng, filtro) {
+    filtro = filtro || {};
+    const snaps = eng.snapshots.filter(s => s.metric_type === 'fonte_trafego' && !s.excluidoDaAnalise &&
+      (!filtro.contaId || s.escopo.contaId === filtro.contaId));
+    if (!snaps.length) return { semDados: true, fontes: [] };
+    const fontes = snaps.map(s => Object.assign({ fonte: s.fonte, classe: s.classeFonte || 'trafego',
+      fonteArquivo: s.sourceFile, aba: s.sourceSheet, periodo: { ini: s.periodo_ini, fim: s.periodo_fim }, origem: s.origem }, s.metricas || {}));
+    return { semDados: false, fontes,
+      trafego: fontes.filter(f => f.classe === 'trafego'), afiliados: fontes.filter(f => f.classe === 'afiliados'), ads: fontes.filter(f => f.classe === 'ads') };
+  }
+  function productContribView(eng, filtro) {
+    filtro = filtro || {};
+    const snaps = eng.snapshots.filter(s => s.metric_type === 'contrib_produto' && !s.excluidoDaAnalise &&
+      (!filtro.contaId || s.escopo.contaId === filtro.contaId));
+    if (!snaps.length) return { semDados: true, produtos: [] };
+    const produtos = snaps.map(s => Object.assign({ item_id: s.item_id, produto: s.produtoNome, status: s.statusItem,
+      fonteArquivo: s.sourceFile, aba: s.sourceSheet, periodo: { ini: s.periodo_ini, fim: s.periodo_fim },
+      vinculo: s.vinculo ? s.vinculo.estado : 'SEM VÍNCULO', vendido: !!(s.metricas && s.metricas.orders), origem: s.origem }, s.metricas || {}))
+      .sort((a, b) => (b.sales || 0) - (a.sales || 0));
+    return { semDados: false, produtos,
+      revisaoHumana: produtos.filter(p => /SUGERIDO|CONFLITO|SEM CORRESPOND|AUSENTE|SEM VÍNCULO/.test(p.vinculo)) };
+  }
+
   /* ---------- CADEIA EXPLÍCITA PÓS-IMPORTAÇÃO (15 passos com progresso real) ---------- */
   function applyImportChain(eng, batchId, opts) {
     opts = opts || {};
@@ -1424,7 +1698,9 @@
     const destino = batch.det.destino;
     const areasAfetadas = ['Fontes e Dados', 'Central de Inteligência', 'Home', 'Silêncio', 'Conhecimento']
       .concat(destino === 'pedidos' || destino === 'devolucoes' ? ['Pedidos', 'Centro de Custos'] : [])
-      .concat(['catalogo', 'performance', 'estoque'].includes(destino) ? ['Catálogo'] : []);
+      .concat(['catalogo', 'performance', 'estoque', 'contrib_produto'].includes(destino) ? ['Catálogo'] : [])
+      .concat(destino === 'metricas' ? ['Métricas Principais', 'Tráfego', 'Centro de Custos'] : [])
+      .concat(destino === 'fonte_trafego' ? ['Tráfego', 'Afiliados', 'Ads', 'Catálogo'] : []);
     const passos = [
       ['Arquivo bruto persistido', `${rf.abas.length} aba(s) · ${rf.abas[0].headers.length} coluna(s) · ${rf.abas.reduce((a, x) => a + x.rows.length, 0)} linha(s) — nada descartado`],
       ['Colunas e linhas preservadas', `${cat.length} coluna(s) no catálogo de campos`],
@@ -1657,6 +1933,76 @@
           { 'Data': '2026-07-03', 'Perguntas recebidas': 31, 'Perguntas respondidas': 22, 'Taxa de resposta': 71, 'Tempo médio de resposta': '4h05' },
         ] }],
     }),
+
+    /* ---------- 10.E.2.3 — MÉTRICAS PRINCIPAIS: arquivo real multiabas (8 abas) ----------
+       Valores em formato brasileiro (335.392,51 · 0,63% · 1.375) e linha consolidada
+       de período (04/06/2026-03/07/2026) convivendo com linhas diárias. Os totais do
+       período batem exatamente com os números de validação do sprint. */
+    metricasPrincipais: periodo => {
+      periodo = periodo || { ini: '2026-06-04', fim: '2026-07-03' };
+      const METCOLS = ['Data', 'Vendas (BRL)', 'Vendas Sem os Descontos da Shopee', 'Pedidos', 'Vendas por Pedido',
+        'Cliques Por Produto', 'Visitantes', 'Taxa de Conversão de Pedidos', 'Pedidos Cancelados', 'Vendas Canceladas',
+        'Pedidos Devolvidos / Reembolsados', 'Vendas Devolvidas / Reembolsadas', '# de compradores',
+        '# de novos compradores', '# de compradores existentes', '# de compradores em potencial', 'Repetir Índice de Compras'];
+      const dias = [];
+      for (let dd = 4; dd <= 30; dd++) dias.push(('0' + dd).slice(-2) + '/06/2026');
+      for (let dd = 1; dd <= 3; dd++) dias.push(('0' + dd).slice(-2) + '/07/2026');
+      const fmt = n => n.toFixed(2).replace('.', '#').replace(/\B(?=(\d{3})+(?!\d))/g, '.').replace('#', ',');
+      const mil = n => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+      const diariasBase = (totVendas, totPedidos, totVisit) => dias.map((d, i) => {
+        const f = i === 0 ? 1.18 : i === dias.length - 1 ? 0.82 : 1; /* leve variação, sem aleatoriedade */
+        const vend = totVendas / dias.length * f, ped = Math.round(totPedidos / dias.length * f), vis = Math.round(totVisit / dias.length * f);
+        const row = { 'Data': d, 'Vendas (BRL)': fmt(vend), 'Vendas Sem os Descontos da Shopee': fmt(vend * 1.07),
+          'Pedidos': mil(ped), 'Vendas por Pedido': fmt(ped ? vend / ped : 0), 'Cliques Por Produto': mil(Math.round(vis * 0.42)),
+          'Visitantes': mil(vis), 'Taxa de Conversão de Pedidos': (vis ? (ped / vis * 100) : 0).toFixed(2).replace('.', ',') + '%',
+          'Pedidos Cancelados': mil(Math.round(ped * 0.04)), 'Vendas Canceladas': fmt(vend * 0.04),
+          'Pedidos Devolvidos / Reembolsados': mil(Math.round(ped * 0.02)), 'Vendas Devolvidas / Reembolsadas': fmt(vend * 0.02),
+          '# de compradores': mil(Math.round(ped * 0.93)), '# de novos compradores': mil(Math.round(ped * 0.61)),
+          '# de compradores existentes': mil(Math.round(ped * 0.32)), '# de compradores em potencial': mil(Math.round(vis * 0.2)),
+          'Repetir Índice de Compras': '0,34%' };
+        return row;
+      });
+      const consolidada = (v, p, vis, conv) => ({ 'Data': '04/06/2026-03/07/2026', 'Vendas (BRL)': v,
+        'Vendas Sem os Descontos da Shopee': fmt(parseFloat(v.replace(/\./g, '').replace(',', '.')) * 1.07), 'Pedidos': p,
+        'Vendas por Pedido': fmt(parseFloat(v.replace(/\./g, '').replace(',', '.')) / parseFloat(p.replace(/\./g, ''))),
+        'Cliques Por Produto': '48.319', 'Visitantes': vis, 'Taxa de Conversão de Pedidos': conv,
+        'Pedidos Cancelados': '54', 'Vendas Canceladas': '13.415,70', 'Pedidos Devolvidos / Reembolsados': '28',
+        'Vendas Devolvidas / Reembolsadas': '6.707,85', '# de compradores': '1.279', '# de novos compradores': '842',
+        '# de compradores existentes': '437', '# de compradores em potencial': '23.008', 'Repetir Índice de Compras': '0,34%' });
+      const FONTECOLS = ['Fonte de Tráfego', 'Vendas', 'Impressões', 'Cliques', 'Pedidos', 'Unidades', 'CTR', 'Conversão',
+        'Vendas por Pedido', 'Compradores', 'Impressões únicas', 'Cliques únicos'];
+      const fontes = base => ([
+        ['Card do Produto', '148.320,44', '412.900', '38.410', '612', '648', '9,30%', '1,59%', '242,35', '571', '210.400', '31.200'],
+        ['Recomendação', '72.140,10', '298.500', '18.220', '284', '301', '6,10%', '1,56%', '253,99', '268', '160.900', '15.400'],
+        ['Pesquisar', '58.902,73', '141.700', '12.940', '241', '255', '9,13%', '1,86%', '244,41', '229', '96.300', '11.020'],
+        ['Afiliado', '31.204,88', '52.300', '4.910', '128', '134', '9,39%', '2,61%', '243,79', '121', '38.900', '4.310'],
+        ['Anúncios', '18.740,52', '88.400', '6.220', '74', '79', '7,04%', '1,19%', '253,25', '70', '61.200', '5.480'],
+        ['Lives', '4.980,00', '9.100', '820', '21', '22', '9,01%', '2,56%', '237,14', '20', '7.400', '740'],
+        ['Vídeos', '1.103,84', '3.400', '260', '5', '5', '7,65%', '1,92%', '220,77', '5', '2.900', '230'],
+      ].map(a => { const o = {}; FONTECOLS.forEach((h, i) => o[h] = a[i]); return o; }));
+      const PRODCOLS = ['ID do Item', 'Produto', 'Status Atual do Item', 'Taxa de Vendas', 'Vendas', 'Impressões',
+        'Cliques', 'Pedidos', 'Unidades', 'CTR', 'Taxa de Conversão', 'Vendas por Pedido', 'Compradores', 'Impressões únicas', 'Cliques únicos'];
+      const produtos = () => ([
+        ['9001', 'Quadro Paisagem 60x90 Premium', 'Normal', '0,71%', '92.410,50', '184.200', '18.410', '388', '402', '9,99%', '2,11%', '238,17', '361', '120.400', '15.200'],
+        ['9002', 'Kit 3 Quadros Sala Moderna', 'Normal', '0,44%', '74.120,00', '141.900', '12.220', '241', '248', '8,61%', '1,97%', '307,55', '229', '98.700', '10.100'],
+        ['9003', 'Quadro Paisagem 60x90 c/ Maleta', 'Normal', '0,52%', '41.208,30', '96.400', '8.910', '198', '205', '9,24%', '2,22%', '208,12', '188', '70.100', '7.410'],
+        ['9004', 'Porta Retrato Vidro Duplo 3D', 'Normal', '0,38%', '28.905,11', '71.200', '5.640', '164', '181', '7,92%', '2,91%', '176,25', '150', '52.300', '4.900'],
+        ['9005', 'Espelho Adnet Orgânico', 'Ativo', '0,29%', '19.740,60', '44.900', '3.220', '96', '99', '7,17%', '2,98%', '205,63', '92', '33.100', '2.870'],
+      ].map(a => { const o = {}; PRODCOLS.forEach((h, i) => o[h] = a[i]); return o; }));
+      return {
+        nome: 'metricas principais .xlsx', sourceType: 'PLANILHA_SHOPEE', periodo,
+        abas: [
+          { nome: 'Pedido Feito', headers: METCOLS, rows: [consolidada('335.392,51', '1.375', '115.043', '0,63%')].concat(diariasBase(335392.51, 1375, 115043)) },
+          { nome: 'Produto Pago', headers: METCOLS, rows: [consolidada('292.591,59', '1.211', '115.043', '0,56%')].concat(diariasBase(292591.59, 1211, 115043)) },
+          { nome: '(Pedidos Enviados) Fontes de Tráfego', headers: FONTECOLS, rows: fontes('feito') },
+          { nome: '(pedido realizado) Contribuição diária', headers: PRODCOLS, rows: produtos() },
+          { nome: 'Product Contribution', headers: PRODCOLS, rows: produtos() },
+          { nome: '(Pedidos Pagos) Fontes de Tráfego', headers: FONTECOLS, rows: fontes('pago') },
+          { nome: '(pedido pago) Contribuição diária', headers: PRODCOLS, rows: produtos() },
+          { nome: 'Product Contribution (paid)', headers: PRODCOLS, rows: produtos() },
+        ],
+      };
+    },
   };
 
   return { PROFILES, GRANULARIDADES, FONTES, JOB_ESTADOS, VINCULO, MASTER_ESTADOS, IMPORT_PERMS,
@@ -1668,6 +2014,8 @@
     FIELD_MAP, TIPOS_CAMPO, ENTIDADES_CAMPO, inferType, fieldCatalog, mapField, excluirCampoDaAnalise,
     restaurarCampo, reprocess, relacoesReport, decidirRelacao, coberturaReal, applyImportChain,
     lastImpact, sinaisSilencio, fatosConhecimento,
+    /* 10.E.2.3 — importação multiabas real */
+    stageMulti, metricasView, trafficSourcesView, productContribView, brNum, isoBr, rangeBr, NOME_BASE,
     /* 10.E.2 */
     DATA_PERMS, DATA_PERMS_ALL, canData, orderTab, cepProtegido, ordersView, orderStats, geoStats, stockView,
     conversaoExplicita, valorEfetivo, correct, excludeFromAnalysis, restaurar, archiveFile, desativarVinculo,

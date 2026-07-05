@@ -370,8 +370,32 @@
       catch (err) { UI.$('#upPrev').innerHTML = `<div class="err-state" style="margin-top:10px"><b>FALHOU</b> — ${UI.esc(err.message)}. Nada foi importado.</div>`; return; }
       if (file.erro) { UI.$('#upPrev').innerHTML = `<div class="err-state" style="margin-top:10px"><b>${UI.esc(file.estado)}</b> — ${UI.esc(file.erro)}</div>`; return; }
       const res = V8IMP.stage(IM.eng, file, escopoDe(UI.$('#upLoja').value), { products: UI.state.products, usuario: D.meta.usuario });
-      let lotes = res.zip ? res.batches : [res];
-      const ign = res.zip ? res.ignorados : [];
+      let lotes = res.zip ? res.batches : res.multi ? res.batches : [res];
+      const ign = res.zip ? res.ignorados : res.multi ? res.abas.flatMap(a => a.blocos.filter(b => b && b.ignorado)) : [];
+
+      /* 10.E.2.3 — cabeçalho multiabas: abas, blocos, registros por tipo e campos preservados */
+      const TIPO_NOME = { metricas: 'Métricas (período + diárias)', fonte_trafego: 'Fontes de tráfego', contrib_produto: 'Performance por produto',
+        pedidos: 'Pedidos', devolucoes: 'Devoluções', estoque: 'Estoque', funil: 'Funil', trafego: 'Tráfego' };
+      const multiHeader = () => {
+        if (!res.multi) return '';
+        const r = res.resumo;
+        const abasHtml = res.abas.map(a => `<span class="chip">${a.reconhecidos ? '✓' : '•'} ${UI.esc(a.nome)}</span>`).join(' ');
+        const tiposHtml = Object.entries(r.porTipo).map(([t, n]) => `<div class="ctxitem"><span>${UI.esc(TIPO_NOME[t] || t)}</span><span class="src">${n} registro(s)</span></div>`).join('');
+        return `<div class="panel" style="margin-top:12px">
+          <div class="sect-h" style="margin-top:0"><span class="h2" style="font-size:13px">Arquivo multiabas: ${UI.esc(res.arquivo)}</span><span class="st ok plain">${r.abas} ABA(S)</span></div>
+          <div style="margin-top:4px"><span class="eyebrow">Abas detectadas</span><br>${abasHtml}</div>
+          <div class="ctxcard" style="margin-top:10px">
+            <div class="ctxitem"><span>Blocos reconhecidos</span><span class="src">${r.blocos} bloco(s) · ${r.ignorados} preservado(s) como referência</span></div>
+            ${tiposHtml}
+            <div class="ctxitem"><span>Campos preservados</span><span class="src">${r.camposPreservados} coluna(s) · nada descartado</span></div>
+          </div>
+          <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+            <button class="btn primary sm" id="upApplyAll">Importar todas as abas reconhecidas</button>
+            <button class="btn sm ghost" id="upToggleAbas">Selecionar abas manualmente</button>
+          </div>
+          <p class="src" style="margin-top:6px">a linha consolidada de período nunca entra como um dia; blocos de fonte e de produto alimentam Tráfego, Afiliados, Ads e Catálogo.</p>
+        </div>`;
+      };
 
       /* prévia com classificação EXPLICÁVEL + correção manual do tipo (10.E.3.1) */
       const tipoSelect = bt => `
@@ -387,16 +411,19 @@
 
       function renderLotes() {
         UI.$('#upPrev').innerHTML = `
+        ${multiHeader()}
         ${res.zip ? `<p class="src" style="margin-top:10px">ZIP extraído no staging: ${lotes.length} planilha(s) reconhecida(s)${ign.length ? ` · ${ign.length} entrada(s) declarada(s) como não importável(is): ${ign.map(x => UI.esc(x.nome)).join(', ')}` : ''}</p>` : ''}
         ${lotes.map(bt => bt.duplicado
           ? `<div class="err-state" style="margin-top:10px"><b>ARQUIVO JÁ IMPORTADO</b> — ${UI.esc(bt.motivo)}</div>`
           : !bt.preview.aplicavel
             ? `<div class="callout" style="margin-top:10px;border-left-color:var(--warn)"><b>${UI.esc(bt.arquivo)}</b> · ${UI.esc(V8IMP.NOME_PERFIL[bt.preview.perfil] || bt.preview.perfil)} <span class="kbd">${UI.esc(bt.preview.perfil)}</span> · ${UI.esc(bt.preview.motivo || 'aguardando mapeamento')} — não será aplicado.${tipoSelect(bt)}</div>`
             : `<div class="panel" style="margin-top:10px">
-              <div class="sect-h" style="margin-top:0"><span class="h2" style="font-size:13px">${UI.esc(bt.arquivo)}</span>${UI.stBadge(bt.estado)}</div>
+              <div class="sect-h" style="margin-top:0"><span class="h2" style="font-size:13px">${UI.esc(bt.abaOrigem ? bt.abaOrigem + ' — ' + (bt.blocoOrigem || '') : bt.arquivo)}</span>${UI.stBadge(bt.estado)}</div>
               <dl class="kv">
+                ${bt.abaOrigem ? `<dt>Aba · bloco</dt><dd><b>${UI.esc(bt.abaOrigem)}</b> · ${UI.esc(bt.blocoOrigem || '—')}</dd>` : ''}
                 ${sugestaoHtml(bt)}
                 <dt>Destino · granularidade</dt><dd>${UI.esc(bt.preview.tipo)} · <span class="kbd">${bt.preview.granularidade}</span></dd>
+                ${bt.preview.blocos ? `<dt>Blocos por tipo de linha</dt><dd><span class="src">${Object.entries(bt.preview.blocos).map(([k, v]) => `${UI.esc(k)}: ${v}`).join(' · ')}</span></dd>` : ''}
                 <dt>Registros</dt><dd>${bt.preview.registros} · ${bt.preview.jaExistem} já existente(s) — serão atualizados, nunca somados</dd>
                 <dt>Conflitos · erros</dt><dd>${bt.preview.conflitos} conflito(s) · ${bt.preview.linhasComErro} linha(s) com erro (preservadas na camada bruta)</dd>
                 ${bt.preview.sobreposicao ? `<dt>Sobreposição</dt><dd><span class="st warn plain">${UI.esc(bt.preview.sobreposicao.aviso)}</span></dd>` : ''}
@@ -432,6 +459,21 @@
           UI.toast(`Tipo corrigido manualmente para ${V8IMP.NOME_PERFIL[sel.value] || sel.value} — lote anterior cancelado, correção auditada.`, 'ok');
           renderLotes();
         });
+        /* 10.E.2.3 — importar todas as abas reconhecidas de uma vez */
+        const applyAll = UI.$('#upApplyAll');
+        if (applyAll) applyAll.onclick = () => {
+          let ok = 0;
+          for (const bt of lotes) {
+            if (!bt || !bt.id || bt.aplicado || !(bt.preview && bt.preview.aplicavel)) continue;
+            const r = V8IMP.applyImportChain(IM.eng, bt.id, { papel, usuario: D.meta.usuario, products: UI.state.products });
+            if (!r.blocked) ok++;
+          }
+          UI.toast(`${ok} aba(s)/bloco(s) aplicado(s) — Métricas, Tráfego, Afiliados, Ads e Catálogo atualizados com a base real.`, 'ok');
+          if (opts.onDone) opts.onDone(lotes[0]);
+          renderLotes();
+        };
+        const tgl = UI.$('#upToggleAbas');
+        if (tgl) tgl.onclick = () => { UI.$('#upPrev').classList.toggle('manual-abas'); UI.toast('Selecione aba a aba abaixo: cada bloco tem seu próprio [Confirmar e aplicar] e [Cancelar].', ''); };
       }
       renderLotes();
     }

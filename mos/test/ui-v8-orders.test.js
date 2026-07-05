@@ -321,9 +321,9 @@ test('M1-M3 · Central abre na Mesa; visão geral com 13 indicadores com fonte; 
   for (const k of m.visaoGeral) assert.ok(k.fonte || k.sem, 'todo indicador declara fonte ou o motivo da ausência');
 });
 
-test('M4-M6 · 8 agentes; sem dado → AGUARDANDO DADOS com pedido de fonte; com dado → ANALISADO com fontes', () => {
+test('M4-M6 · 9 agentes; sem dado → AGUARDANDO DADOS com pedido de fonte; com dado → ANALISADO com fontes', () => {
   const vazio = V8IMP.mesaInsights(V8IMP.createEngine(), {});
-  assert.equal(vazio.agentes.length, 8, '8 agentes (módulos de análise)');
+  assert.equal(vazio.agentes.length, 9, '9 agentes (módulos de análise, incl. Métricas Principais)');
   assert.ok(vazio.agentes.every(a => ['AGUARDANDO DADOS', 'DADO INSUFICIENTE'].includes(a.status)), 'nenhum agente finge trabalho');
   assert.ok(vazio.agentes[0].acao && vazio.agentes[0].dadosFaltantes, 'declara o que falta e a ação');
   assert.equal(vazio.insights.length, 0, 'nenhuma análise sem dado real');

@@ -28,6 +28,65 @@
     return { ok: true, ext };
   }
 
+  /* ---------------- números brasileiros (10.E.2.3) ----------------
+     335.392,51 → 335392.51 · 0,63% → 0.0063 · 1.375 → 1375
+     Regra: se há vírgula, o ponto é separador de milhar; sem vírgula,
+     pontos só são milhar quando o padrão é 1.375 / 12.345 / 1.234.567.
+     Percentual vira fração (÷100). Mantém o texto bruto em outra camada. */
+  function parseBrNumber(v) {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return v;
+    let s = String(v).trim();
+    if (s === '-' || s === '—' || /^n\/?a$/i.test(s)) return null;
+    const pct = /%\s*$/.test(s);
+    s = s.replace(/%/g, '').replace(/R\$\s*/i, '').replace(/\s+/g, '');
+    if (s === '' || s === '-') return null;
+    if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+    else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+    const n = Number(s);
+    if (isNaN(n)) return null;
+    return pct ? Math.round((n / 100) * 1e6) / 1e6 : n;
+  }
+
+  /* ---------------- segmentação de blocos (10.E.2.3) ----------------
+     Uma aba pode conter vários blocos independentes: linha de título,
+     cabeçalho real, linha consolidada, linhas diárias, tabelas por fonte
+     ou por produto. Nunca assume "linha 1 = cabeçalho, linha 2 = dado".
+     Recebe uma matriz (array de arrays de células) e devolve blocos. */
+  const _vazia = row => !row || row.every(c => c === '' || c == null || String(c).trim() === '');
+  const _naoVazias = row => (row || []).filter(c => !(c === '' || c == null || String(c).trim() === '')).length;
+  const _txt = c => String(c == null ? '' : c).trim();
+  function segmentBlocks(matriz) {
+    const M = (matriz || []).map(r => (r || []).map(c => (c == null ? '' : c)));
+    const blocos = []; let i = 0, tituloPend = null;
+    while (i < M.length) {
+      if (_vazia(M[i])) { i++; continue; }
+      /* linha de título: uma única célula preenchida e a próxima linha não-vazia é um cabeçalho (2+ células) */
+      if (_naoVazias(M[i]) === 1) {
+        let j = i + 1; while (j < M.length && _vazia(M[j])) j++;
+        if (j < M.length && _naoVazias(M[j]) >= 2) { tituloPend = _txt(M[i].find(c => _txt(c) !== '')); i++; continue; }
+      }
+      /* cabeçalho: primeira linha do bloco com 2+ células preenchidas */
+      const header = M[i].map(_txt); i++;
+      const rows = [];
+      while (i < M.length && !_vazia(M[i])) {
+        if (_naoVazias(M[i]) === 1) {  /* título do próximo bloco encostado sem linha em branco */
+          let j = i + 1; while (j < M.length && _vazia(M[j])) j++;
+          if (j < M.length && _naoVazias(M[j]) >= 2) break;
+        }
+        const linha = M[i].map(_txt);
+        /* cabeçalho repetido dentro do mesmo bloco não vira dado */
+        if (linha.join('') === header.join('')) { i++; continue; }
+        const obj = {};
+        header.forEach((h, k) => { if (h !== '') obj[h] = M[i][k] == null ? '' : M[i][k]; });
+        rows.push(obj); i++;
+      }
+      blocos.push({ titulo: tituloPend, headers: header.filter(Boolean), rows });
+      tituloPend = null;
+    }
+    return blocos;
+  }
+
   /* ---------------- CSV ---------------- */
   function parseCsvText(text) {
     text = String(text).replace(/^﻿/, '');
@@ -117,12 +176,14 @@
         }
         return cells;
       });
-      if (!linhas.length) { abas.push({ nome: nomes[si] || 'Aba' + (si + 1), headers: [], rows: [] }); return; }
-      const headers = (linhas[0] || []).map(h => String(h ?? '').trim());
-      const rows = linhas.slice(1)
-        .map(cells => Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? '']).filter(([h]) => h !== '')))
-        .filter(r => Object.values(r).some(v => v !== '' && v != null));
-      abas.push({ nome: nomes[si] || 'Aba' + (si + 1), headers: headers.filter(Boolean), rows });
+      const nomeAba = nomes[si] || 'Aba' + (si + 1);
+      if (!linhas.length) { abas.push({ nome: nomeAba, headers: [], rows: [], blocos: [], matriz: [] }); return; }
+      /* 10.E.2.3 — a aba inteira é segmentada em blocos (título, cabeçalho real,
+         linha consolidada, linhas diárias, tabelas internas). O primeiro bloco
+         alimenta headers/rows (compatível com o fluxo antigo); todos ficam em blocos. */
+      const blocos = segmentBlocks(linhas);
+      const b0 = blocos[0] || { headers: [], rows: [] };
+      abas.push({ nome: nomeAba, headers: b0.headers.slice(), rows: b0.rows.slice(), blocos, matriz: linhas });
     });
     return abas;
   }
@@ -168,5 +229,7 @@
     return { nome, tamanho, formato: 'zip', zip: true, entries };
   }
 
-  return { MAX_BYTES, EXTS, validateMeta, parseCsvText, unzip, parseXlsxBuffer, readLocalFile };
+  return { MAX_BYTES, EXTS, validateMeta, parseCsvText, unzip, parseXlsxBuffer, readLocalFile,
+    /* 10.E.2.3 — leitura multiabas/multiblocos e números brasileiros */
+    parseBrNumber, segmentBlocks };
 }));
