@@ -41,10 +41,10 @@ test('02 · alternância de tema com preferência salva por usuário', () => {
 
 /* ---------- navegação e contexto ---------- */
 
-test('03 · menu 10.E.2: Pedidos + Central de Inteligência; Importar vira Fontes e Dados', () => {
-  for (const v of ['home', 'operacao', 'pedidos', 'catalogo', 'crescimento', 'conexoes', 'missao', 'silencio', 'conhecimento', 'importar'])
+test('03 · menu 10.E.4: Pedidos, Central, Centro de Custos e Empresas e Operações', () => {
+  for (const v of ['home', 'operacao', 'pedidos', 'catalogo', 'crescimento', 'custos', 'empresas', 'conexoes', 'missao', 'silencio', 'conhecimento', 'importar'])
     assert.match(html, new RegExp(`data-v="${v}"`), `área ${v}`);
-  for (const nome of ['Home', 'Operação', 'Pedidos', 'Catálogo', 'Central de Inteligência', 'Conexões', 'A Missão', 'Silêncio', 'Conhecimento', 'Fontes e Dados'])
+  for (const nome of ['Home', 'Operação', 'Pedidos', 'Catálogo', 'Central de Inteligência', 'Centro de Custos', 'Empresas e Operações', 'Conexões', 'A Missão', 'Silêncio', 'Conhecimento', 'Fontes e Dados'])
     assert.ok(html.includes(`<span>${nome}</span>`), `nome do menu: ${nome}`);
   assert.ok(!html.includes('<span>Importar</span>'), '"Importar" genérico deixou de ser item principal');
   assert.ok(!html.includes('<span>Crescimento</span>'), 'Crescimento renomeado para Central de Inteligência');

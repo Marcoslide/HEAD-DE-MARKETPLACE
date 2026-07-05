@@ -617,8 +617,8 @@
      logística, performance e comparação. Salvar edita SÓ este
      anúncio; o master e os outros marketplaces ficam intactos.
      ============================================================= */
-  const EDITOR_ABAS = ['Informação Básica', 'Especificações', 'Descrição', 'Informações de Vendas', 'Variações',
-    'Lista de Variações', 'Fotos e Vídeos', 'Informações Fiscais', 'Envio e Logística', 'Outros',
+  const EDITOR_ABAS = ['Informação Básica', 'Especificações', 'Descrição', 'Informações de Vendas', 'Economia do Produto',
+    'Variações', 'Lista de Variações', 'Fotos e Vídeos', 'Informações Fiscais', 'Envio e Logística', 'Outros',
     'Performance Comercial', 'Comparar Marketplaces', 'Histórico e Auditoria'];
 
   CAT.openEditor = function (listingId, aba, campoFoco) {
@@ -688,6 +688,32 @@
         <dt>Preço mínimo seguro · recomendado</dt><dd>${UI.brl(si.precoMinimoSeguro)} · ${UI.brl(si.precoRecomendado)}</dd>
       </dl>
       ${si.alertas.map(a => `<div class="callout" style="margin-top:8px;border-left-color:var(--warn)">⚠ ${UI.esc(a)}</div>`).join('')}${salvarBar}`;
+    }
+    else if (A === 'Economia do Produto') {
+      /* integração Centro de Custos ↔ Catálogo (10.E.4) */
+      if (!window.V8BIZ || !window.bizState) corpo = '<div class="empty"><b>Centro de Custos indisponível</b></div>';
+      else {
+        const biz = window.bizState();
+        const cp = V8BIZ.custoProdutoVigente(biz, p.id);
+        const eco = V8BIZ.economiaProduto(biz, { produtoId: p.id, sku: l.skuPai, marketplace: l.marketplace,
+          empresaId: p.companyId || 'e1', categoria: p.categoria, preco: V8CAT.valorDe(cat, l, 'preco') || p.precoBase,
+          base: { pedidosPagos: 1000, faturamento: 100000, faturamentoItem: 5000, unidadesItem: 40 }, fonteBase: 'base de referência do período' });
+        corpo = `
+        <p class="sub">Economia deste produto NESTE anúncio (${UI.esc(l.mktNome)}) — cada linha com valor, fonte, regra e tipo. ${cp ? 'Custo vigente desde ' + cp.inicioVigencia + '.' : '<b>Sem custo cadastrado</b> — cadastre para calcular margem.'}</p>
+        ${eco.coberturaInsuficiente ? `<div class="callout" style="margin-top:8px;border-left-color:var(--warn)">Cobertura insuficiente: ${eco.faltando.map(UI.esc).join(' · ')}</div>` : ''}
+        <div class="tblwrap" style="margin-top:8px"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Item</th><th class="nosort">Valor</th><th class="nosort">Fonte</th><th class="nosort">Regra</th></tr></thead><tbody>
+        ${eco.linhas.map(x => `<tr><td class="tmain">${UI.esc(x.item)}</td><td>${x.valor != null ? UI.brl(x.valor) : '<span class="src">SEM DADOS</span>'}</td><td><span class="src">${UI.esc(x.fonte)}</span></td><td><span class="src" style="white-space:normal">${UI.esc((x.regra || '—').slice(0, 70))}</span></td></tr>`).join('')}
+        </tbody></table></div>
+        <div class="mesa-grid" style="margin-top:10px">
+          <div class="mesa-kpi"><span class="k">Margem de contribuição</span><span class="v">${eco.margemContribuicao != null ? eco.margemContribuicaoPct + '%' : 'SEM DADOS'}</span><span class="f">preço − variáveis</span></div>
+          <div class="mesa-kpi"><span class="k">Margem líquida estimada</span><span class="v">${eco.margemLiquidaEstimadaPct != null ? eco.margemLiquidaEstimadaPct + '%' : 'SEM DADOS'}</span><span class="f">estimada — não é lucro real</span></div>
+          <div class="mesa-kpi"><span class="k">Preço mínimo seguro</span><span class="v">${eco.precoMinimoSeguro != null ? UI.brl(eco.precoMinimoSeguro) : 'SEM DADOS'}</span><span class="f">custo + taxas + margem mínima</span></div>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px">
+          <button class="btn sm primary" data-act="ecocusto" data-pid="${p.id}">Editar custo do produto</button>
+          <button class="btn sm ghost" data-act="gocustos">abrir Centro de Custos →</button>
+        </div>`;
+      }
     }
     else if (A === 'Variações' || A === 'Lista de Variações') corpo = `
       <p class="sub">Variações do Product Master projetadas neste anúncio. SKU duplicado gera conflito explícito.</p>
@@ -830,6 +856,23 @@
     else if (act === 'mduso') verUsoMidia(b.dataset.id);
     else if (act === 'ecorrigir') modalCorrigirCampo(b.dataset.lid);
     else if (act === 'earquivar') modalArquivarListing(b.dataset.lid);
+    else if (act === 'gocustos') { UI.closeModal(); UI.go('custos', 'Economia por Produto'); }
+    else if (act === 'ecocusto') {
+      const pid2 = b.dataset.pid;
+      if (!V8BIZ.canBiz(papel(), 'PRODUCT_COST_EDIT')) return UI.toast(`papel ${papel()} não possui PRODUCT_COST_EDIT.`, 'err');
+      const atual = V8BIZ.custoProdutoVigente(window.bizState(), pid2) || {};
+      UI.openModal(`<h3 class="h2">Custo do produto</h3>
+        <p class="sub" style="margin-top:4px">Alterar cria nova vigência — o custo antigo fica preservado por período.</p>
+        ${[['pcCompra', 'Custo de compra/produção (R$)', atual.custoCompra], ['pcEmb', 'Embalagem (R$)', atual.embalagem], ['pcFrete', 'Frete subsidiado (% do preço)', atual.freteSubsidiadoPct], ['pcDev', 'Devolução estimada (R$)', atual.devolucaoEstimado], ['pcMin', 'Margem mínima desejada (%)', atual.margemMinimaPct]].map(([i, l, v]) => `<label style="display:block;margin-top:8px"><span class="eyebrow">${l}</span><br><input class="input" id="${i}" style="width:100%;margin-top:3px" value="${UI.esc(v ?? '')}"></label>`).join('')}
+        <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end"><button class="btn ghost" onclick="UI.closeModal()">cancelar</button><button class="btn primary" id="pcOk">Salvar custo</button></div>`);
+      UI.$('#pcOk').onclick = () => {
+        const g = i => +UI.$('#' + i).value || 0;
+        const r = V8BIZ.setProdutoCusto(window.bizState(), pid2, { custoCompra: g('pcCompra'), embalagem: g('pcEmb'), freteSubsidiadoPct: g('pcFrete'), devolucaoEstimado: g('pcDev'), margemMinimaPct: g('pcMin') || 10 }, { usuario: D.meta.usuario, papel: papel() });
+        if (r.blocked) return UI.toast(r.reason, 'err');
+        UI.toast('Custo salvo — vigência anterior preservada (' + r.vigenciasAnteriores + ' histórica(s)).', 'ok');
+        CAT.openEditor(CAT.edId, 'Economia do Produto');
+      };
+    }
     else if (act === 'editvar' || act === 'addvar') { UI.closeModal(); onClick(e); }
   }
 

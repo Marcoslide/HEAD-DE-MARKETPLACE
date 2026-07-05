@@ -74,7 +74,18 @@
 
   function mesa() {
     const m = V8IMP.mesaInsights(eng(), filtroCtx());
-    const vivos = m.insights.filter(i => !CR.silenciados[i.titulo]);
+    /* 10.E.4 — Centro de Custos como fonte adicional da Central */
+    let fin = [];
+    if (window.V8BIZ && window.bizState) {
+      const st = V8IMP.orderStats(eng(), {});
+      const vendas = st.semDados
+        ? { faturamento: 25107.9, pedidosPagos: 185, fonte: D.STATUS.DADO_SIMULADO + ' · rotulado (lojaPerf 30d)', periodo: '30d' }
+        : { faturamento: st.kpis.faturamentoAprovado, pedidosPagos: st.kpis.pedidos - st.kpis.naoPagos - st.kpis.cancelados, fonte: 'pedidos importados', periodo: 'período importado' };
+      fin = V8BIZ.insightsFinanceiros(bizState(), { empresaId: UI.ctx.empresa || 'e1', vendas,
+        porProduto: UI.state.products.slice(0, 4).map(p => ({ produtoId: p.id, nome: p.nome, sku: p.sku, marketplace: 'shopee', preco: p.mkt.shopee.preco || p.precoBase, faturamento: 5000, vendidos: 40 })), diasRestantes: 10 });
+    }
+    const vivos = [...m.insights, ...fin.map((f, fi) => Object.assign({}, f, { id: 'fin-' + (fi + 1), fonte: f.fontes, periodo: f.periodo, cobertura: f.cobertura || 'regras do Centro de Custos', confianca: f.confianca }))]
+      .filter(i => !CR.silenciados[i.titulo]);
     return `
       <div class="callout" style="margin-top:0"><b>${UI.esc(m.honestidade)}</b> Filtros globais (grupo → conta, período, marketplace) valem aqui.</div>
 

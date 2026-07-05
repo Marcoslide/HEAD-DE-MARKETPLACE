@@ -55,7 +55,7 @@
     toggleTheme() { UI.setTheme(UI.theme() === 'dark' ? 'light' : 'dark'); },
 
     /* ---------- navegação ---------- */
-    NAMES: { home: 'Home', operacao: 'Operação', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', conexoes: 'Conexões', missao: 'A Missão', silencio: 'Silêncio', conhecimento: 'Conhecimento', importar: 'Fontes e Histórico de Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
+    NAMES: { home: 'Home', operacao: 'Operação', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', custos: 'Centro de Custos', empresas: 'Empresas e Operações', conexoes: 'Conexões', missao: 'A Missão', silencio: 'Silêncio', conhecimento: 'Conhecimento', importar: 'Fontes e Histórico de Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
 
     /* ---------- conta comercial (10.V) ----------
        Sessão demonstrativa: conta semeada; sessão real: criada no gate. */

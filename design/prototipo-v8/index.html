@@ -23,6 +23,8 @@
       <button data-v="pedidos"><svg viewBox="0 0 24 24"><path d="M4 7h16l-1.5 12a2 2 0 0 1-2 1.8h-9A2 2 0 0 1 5.5 19zM8 7a4 4 0 0 1 8 0"/></svg><span>Pedidos</span><em class="nbadge" data-badge="pedidos"></em></button>
       <button data-v="catalogo"><svg viewBox="0 0 24 24"><path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z"/></svg><span>Catálogo</span><em class="nbadge" data-badge="catalogo"></em></button>
       <button data-v="crescimento"><svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8M15 7h6v6"/></svg><span>Central de Inteligência</span><em class="nbadge" data-badge="crescimento"></em></button>
+      <button data-v="custos"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 6H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H6"/></svg><span>Centro de Custos</span><em class="nbadge" data-badge="custos"></em></button>
+      <button data-v="empresas"><svg viewBox="0 0 24 24"><path d="M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h4a2 2 0 0 1 2 2v10M9 7h2M9 11h2M9 15h2"/></svg><span>Empresas e Operações</span><em class="nbadge" data-badge="empresas"></em></button>
       <button data-v="conexoes"><svg viewBox="0 0 24 24"><path d="M9 12a4 4 0 0 1 4-4h4a4 4 0 0 1 0 8h-2M15 12a4 4 0 0 1-4 4H7a4 4 0 0 1 0-8h2"/></svg><span>Conexões</span><em class="nbadge" data-badge="conexoes"></em></button>
       <button data-v="missao"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg><span>A Missão</span><em class="nbadge" data-badge="missao"></em></button>
       <button data-v="silencio"><svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4zM22 9l-6 6M16 9l6 6"/></svg><span>Silêncio</span><em class="nbadge" data-badge="silencio"></em></button>
@@ -66,6 +68,8 @@
     <section class="view" id="v-pedidos"></section>
     <section class="view" id="v-catalogo"></section>
     <section class="view" id="v-crescimento"></section>
+    <section class="view" id="v-custos"></section>
+    <section class="view" id="v-empresas"></section>
     <section class="view" id="v-conexoes"></section>
     <section class="view" id="v-missao"></section>
     <section class="view" id="v-silencio"></section>
@@ -110,6 +114,7 @@
 <script src="import-engine.js"></script>
 <script src="file-reader.js"></script>
 <script src="catalog-engine.js"></script>
+<script src="business-engine.js"></script>
 <script src="commercial.js"></script>
 <script src="app.js"></script>
 <script src="home.js"></script>
@@ -117,6 +122,8 @@
 <script src="catalogo.js"></script>
 <script src="pedidos.js"></script>
 <script src="crescimento.js"></script>
+<script src="empresas.js"></script>
+<script src="custos.js"></script>
 <script src="conexoes.js"></script>
 <script src="missao.js"></script>
 <script src="silencio.js"></script>

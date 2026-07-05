@@ -454,3 +454,54 @@ sugerido PEDIDOS SHOPEE, destino Pedidos, aplicação liberada — nunca
 REFERENCE_ONLY, nunca bloqueado pela coluna "Hot Listing". Testes C1–C4
 em `ui-v8-orders.test.js`; suíte completa 511 verdes, zero regressão nas
 detecções anteriores.
+
+## Sprint 10.E.4 — Empresas, Canais de Venda e Centro de Custos
+
+Duas áreas conectadas, simples de operar, com motor próprio
+(`business-engine.js` · V8BIZ) e 21 permissões com enforcement no motor.
+
+**Empresas e Operações** (8 subáreas): modelo visível é só
+`Empresa → Canal de Venda → Conta Marketplace` (Grupo/CNPJ continuam
+embaixo, opcionais). Cadastro manual em blocos com apenas nome +
+responsável obrigatórios — **CNPJ é opcional**. 12 tipos de canal
+(Shopee, ML, TikTok, Magalu, Amazon, Shein, loja física, site, WhatsApp,
+Instagram, outros); a mesma empresa pode ter Shopee + ML + loja física.
+Tudo cadastrado entra **automaticamente nos filtros globais** (empresa →
+scope.empresas; canal → scope.lojas; conta → scope.contas). OAuth exige
+empresa e canal definidos, mostra Empresa/Canal/Marketplace/Modo
+Leitura/Escrita Bloqueada e fica honesto: "AGUARDANDO AUTORIZAÇÃO DO
+PROVEDOR — nada conectado de verdade". Exclusão segura: empresa vazia
+exclui com confirmação; com dados só desativa/arquiva (histórico
+preservado); arquivada some do filtro padrão; reativar não religa
+integrações externas.
+
+**Centro de Custos** (12 subáreas): custos fixos (18 categorias,
+periodicidade mensalizada), variáveis (17 categorias × 10 bases de
+cálculo), taxas de marketplace com **prioridade explicada** (SKU →
+Produto → Categoria → Conta → Canal → Empresa → padrão; "regra usada:
+SKU específico" em todo cálculo; taxa sem valor = taxa inventada →
+recusada), Ads/cupons/afiliados com **prioridade de dado importado real**
+sobre estimativa manual, regras de rateio (11 métodos; custo fixo nunca
+entra sem regra; cálculo com método/base/fonte/período/confiança —
+R$ 10.000 ÷ 1.000 pedidos = R$ 10/pedido; participação 5% → R$ 500),
+Economia por Produto (fórmula visível linha a linha, cada linha com
+valor/fonte/regra/estimado; margem de contribuição, **margem líquida
+estimada** — nunca "lucro real" —, preço mínimo seguro; cobertura
+insuficiente declarada quando falta base), Margem por Canal, Ponto de
+Equilíbrio (R$ 10.000 ÷ 25% = R$ 40.000; 250 pedidos; faltam 83; média
+diária; "Dados insuficientes" quando não há custo/margem/vendas),
+Simulador de Preço (interno — o anúncio externo NUNCA é alterado; salvar
+simulação/criar missão), Histórico de Regras (alterar cria **nova
+vigência**; o passado não é reescrito; custo de produto preserva vigência
+anterior) e Fontes e Cobertura.
+
+**Integrações**: aba "Economia do Produto" no editor do Catálogo
+(margens e regra aplicada por anúncio; editar custo cria vigência) e
+insights financeiros na Mesa da Central ("Faltam N pedidos para o ponto
+de equilíbrio", "vende bem, margem abaixo da meta") com fontes/custos/
+regras/período/cobertura/estimado/confiança.
+
+**Testes**: `mos/test/ui-v8-business.test.js` (12 blocos cobrindo os 43
+itens); suíte completa 525 verdes; validação headless com 15 auto-testes,
+cadastro via formulário real, OAuth com escopo, 16 áreas × 2 temas × 4
+larguras, zero erros de console.
