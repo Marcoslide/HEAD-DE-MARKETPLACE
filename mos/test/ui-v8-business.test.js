@@ -88,11 +88,10 @@ test('15-16 · OAuth exige empresa e canal; conta nasce vinculada ao canal certo
 
 /* ---------- 17-21 · Centro de Custos separado; cadastros ---------- */
 test('17-21 · área separada; custo fixo, variável, taxa por marketplace e por SKU', () => {
-  /* 10.P.3 — menu reduzido a 6 áreas; Lucratividade e Empresas vivem nas sub-navegações */
-  assert.match(read('index.html'), /data-area="crescimento"/, 'Crescimento no menu de áreas');
-  assert.match(read('index.html'), /data-area="config"/, 'Configurações no menu de áreas');
-  assert.match(read('app.js'), /label: 'Lucratividade', view: 'custos'/, 'Lucratividade na sub-nav de Crescimento');
-  assert.match(read('app.js'), /label: 'Empresas e Operações', view: 'empresas'/, 'Empresas e Operações na sub-nav de Configurações');
+  /* 10.P.4 — menu lateral plano de 21 áreas; Lucratividade e Empresas são itens de 1 clique */
+  assert.match(read('app.js'), /renderNav/, 'menu lateral plano renderizado por UI.renderNav');
+  assert.match(read('app.js'), /label: 'Lucratividade', view: 'custos'/, 'Lucratividade no menu (Resultado e Gestão)');
+  assert.match(read('app.js'), /label: 'Empresas e Operações', view: 'empresas'/, 'Empresas e Operações no menu (Sistema)');
   assert.ok(!cusJs.includes('Nova Empresa') && !empJs.includes('Adicionar Custo Fixo'), 'cadastro de empresa e custo NÃO se misturam');
   const { biz } = novo();
   const cf = V8BIZ.addCustoFixo(biz, { nome: 'Aluguel', categoria: 'Aluguel', valor: 10000, periodicidade: 'Mensal', inicio: '2026-07-01', empresaId: 'e1' }, {});

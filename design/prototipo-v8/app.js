@@ -57,71 +57,47 @@
     /* ---------- navegação ---------- */
     NAMES: { home: 'Mesa Estratégica', operacao: 'Histórico Operacional', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', seo: 'Orgânico e SEO', conciliacao: 'Conciliação Financeira', custos: 'Lucratividade', empresas: 'Empresas e Operações', conexoes: 'Conexões', missao: 'Execução', silencio: 'Radar', conhecimento: 'Conhecimento', importar: 'Fontes e Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
 
-    /* ---------- 10.P.3 — ARQUITETURA DE 6 ÁREAS ----------
-       Reduz o menu principal a 6 áreas. Cada área agrupa, por sub-navegação
-       contextual, as views que já existem (view + sub opcional). Nada é
-       removido nem duplicado: a mesma view/fonte é reaproveitada. */
-    AREAS: [
-      { key: 'inicio', label: 'Início', subs: [
-        { label: 'Mesa Estratégica', view: 'home' } ] },
-      { key: 'catalogo', label: 'Catálogo', subs: [
-        { label: 'Visão Geral', view: 'catalogo', sub: 'Visão Geral' },
-        { label: 'Rascunhos', view: 'catalogo', sub: 'Rascunhos' },
-        { label: 'Marketplaces', view: 'catalogo', sub: 'Marketplaces' } ] },
-      { key: 'crescimento', label: 'Crescimento', subs: [
-        { label: 'Central de Inteligência', view: 'crescimento', sub: 'Mesa de Inteligência' },
-        { label: 'Orgânico e SEO', view: 'seo' },
-        { label: 'Ads', view: 'crescimento', sub: 'Ads' },
-        { label: 'Afiliados', view: 'crescimento', sub: 'Afiliados' },
-        { label: 'Full e Escala', view: 'crescimento', sub: 'Estoque Full' },
-        { label: 'Lucratividade', view: 'custos' },
-        { label: 'Radar', view: 'silencio' } ] },
-      { key: 'operacao', label: 'Operação', subs: [
-        { label: 'Pedidos', view: 'pedidos' },
-        { label: 'Conciliação Financeira', view: 'conciliacao' },
-        { label: 'Estoque', view: 'crescimento', sub: 'Estoque Full' },
-        { label: 'Devoluções', view: 'crescimento', sub: 'Devoluções e Cancelamentos' },
-        { label: 'Atendimento', view: 'crescimento', sub: 'Chat e Atendimento' },
-        { label: 'Histórico Operacional', view: 'operacao' } ] },
-      { key: 'execucao', label: 'Execução', subs: [
-        { label: 'Centro de Decisões', view: 'missao', sub: 'Decisões' },
-        { label: 'Centro de Missões', view: 'missao', sub: 'Missões' },
-        { label: 'Conhecimento', view: 'conhecimento' } ] },
-      { key: 'config', label: 'Configurações', subs: [
-        { label: 'Empresas e Operações', view: 'empresas' },
-        { label: 'Fontes e Dados', view: 'importar' },
-        { label: 'Conexões', view: 'conexoes' },
-        { label: 'Equipe', view: 'equipe' },
-        { label: 'Planos', view: 'planos' },
-        { label: 'Ativação', view: 'ativacao' },
-        { label: 'Suporte', view: 'suporte' } ] },
+    /* ---------- 10.P.4 — MENU LATERAL PLANO: 21 áreas em 4 grupos ----------
+       Cada área importante fica a UM clique no menu lateral, organizada em
+       grupos discretos. Sem submenu horizontal como navegação principal; as
+       subabas vivem DENTRO de cada tela. Migra as rotas existentes (view + sub
+       opcional) sem perder nenhuma nem esconder o que importa. */
+    MENU: [
+      { grupo: 'Visão e Estratégia', itens: [
+        { label: 'Início', view: 'home', icon: 'M3 10.5 12 3l9 7.5V21H3z' },
+        { label: 'Central de Inteligência', view: 'crescimento', sub: 'Mesa de Inteligência', icon: 'M3 3v18h18M7 14l3-4 3 3 5-7' },
+        { label: 'Crescimento Orgânico / SEO', view: 'seo', icon: 'M3 17l6-6 4 4 8-8M15 7h6v6' },
+        { label: 'Ads', view: 'crescimento', sub: 'Ads', icon: 'M3 11l18-7-7 18-3-7-8-4z' },
+        { label: 'Afiliados', view: 'crescimento', sub: 'Afiliados', icon: 'M9 12a4 4 0 0 1 4-4h4a4 4 0 0 1 0 8h-2M15 12a4 4 0 0 1-4 4H7a4 4 0 0 1 0-8h2' },
+        { label: 'Radar', view: 'silencio', icon: 'M12 3a9 9 0 1 0 9 9M12 12l6-4M12 12v-6' } ] },
+      { grupo: 'Operação e Vendas', itens: [
+        { label: 'Catálogo', view: 'catalogo', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' },
+        { label: 'Pedidos', view: 'pedidos', icon: 'M4 7h16l-1.5 12a2 2 0 0 1-2 1.8h-9A2 2 0 0 1 5.5 19zM8 7a4 4 0 0 1 8 0' },
+        { label: 'Conciliação Financeira', view: 'conciliacao', icon: 'M12 2v20M17 6H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H6' },
+        { label: 'Estoque e Full', view: 'crescimento', sub: 'Estoque Full', icon: 'M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7' },
+        { label: 'Devoluções', view: 'crescimento', sub: 'Devoluções e Cancelamentos', icon: 'M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-3' },
+        { label: 'Atendimento', view: 'crescimento', sub: 'Chat e Atendimento', icon: 'M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z' } ] },
+      { grupo: 'Resultado e Gestão', itens: [
+        { label: 'Lucratividade', view: 'custos', icon: 'M4 20V9M10 20V4M16 20v-8M22 20H2' },
+        { label: 'Decisões', view: 'missao', sub: 'Decisões', icon: 'M4 12l5 5L20 6' },
+        { label: 'Missões', view: 'missao', sub: 'Missões', icon: 'M5 3v18l7-4 7 4V3z' },
+        { label: 'Conhecimento', view: 'conhecimento', icon: 'M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2zM19 3v18M8 8h7M8 12h7' } ] },
+      { grupo: 'Sistema', itens: [
+        { label: 'Empresas e Operações', view: 'empresas', icon: 'M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h4a2 2 0 0 1 2 2v10' },
+        { label: 'Fontes e Importações', view: 'importar', icon: 'M12 3v12M7 10l5 5 5-5M4 21h16' },
+        { label: 'Conexões', view: 'conexoes', icon: 'M9 12a4 4 0 0 1 4-4h4a4 4 0 0 1 0 8h-2M15 12a4 4 0 0 1-4 4H7a4 4 0 0 1 0-8h2' },
+        { label: 'Equipe e Permissões', view: 'equipe', icon: 'M9 8a3.5 3.5 0 1 0 0 7 3.5 3.5 0 0 0 0-7M2.5 20a6.5 6.5 0 0 1 13 0M16 5a3.5 3.5 0 0 1 0 7' },
+        { label: 'Configurações', view: 'planos', icon: 'M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M12 2v3M12 19v3M4 12H2M22 12h-2M5.6 5.6 7 7M17 17l1.4 1.4' } ] },
     ],
-    /* reverse map view → área (primeira área que contém a view) */
-    areaOf(view) {
-      for (const a of UI.AREAS) if (a.subs.some(s => s.view === view)) return a.key;
-      return 'inicio';
-    },
-    area: 'inicio',
-    goArea(key) {
-      const a = UI.AREAS.find(x => x.key === key) || UI.AREAS[0];
-      const first = a.subs[0];
-      UI.go(first.view, first.sub, a.key);
-    },
-    /* desenha a sub-navegação da área ativa; destaca a sub correspondente
-       à (view, sub) atual. Cada botão tem data-act para não cair no teste
-       de "botões sem comportamento". */
-    renderSubnav() {
-      const el = $('#subnav'); if (!el) return;
-      const a = UI.AREAS.find(x => x.key === UI.area);
-      if (!a || a.subs.length <= 1) { el.innerHTML = ''; el.classList.remove('on'); return; }
-      el.classList.add('on');
-      el.innerHTML = `<div class="subnav-in">${a.subs.map((s, i) =>
-        `<button class="subtab${UI._subMatch(s) ? ' on' : ''}" data-act="snav" data-i="${i}">${UI.esc(s.label)}</button>`).join('')}</div>`;
-    },
-    _subMatch(s) {
-      return s.view === UI.view && (s.sub || null) === (UI._activeSub || null);
-    },
+    menuItens() { return UI.MENU.reduce((a, g) => a.concat(g.itens), []); },
     _activeSub: null,
+    menuMatch(it) { return it.view === UI.view && (it.sub || null) === (UI._activeSub || null); },
+    /* desenha o menu lateral (grupos + itens) — nenhuma área importante escondida */
+    renderNav() {
+      const nav = $('#nav'); if (!nav) return;
+      nav.innerHTML = UI.MENU.map(g => `<div class="navgroup"><div class="navgroup-t">${UI.esc(g.grupo)}</div>${g.itens.map(it =>
+        `<button data-nav="${it.view}|${it.sub || ''}" title="${UI.esc(it.label)}"><svg viewBox="0 0 24 24"><path d="${it.icon}"/></svg><span>${UI.esc(it.label)}</span><em class="nbadge" data-badge="${it.view}"></em></button>`).join('')}</div>`).join('');
+    },
 
     /* ---------- conta comercial (10.V) ----------
        Sessão demonstrativa: conta semeada; sessão real: criada no gate. */
@@ -141,19 +117,16 @@
       V8COM.obComplete(acc);
       return acc;
     },
-    go(v, sub, areaKey) {
+    go(v, sub) {
       UI.view = v;
       UI._activeSub = sub || null;
-      /* área explícita (vinda da sub-nav) mantém o destaque quando a mesma
-         view é reaproveitada em duas áreas (ex.: Estoque em Operação e Full em Crescimento) */
-      UI.area = (areaKey && UI.AREAS.some(a => a.key === areaKey)) ? areaKey : UI.areaOf(v);
       $$('.view').forEach(el => el.classList.toggle('on', el.id === 'v-' + v));
-      $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.area === UI.area));
-      const a = UI.AREAS.find(x => x.key === UI.area);
-      /* rótulo da sub na barra: o label da sub casada, senão o sub cru */
-      const subHit = a && a.subs.find(s => UI._subMatch(s));
-      $('#crumb').textContent = (a ? a.label : UI.NAMES[v]) + (subHit ? ' · ' + subHit.label : (sub ? ' · ' + sub : ''));
-      UI.renderSubnav();
+      /* destaca o item de menu que casa (view + sub); senão, o primeiro da view */
+      const itens = UI.menuItens();
+      const hit = itens.find(it => UI.menuMatch(it)) || itens.find(it => it.view === v) || null;
+      const hitKey = hit ? hit.view + '|' + (hit.sub || '') : null;
+      $$('#nav button[data-nav]').forEach(b => b.classList.toggle('active', hitKey && b.dataset.nav === hitKey));
+      $('#crumb').textContent = (hit ? hit.label : (UI.NAMES[v] || v)) + (sub && (!hit || hit.sub !== sub) ? ' · ' + sub : '');
       if (UI.renderers[v]) UI.renderers[v](sub);
       $('#main').scrollTop = 0; window.scrollTo(0, 0);
     },
@@ -171,33 +144,30 @@
     _gmenu: null,
     renderGbar() {
       const S = V8DATA.scope;
-      const grupo = S.grupos.find(g => g.id === UI.ctx.grupo) || S.grupos[0];
       const emp = UI.empresa();
-      const cnpj = UI.ctx.cnpj ? S.cnpjs.find(c => c.id === UI.ctx.cnpj) : null;
       const loja = UI.ctx.loja ? S.lojas.find(s => s.id === UI.ctx.loja) : null;
       const conta = UI.ctx.conta ? S.contas.find(a => a.id === UI.ctx.conta) : null;
       const mkt = UI.ctx.marketplace ? V8DATA.MKTS.find(m => m.key === UI.ctx.marketplace).nome : 'Todos';
       const per = V8DATA.PERIODOS.find(p => p[0] === UI.ctx.periodo)[1];
       const menu = (kind, items) => UI._gmenu === kind
         ? `<div class="gmenu">${items.map(i => `<button class="gm-i" data-gact="${kind}" data-val="${i[0]}"><span><b>${UI.esc(i[1])}</b>${i[2] ? `<span class="src">${UI.esc(i[2])}</span>` : ''}</span></button>`).join('')}</div>` : '';
-      const cnpjNome = c => c.nome; /* rótulo curto do seletor */
+      /* fonte dos dados do recorte: real quando há base importada ativa, senão simulado */
+      const temReal = window.IMPORTAR && window.V8IMP && V8IMP.coberturaReal && V8IMP.coberturaReal(IMPORTAR.eng).algum;
+      const canal = loja ? (loja.tipo === 'fisica' ? 'Loja física' : 'Marketplace') : 'Marketplace';
 
-      /* seletores encadeados: grupo → empresa → CNPJ → loja → mkt → conta */
+      /* 10.P.4 — contexto principal: Empresa → Canal → Marketplace → Conta → Período → Fonte.
+         CNPJ, filial e dados fiscais vivem em Empresas e Operações — não poluem a navegação diária. */
       $('#gbarCtx').innerHTML = `
-        <span class="gwrap"><button class="gsel" data-gact="menu" data-menu="grupo" title="Grupo/organização — limita as empresas visíveis"><span class="gk">grupo</span> ${UI.esc(grupo.nome.split(' (')[0])} ▾</button>
-          ${menu('grupo', S.grupos.filter(g => g.autorizado).map(g => [g.id, g.nome, '']))}</span>
-        <span class="gwrap"><button class="gsel" data-gact="menu" data-menu="empresa" title="Empresa ativa — limita CNPJs, lojas e entidades"><span class="gk">empresa</span> ${UI.esc(emp.nome.split(' LTDA')[0].split(' ME')[0])} ▾</button>
+        <span class="gwrap"><button class="gsel" data-gact="menu" data-menu="empresa" title="Empresa ativa"><span class="gk">empresa</span> ${UI.esc(emp.nome.split(' LTDA')[0].split(' ME')[0])} ▾</button>
           ${menu('empresa', V8LOGIC.empresasDe(UI.ctx.grupo).map(e => [e.id, e.nome, '']))}</span>
-        <span class="gwrap"><button class="gsel ${cnpj ? 'on' : ''}" data-gact="menu" data-menu="cnpj" title="CNPJ / entidade fiscal — limita as lojas"><span class="gk">cnpj</span> ${cnpj ? UI.esc(cnpj.nome) : 'Todos'} ▾</button>
-          ${menu('cnpj', [['', 'Todos os CNPJs', 'da empresa ativa'], ...V8LOGIC.cnpjsDe(UI.ctx.empresa).map(c => [c.id, cnpjNome(c), c.doc])])}</span>
-        <span class="gwrap"><button class="gsel ${loja ? 'on' : ''}" data-gact="menu" data-menu="loja" title="Loja / unidade operacional — limita contas e dados"><span class="gk">loja</span> ${loja ? UI.esc(loja.nome) : 'Todas'} ▾</button>
-          ${menu('loja', [['', 'Todas as lojas', 'do recorte atual'], ...V8LOGIC.lojasDe({ empresa: UI.ctx.empresa, cnpj: UI.ctx.cnpj }).map(s => [s.id, s.nome, (S.cnpjs.find(c => c.id === s.cnpjId) || {}).nome + (s.tipo === 'fisica' ? ' · loja física' : '')])])}</span>
-        <span class="gwrap"><button class="gsel ${UI.ctx.marketplace ? 'on' : ''}" data-gact="menu" data-menu="marketplace" title="Marketplace ativo"><span class="gk">mkt</span> ${UI.esc(mkt)} ▾</button>
+        <span class="gsel gstatic" title="Canal de venda"><span class="gk">canal</span> ${UI.esc(canal)}</span>
+        <span class="gwrap"><button class="gsel ${UI.ctx.marketplace ? 'on' : ''}" data-gact="menu" data-menu="marketplace" title="Marketplace ativo"><span class="gk">marketplace</span> ${UI.esc(mkt)} ▾</button>
           ${menu('marketplace', [['', 'Todos', 'sem filtro de canal'], ...V8DATA.MKTS.map(m => [m.key, m.nome, ''])])}</span>
         <span class="gwrap"><button class="gsel ${conta ? 'on' : ''}" data-gact="menu" data-menu="conta" title="Conta do marketplace — limita anúncios, pedidos e estoque"><span class="gk">conta</span> ${conta ? UI.esc(conta.nome) : 'Todas'} ▾</button>
           ${menu('conta', [['', 'Todas as contas', 'do recorte atual'], ...V8LOGIC.contasDe(UI.ctx).map(a => [a.id, a.nome, (S.lojas.find(s => s.id === a.lojaId) || {}).nome])])}</span>
         <span class="gwrap"><button class="gsel ${UI.ctx.periodo !== '7d' ? 'on' : ''}" data-gact="menu" data-menu="periodo" title="Período global"><span class="gk">período</span> ${per} ▾</button>
           ${menu('periodo', V8DATA.PERIODOS.map(p => [p[0], p[1], '']))}</span>
+        <span class="gsel gstatic" title="Origem dos dados do recorte"><span class="gk">fonte</span> ${temReal ? 'Dados Importados' : 'Dados Simulados'}</span>
         <span class="env-pill" title="Ambiente desta instância">${UI.esc(V8DATA.meta.env)}</span>`;
 
       const notifs = V8LOGIC.notifications(UI.state);
@@ -276,12 +246,11 @@
 
     $('#themeToggle').addEventListener('click', UI.toggleTheme);
     $('#sideFold').addEventListener('click', () => $('.shell').classList.toggle('folded'));
-    $$('#nav button').forEach(b => b.addEventListener('click', () => UI.goArea(b.dataset.area)));
-    /* sub-navegação da área ativa */
-    $('#subnav').addEventListener('click', e => {
-      const b = e.target.closest('[data-act="snav"]'); if (!b) return;
-      const a = UI.AREAS.find(x => x.key === UI.area); if (!a) return;
-      const s = a.subs[+b.dataset.i]; if (s) UI.go(s.view, s.sub, a.key);
+    UI.renderNav();
+    $('#nav').addEventListener('click', e => {
+      const b = e.target.closest('[data-nav]'); if (!b) return;
+      const [v, sub] = b.dataset.nav.split('|');
+      UI.go(v, sub || undefined);
     });
 
     /* barra global: menus e ações */

@@ -187,15 +187,15 @@ input,select,textarea{font:inherit;color:var(--ink)}
 .tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:650}
 .tab .cnt{font-size:10px;color:var(--ink-3);margin-left:4px}
 
-/* 10.P.3 — sub-navegação contextual da área ativa (secundária ao menu de 6 áreas) */
-.subnav{position:sticky;top:0;z-index:35;background:color-mix(in srgb,var(--bg) 92%,transparent);
-  backdrop-filter:blur(8px);border-bottom:1px solid var(--line);padding:0 22px}
-.subnav:not(.on){display:none}
-.subnav-in{display:flex;gap:2px;overflow-x:auto;max-width:1360px;margin:0 auto}
-.subtab{padding:11px 14px;font-size:13px;font-weight:560;color:var(--ink-2);
-  border-bottom:2px solid transparent;white-space:nowrap;background:none}
-.subtab:hover{color:var(--ink)}
-.subtab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:680}
+/* 10.P.4 — menu lateral plano por grupos discretos */
+.navgroup{margin-top:12px}
+.navgroup:first-child{margin-top:2px}
+.navgroup-t{font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--ink-3);padding:4px 10px 5px}
+.shell.folded .navgroup-t{opacity:0;height:6px;padding:0;overflow:hidden}
+/* chip estático no contexto global (Canal, Fonte) — sem ▾, não clicável */
+.gsel.gstatic{cursor:default;opacity:.9}
+.gsel.gstatic:hover{border-color:var(--line)}
 
 /* inputs */
 .input,.select{background:var(--bg-2);border:1px solid var(--line-2);border-radius:8px;

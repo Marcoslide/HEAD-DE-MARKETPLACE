@@ -1292,3 +1292,37 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   upload→apply→query no padrão já provado em 10.E.2.5.3, e ligação da conciliação
   com Lucratividade / Ponto de Equilíbrio (vendas × recebimentos × lucro).
 - `npm test` **747 verdes** (1 Postgres pulado sem banco).
+
+## SPRINT 10.P.4 — Menu lateral plano de 21 áreas em 4 grupos
+
+> Correção de rota da 10.P.3: o agrupamento em 6 áreas com submenu horizontal
+> **escondeu** áreas estratégicas (Central de Inteligência, SEO, Ads, Afiliados,
+> Lucratividade, Conciliação, Decisões, Missões, Radar). A 10.P.4 devolve **cada
+> área importante a UM clique** num menu lateral plano, organizado por grupos
+> discretos — reduzir menu ≠ esconder função.
+
+- **Menu plano** (`app.js`, `UI.MENU` + `UI.renderNav()`): 21 itens em 4 grupos —
+  **Visão e Estratégia** (Início, Central de Inteligência, Crescimento Orgânico /
+  SEO, Ads, Afiliados, Radar), **Operação e Vendas** (Catálogo, Pedidos,
+  Conciliação Financeira, Estoque e Full, Devoluções, Atendimento), **Resultado e
+  Gestão** (Lucratividade, Decisões, Missões, Conhecimento), **Sistema** (Empresas
+  e Operações, Fontes e Importações, Conexões, Equipe e Permissões, Configurações).
+  Título de grupo discreto (`.navgroup-t`), ícone por item, item ativo destacado,
+  badge só quando relevante, recolhível com tooltip (title) no modo dobrado.
+- **Sem submenu horizontal como navegação principal**: o `#subnav` das 6 áreas foi
+  removido. As subabas passam a viver **dentro de cada tela** (Catálogo, Lucratividade,
+  Conciliação, Central de Inteligência etc. já têm suas próprias abas internas).
+- **Migração sem perda** (`go(view, sub)`): cada item aponta direto para sua view
+  (com sub opcional). Toda view antiga segue registrada como seção — nada é
+  apagado; rotas e deep-links internos (`UI.open`) continuam funcionando. Áreas
+  reaproveitadas (Ads/Afiliados/Estoque/Devoluções/Atendimento) abrem a subaba
+  certa da Central; a mesma fonte, sem duplicar dados.
+- **Contexto do topo** (`renderGbar`): passou de Grupo/CNPJ/Loja para
+  **Empresa → Canal → Marketplace → Conta → Período → Fonte**. CNPJ, filial e
+  dados fiscais continuam em Empresas e Operações — não poluem a navegação diária.
+  A **Fonte** declara Dados Importados × Dados Simulados no recorte ativo.
+- **Testes**: contrato de menu migrado (`ui-v8.test.js` valida os 4 grupos, ≥21
+  itens de menu, ausência de submenu horizontal como nav principal, e o topo
+  Empresa→Canal→Marketplace→Conta→Período→Fonte). Validação headless de 12
+  checagens (21 itens, 4 grupos, áreas estratégicas visíveis, 1 clique, item ativo,
+  topo novo, console limpo). `npm test` **747 verdes**.

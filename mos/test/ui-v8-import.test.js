@@ -327,7 +327,7 @@ test('34-36 · Crescimento, Catálogo e Home mostram fonte, vínculo e última i
   assert.match(read('conexoes.js'), /Importaç|importaç/, 'Conexões lista origens de importação');
   assert.match(read('admin.js'), /Importar catálogo|importação/i, 'Ativação inclui passos de importação');
   assert.match(read('index.html'), /id="v-importar"/, 'view Fontes e Dados presente');
-  assert.match(read('app.js'), /label: 'Fontes e Dados', view: 'importar'/, 'Fontes e Dados na sub-nav de Configurações');
+  assert.match(read('app.js'), /label: 'Fontes e Importações', view: 'importar'/, 'Fontes e Importações no menu (Sistema)');
 });
 
 test('37 · nenhuma importação executa escrita externa', () => {

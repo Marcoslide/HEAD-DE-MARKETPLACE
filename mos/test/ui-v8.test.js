@@ -42,18 +42,24 @@ test('02 · alternância de tema com preferência salva por usuário', () => {
 /* ---------- navegação e contexto ---------- */
 
 test('03 · menu 10.E.4: Pedidos, Central, Centro de Custos e Empresas e Operações', () => {
-  /* 10.P.3 — menu reduzido a 6 áreas; toda view antiga segue como seção acessível pela sub-nav */
-  for (const v of ['home', 'operacao', 'pedidos', 'catalogo', 'crescimento', 'seo', 'custos', 'empresas', 'conexoes', 'missao', 'silencio', 'conhecimento', 'importar'])
+  /* 10.P.4 — menu lateral plano de 21 áreas em 4 grupos; nenhuma view perdida */
+  for (const v of ['home', 'operacao', 'pedidos', 'catalogo', 'crescimento', 'seo', 'conciliacao', 'custos', 'empresas', 'conexoes', 'missao', 'silencio', 'conhecimento', 'importar', 'equipe', 'planos'])
     assert.match(html, new RegExp(`id="v-${v}"`), `view ${v} preservada`);
-  for (const nome of ['Início', 'Catálogo', 'Crescimento', 'Operação', 'Execução', 'Configurações'])
-    assert.ok(html.includes(`<span>${nome}</span>`), `área do menu: ${nome}`);
-  const nAreas = (html.match(/data-area="/g) || []).length;
-  assert.equal(nAreas, 6, 'exatamente 6 áreas no menu principal');
-  for (const k of ['inicio', 'catalogo', 'crescimento', 'operacao', 'execucao', 'config'])
-    assert.match(html, new RegExp(`data-area="${k}"`), `área ${k} no menu`);
-  assert.match(appJs, /UI\.renderers\[v\]\(sub\)/, 'cada navegação chama o renderer da área');
-  assert.match(appJs, /renderSubnav/, 'sub-navegação contextual das 6 áreas');
-  assert.match(appJs, /data-ref="importar:"/, 'botão global de Fontes e Histórico na barra');
+  /* menu renderizado por UI.MENU (4 grupos) — cada área importante a 1 clique */
+  for (const grupo of ['Visão e Estratégia', 'Operação e Vendas', 'Resultado e Gestão', 'Sistema'])
+    assert.match(appJs, new RegExp(`grupo: '${grupo}'`), `grupo do menu: ${grupo}`);
+  for (const nome of ['Central de Inteligência', 'Crescimento Orgânico / SEO', 'Ads', 'Afiliados', 'Radar',
+    'Conciliação Financeira', 'Estoque e Full', 'Devoluções', 'Lucratividade', 'Decisões', 'Missões', 'Conhecimento'])
+    assert.match(appJs, new RegExp(`label: '${nome.replace(/[/]/g, '\\$&')}'`), `área visível no menu: ${nome}`);
+  const nItens = (appJs.match(/\{ label: '[^']+', view:/g) || []).length;
+  assert.ok(nItens >= 21, 'pelo menos 21 itens de menu (' + nItens + ')');
+  assert.ok(!/data-area=/.test(html), 'sem menu de áreas agrupadas (submenu horizontal) na navegação principal');
+  assert.match(appJs, /UI\.renderers\[v\]\(sub\)/, 'cada navegação chama o renderer da view');
+  assert.match(appJs, /renderNav/, 'menu lateral plano renderizado');
+  assert.match(appJs, /data-ref="importar:"/, 'atalho de Fontes e Importações disponível');
+  /* topo: Empresa → Canal → Marketplace → Conta → Período → Fonte */
+  for (const k of ['empresa', 'canal', 'marketplace', 'conta', 'período', 'fonte'])
+    assert.match(appJs, new RegExp(`gk">${k}`), `contexto do topo: ${k}`);
 });
 
 test('04 · subáreas do Catálogo (Catalog & Listing Operating Center 10.E.3)', () => {

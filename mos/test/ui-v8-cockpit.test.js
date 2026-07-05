@@ -285,7 +285,7 @@ test('23 · nenhum botão novo fica sem comportamento', () => {
   const btns = all.match(/<button[^>]*>/g) || [];
   assert.ok(btns.length > 40, 'cobertura real de botões');
   for (const b of btns) {
-    const ok = /data-act|data-gact|data-actcon|onclick=|data-col|data-mkt|id="/.test(b) || /disabled/.test(b);
+    const ok = /data-act|data-gact|data-nav|data-actcon|onclick=|data-col|data-mkt|id="/.test(b) || /disabled/.test(b);
     assert.ok(ok, 'botão sem comportamento declarado: ' + b);
     if (/\bdisabled\b/.test(b)) assert.match(b, /title=/, 'disabled sem razão: ' + b);
   }
