@@ -422,3 +422,30 @@ tr:hover .rowact{opacity:1}
   .main{padding:0 12px 40px}
   .op-grid,.exec-grid{grid-template-columns:1fr}
 }
+
+/* ===== 10.E.2 — upload local real, Mesa de Inteligência e Pedidos ===== */
+.dropzone{margin-top:12px;border:1.5px dashed var(--line);border-radius:var(--r-lg);padding:22px 16px;
+  display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;background:var(--bg);
+  transition:border-color .15s, background .15s}
+.dropzone b{font-size:13px}
+.dropzone.over{border-color:var(--accent);background:var(--accent-soft)}
+.mesa-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-top:10px}
+.mesa-kpi{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:10px 12px;
+  display:flex;flex-direction:column;gap:3px;min-width:0}
+.mesa-kpi .k{font-size:10.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink-3)}
+.mesa-kpi .v{font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mesa-kpi .f{font-size:10.5px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mesa-kpi.nodata .v{color:var(--ink-3);font-size:12px;font-weight:600}
+.agentes-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;margin-top:10px}
+.agente{background:var(--bg-2);border:1px solid var(--line);border-radius:var(--r);padding:12px 14px;min-width:0}
+.agente .ag-h{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:12.5px}
+.agente .ag-h b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.insight{background:var(--bg-2);border:1px solid var(--line);border-left:3px solid var(--line);
+  border-radius:var(--r);padding:12px 14px;margin-top:8px}
+.insight .in-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px}
+.insight .in-fato{font-size:12.5px;margin:6px 0 4px;color:var(--ink)}
+.insight .in-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.insight:has(.st.neg){border-left-color:var(--neg)}
+.insight:has(.st.warn){border-left-color:var(--warn)}
+.insight:has(.st.info){border-left-color:var(--info)}
+@media (max-width:760px){.mesa-grid{grid-template-columns:repeat(2,1fr)}.agentes-grid{grid-template-columns:1fr}}

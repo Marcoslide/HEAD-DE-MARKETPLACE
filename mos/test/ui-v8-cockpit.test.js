@@ -90,7 +90,10 @@ test('07 · Crescimento não possui Leads', () => {
   assert.ok(!/\.leads\b/.test(creJs), 'sem acesso a dados de lead');
   assert.ok(!creJs.includes('Leads e Oportunidades'), 'subárea de leads removida');
   assert.ok(!/registrar follow-up|valorEstimado|canal do lead/i.test(creJs), 'sem mecânica de lead');
-  for (const s of ['Performance', 'Oportunidades', 'Pedidos Não Pagos', 'Experimentos', 'Aceleração', 'Expansão', 'Resultados e Aprendizados'])
+  for (const s of ['Mesa de Inteligência', 'Métricas Principais', 'Pedidos e Funil', 'Performance de Produtos',
+    'Tráfego', 'Devoluções e Cancelamentos', 'Estoque Full', 'Afiliados', 'Chat e Atendimento',
+    'Promoções e Cupons', 'Ads', 'Oportunidades', 'Experimentos', 'Aceleração', 'Expansão',
+    'Resultados e Aprendizados', 'Fontes e Histórico'])
     assert.ok(creJs.includes(`'${s}'`), `subárea ${s}`);
 });
 

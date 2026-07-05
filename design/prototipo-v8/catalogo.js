@@ -118,6 +118,7 @@
         <button class="fchip" data-act="adv">Filtros avançados${fCount ? ` · <b>${fCount}</b>` : ''}</button>
         ${fCount ? `<button class="fchip" data-act="f-clear">limpar (${fCount})</button>` : ''}
         <span style="flex:1"></span>
+        <button class="btn sm primary" data-act="upcat" title="Upload local real — ref.: Shopee_mass_upload basic_template / parentskudetail. Detecção, staging e confirmação humana.">Carregar cadastro de produtos Shopee</button>
         <button class="fchip" data-act="saveview">salvar visão</button>
         ${views.map(v => chip('▤ ' + v.nome, false, 'loadview', `data-view="${v.id}" title="${UI.esc(v.tipo)} · ${UI.esc((v.escopo && v.escopo.loja) ? 'loja fixa' : 'escopo atual')}"`)).join('')}
         <button class="fchip" data-act="cols">colunas</button>
@@ -414,6 +415,7 @@
     else if (act === 'f-ml') { if (F.marketplace === 'ml') { delete F.marketplace; delete F.statusMkt; } else { F.marketplace = 'ml'; F.statusMkt = 'ATIVO'; } body(); }
     else if (act === 'f-clear') { CAT.filters = {}; body(); }
     else if (act === 'adv') openAdvanced();
+    else if (act === 'upcat') IMPORTAR.uploadModal({ titulo: 'Carregar cadastro de produtos Shopee', dica: 'Referência: Shopee_mass_upload basic_template / mass_update_parent_sku (XLSX). Vínculo por ID → SKU variação → SKU pai; conflito de SKU bloqueia; nenhum produto é duplicado automaticamente.', onDone: () => render(CAT.sub) });
     else if (act === 'cols') openCols();
     else if (act === 'saveview') openSaveView();
     else if (act === 'loadview') {

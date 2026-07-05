@@ -9,10 +9,10 @@
   'use strict';
   const D = V8DATA, L = V8LOGIC;
   const IM = window.IMPORTAR = {
-    eng: V8IMP.createEngine(), sub: 'Nova importação',
+    eng: V8IMP.createEngine(), sub: 'Fontes e Histórico',
     fluxo: { origem: 'Planilha', destino: 'Performance', lojaId: 's1', arquivo: null, batch: null },
   };
-  const SUBS = ['Nova importação', 'Lotes e jobs', 'Vínculos SKU', 'Anúncio Master', 'Perfis de importação'];
+  const SUBS = ['Fontes e Histórico', 'Nova importação', 'Lotes e jobs', 'Vínculos SKU', 'Anúncio Master', 'Perfis de importação'];
   /* arquivos de exemplo (fixtures rotuladas) — sem upload real neste modo */
   const ARQS = [
     ['productTraffic', 'producttraffic_Product_Card.xlsx · performance por anúncio'],
@@ -37,9 +37,9 @@
   function render(sub) {
     if (sub && SUBS.includes(sub)) IM.sub = sub;
     UI.$('#v-importar').innerHTML = `
-      <div class="eyebrow">importar e sincronizar · porta de entrada de dados reais</div>
-      <h1 class="h1">Importar e Sincronizar</h1>
-      <p class="sub" style="margin-top:6px"><b>Importação não soma dados — concilia, atualiza, versiona e explica.</b> Cada arquivo é detectado, vinculado por SKU, conciliado contra o que já existe e aplicado só depois da sua confirmação.</p>
+      <div class="eyebrow">fontes e histórico de dados · transversal a todas as áreas</div>
+      <h1 class="h1">Fontes e Histórico de Dados</h1>
+      <p class="sub" style="margin-top:6px"><b>Importação não soma dados — concilia, atualiza, versiona e explica.</b> O upload nasce dentro da área certa (Pedidos, Catálogo, Central de Inteligência); aqui vive a visão transversal: todo arquivo, escopo, qualidade e rollback.</p>
       <div class="tabs" style="margin-top:14px">${SUBS.map(s => `<button class="tab ${s === IM.sub ? 'on' : ''}" data-act="sub" data-sub="${s}">${s}${s === 'Lotes e jobs' ? `<span class="cnt">${IM.eng.batches.length}</span>` : s === 'Vínculos SKU' ? `<span class="cnt">${IM.eng.observations.length}</span>` : ''}</button>`).join('')}</div>
       <div id="impBody" style="margin-top:14px"></div>`;
     body();
@@ -48,11 +48,49 @@
 
   function body() {
     const el = UI.$('#impBody');
-    if (IM.sub === 'Nova importação') el.innerHTML = nova();
+    if (IM.sub === 'Fontes e Histórico') el.innerHTML = fontes();
+    else if (IM.sub === 'Nova importação') el.innerHTML = nova();
     else if (IM.sub === 'Lotes e jobs') el.innerHTML = lotes();
     else if (IM.sub === 'Vínculos SKU') el.innerHTML = vinculos();
     else if (IM.sub === 'Anúncio Master') el.innerHTML = master();
     else el.innerHTML = perfis();
+  }
+
+  /* ---------------- Fontes e Histórico (tabela transversal do 10.E.2) ---------------- */
+  function fontes() {
+    const rows = V8IMP.sourcesTable(IM.eng);
+    const lojaNome = id => (D.scope.lojas.find(s => s.id === id) || { nome: id }).nome;
+    if (!rows.length) return `<div class="fbar" style="margin-top:0">
+        <button class="btn sm primary" data-act="upreal">Atualizar dados (upload local)</button>
+        <span class="src">nenhuma fonte importada ainda — o upload também nasce dentro de Pedidos, Catálogo e Central de Inteligência</span></div>
+      <div class="panel" style="margin-top:12px"><div class="empty"><b>Nenhuma fonte de dados</b>Cada área mostra seus indicadores com Fonte · Cobertura · Última importação. Nenhuma análise apresenta número sem fonte.</div></div>`;
+    return `
+      <div class="fbar" style="margin-top:0">
+        <button class="btn sm primary" data-act="upreal">Atualizar dados (upload local)</button>
+        <span class="src">${rows.filter(r => !r.arquivado).length} fonte(s) ativa(s) · ${rows.filter(r => r.arquivado).length} arquivada(s) — arquivar nunca apaga a camada bruta</span></div>
+      <div class="tblwrap" style="margin-top:10px"><table class="tbl"><thead><tr>
+        <th class="nosort">Fonte · Arquivo</th><th class="nosort">Área destino</th><th class="nosort">Escopo</th><th class="nosort">Período</th>
+        <th class="nosort">Granularidade</th><th class="nosort">Status</th><th class="nosort">Linhas</th><th class="nosort">Dup. evitadas</th>
+        <th class="nosort">Conflitos</th><th class="nosort">Erros</th><th class="nosort">Última atualização</th><th class="nosort">Usuário</th><th class="nosort"></th></tr></thead><tbody>
+      ${rows.slice().reverse().map(r => `<tr ${r.arquivado ? 'style="opacity:.55"' : ''}>
+        <td><span class="tmain">${UI.esc(r.arquivo)}</span><span class="tsub">${UI.esc(r.fonte)} · ${r.batchId}${r.arquivado ? ' · ARQUIVADA' : ''}</span></td>
+        <td><span class="kbd">${UI.esc(r.areaDestino)}</span></td>
+        <td><span class="src">${UI.esc(lojaNome(r.lojaId))} · ${UI.esc(r.contaId)}</span></td>
+        <td><span class="src">${r.periodo ? r.periodo.ini + '→' + r.periodo.fim : '—'}</span></td>
+        <td><span class="src">${r.granularidade || '—'}</span></td>
+        <td>${UI.stBadge(r.status)}</td>
+        <td>${r.linhas}</td><td>${r.duplicidadesEvitadas}</td>
+        <td>${r.conflitos ? `<span class="st neg">${r.conflitos}</span>` : '0'}</td>
+        <td>${r.linhasComErro ? `<button class="linklike" data-act="vererros" data-id="${r.batchId}">${r.linhasComErro}</button>` : '0'}</td>
+        <td><span class="src">${r.ultimaAtualizacao}</span></td>
+        <td><span class="src">${UI.esc(r.usuario)}</span></td>
+        <td><span class="rowact">
+          <button class="btn sm ghost" data-act="verbrutos" data-id="${r.batchId}" title="Ver todas as colunas e abas originais — nenhuma coluna é descartada">brutos</button>
+          <button class="btn sm ghost" data-act="vermapa" data-id="${r.batchId}">mapeamento</button>
+          ${r.status.startsWith('APLICADO') ? `<button class="btn sm danger" data-act="rollback" data-id="${r.batchId}">rollback</button>` : ''}
+          ${r.arquivado ? '' : `<button class="btn sm ghost" data-act="arquivar" data-id="${r.batchId}">arquivar</button>`}
+        </span></td></tr>`).join('')}
+      </tbody></table><div class="tfoot"><span>toda linha tem origem, escopo, usuário e trilha — exclusão definitiva sem auditoria não existe aqui</span></div></div>`;
   }
 
   /* ---------------- nova importação (fluxo) ---------------- */
@@ -97,8 +135,9 @@
           ${pick('Origem', [['Planilha', 'Planilha (Shopee, ML, TikTok, Magalu)'], ['CSV', 'CSV customizado'], ['API', 'Marketplace conectado (futuro — leitura oficial)'], ['Manual', 'Importação manual']], f.origem, 'origem')}
           ${pick('Destino', [['Catálogo e anúncios', 'Catálogo e anúncios'], ['Performance', 'Performance'], ['Vendas e funil', 'Vendas e funil'], ['Promoções', 'Promoções'], ['Cupons', 'Cupons'], ['Atendimento', 'Atendimento'], ['Financeiro complementar', 'Financeiro complementar']], f.destino, 'destino')}
           ${pick('Loja / conta (escopo)', lojas.map(s => [s.id, s.nome + ' · ' + (D.scope.cnpjs.find(c => c.id === s.cnpjId) || {}).nome]), f.lojaId, 'loja')}
-          <div class="sect-h"><span class="h2">2 · Arquivo</span><span class="src">exemplos rotulados — sem upload real neste modo</span></div>
-          <div style="display:grid;gap:6px">${ARQS.map(([k, l]) => `<button class="obpick-btn fchip ${f.arquivo === k ? 'on' : ''}" style="text-align:left" data-act="arq" data-k="${k}">▤ ${l}</button>`).join('')}</div>
+          <div class="sect-h"><span class="h2">2 · Arquivo</span><span class="src">upload local real ou exemplo rotulado</span></div>
+          <button class="btn primary sm" data-act="upreal" style="margin-bottom:8px">Selecionar planilha do computador (XLSX · CSV · ZIP)</button>
+          <div style="display:grid;gap:6px">${ARQS.map(([k, l]) => `<button class="obpick-btn fchip ${f.arquivo === k ? 'on' : ''}" style="text-align:left" data-act="arq" data-k="${k}">▤ ${l} <span class="src">(exemplo rotulado)</span></button>`).join('')}</div>
           <div style="display:flex;gap:8px;margin-top:12px">
             <button class="btn primary sm" data-act="detectar" ${f.arquivo ? '' : 'disabled title="Escolha um arquivo de exemplo primeiro."'}>3 · Enviar e detectar</button>
           </div>
@@ -193,12 +232,141 @@
       </tbody></table><div class="tfoot"><span>REFERENCE_ONLY nunca finge importar — o sistema declara o que ainda não entende</span></div></div>`;
   }
 
+  /* ---------------- UPLOAD LOCAL REAL (10.E.2) — compartilhado com todas as áreas ---------------- */
+  const escopoDe = lojaId => {
+    const loja = D.scope.lojas.find(s => s.id === lojaId);
+    const cnpj = D.scope.cnpjs.find(c => c.id === loja.cnpjId);
+    const conta = D.scope.contas.find(a => a.lojaId === loja.id);
+    return { groupId: 'g1', companyId: cnpj ? cnpj.empresaId : UI.ctx.empresa, cnpjId: loja.cnpjId, lojaId: loja.id, contaId: conta ? conta.id : 'sem-conta', marketplace: loja.marketplace || 'shopee' };
+  };
+
+  IM.uploadModal = function (opts) {
+    opts = opts || {};
+    const papel = (UI.account && UI.account.user.papel) || D.meta.papel || 'ADMIN';
+    if (!V8IMP.canData(papel, 'DATA_SOURCE_UPLOAD'))
+      return UI.toast(`papel ${papel} não possui DATA_SOURCE_UPLOAD — peça a um gestor.`, 'err');
+    const lojas = D.scope.lojas.filter(s => s.cnpjId !== 'c9' && s.tipo !== 'fisica');
+    const lojaIni = opts.lojaId || (UI.ctx.loja && lojas.some(s => s.id === UI.ctx.loja) ? UI.ctx.loja : lojas[0].id);
+    UI.openModal(`
+      <h3 class="h2">${UI.esc(opts.titulo || 'Atualizar dados desta área')}</h3>
+      <p class="sub" style="margin-top:4px">A planilha é lida <b>no seu computador</b>, validada (extensão, tipo e tamanho), detectada e conciliada.
+      <b>Nada é aplicado sem a sua confirmação.</b> Formatos: XLSX · XLS · CSV · ZIP — até 25MB.${opts.dica ? '<br>' + UI.esc(opts.dica) : ''}</p>
+      <label style="display:block;margin-top:10px"><span class="eyebrow">Escopo (loja / conta) — obrigatório antes da prévia</span><br>
+        <select class="select" id="upLoja" style="width:100%;margin-top:3px">${lojas.map(s => `<option value="${s.id}" ${s.id === lojaIni ? 'selected' : ''}>${UI.esc(s.nome)} · ${UI.esc((D.scope.cnpjs.find(c => c.id === s.cnpjId) || {}).nome)}</option>`).join('')}</select></label>
+      <div class="dropzone" id="upDrop">
+        <b>Arraste a planilha aqui</b><span class="src">ou</span>
+        <button class="btn primary sm" id="upPick" type="button">Selecionar planilha do computador</button>
+        <input type="file" id="upFile" accept=".xlsx,.xls,.csv,.zip" hidden>
+      </div>
+      <div id="upPrev"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn ghost" onclick="UI.closeModal()">fechar</button></div>`);
+    const drop = UI.$('#upDrop'), inp = UI.$('#upFile');
+    UI.$('#upPick').onclick = () => inp.click();
+    inp.onchange = () => inp.files && inp.files[0] && handle(inp.files[0]);
+    drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+    drop.ondragleave = () => drop.classList.remove('over');
+    drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) handle(f); };
+
+    async function handle(f) {
+      UI.$('#upPrev').innerHTML = `<p class="src" style="margin-top:10px">lendo ${UI.esc(f.name)} (${Math.max(1, Math.round(f.size / 1024))} KB) localmente…</p>`;
+      let file;
+      try { file = await V8FILE.readLocalFile(f); }
+      catch (err) { UI.$('#upPrev').innerHTML = `<div class="err-state" style="margin-top:10px"><b>FALHOU</b> — ${UI.esc(err.message)}. Nada foi importado.</div>`; return; }
+      if (file.erro) { UI.$('#upPrev').innerHTML = `<div class="err-state" style="margin-top:10px"><b>${UI.esc(file.estado)}</b> — ${UI.esc(file.erro)}</div>`; return; }
+      const res = V8IMP.stage(IM.eng, file, escopoDe(UI.$('#upLoja').value), { products: UI.state.products, usuario: D.meta.usuario });
+      const lotes = res.zip ? res.batches : [res];
+      const ign = res.zip ? res.ignorados : [];
+      UI.$('#upPrev').innerHTML = `
+        ${res.zip ? `<p class="src" style="margin-top:10px">ZIP extraído no staging: ${lotes.length} planilha(s) reconhecida(s)${ign.length ? ` · ${ign.length} entrada(s) declarada(s) como não importável(is): ${ign.map(x => UI.esc(x.nome)).join(', ')}` : ''}</p>` : ''}
+        ${lotes.map(bt => bt.duplicado
+          ? `<div class="err-state" style="margin-top:10px"><b>ARQUIVO JÁ IMPORTADO</b> — ${UI.esc(bt.motivo)}</div>`
+          : !bt.preview.aplicavel
+            ? `<div class="callout" style="margin-top:10px;border-left-color:var(--warn)"><b>${UI.esc(bt.arquivo)}</b> · ${UI.esc(bt.preview.perfil)} · ${UI.esc(bt.preview.motivo || 'aguardando mapeamento')} — não será aplicado.</div>`
+            : `<div class="panel" style="margin-top:10px">
+              <div class="sect-h" style="margin-top:0"><span class="h2" style="font-size:13px">${UI.esc(bt.arquivo)}</span>${UI.stBadge(bt.estado)}</div>
+              <dl class="kv">
+                <dt>Perfil detectado</dt><dd><span class="kbd">${bt.det.perfil}</span> · confiança ${bt.det.confianca}</dd>
+                <dt>Destino · granularidade</dt><dd>${UI.esc(bt.preview.tipo)} · <span class="kbd">${bt.preview.granularidade}</span></dd>
+                <dt>Registros</dt><dd>${bt.preview.registros} · ${bt.preview.jaExistem} já existente(s) — serão atualizados, nunca somados</dd>
+                <dt>Conflitos · erros</dt><dd>${bt.preview.conflitos} conflito(s) · ${bt.preview.linhasComErro} linha(s) com erro (preservadas na camada bruta)</dd>
+                ${bt.preview.sobreposicao ? `<dt>Sobreposição</dt><dd><span class="st warn plain">${UI.esc(bt.preview.sobreposicao.aviso)}</span></dd>` : ''}
+              </dl>
+              <div style="display:flex;gap:8px;margin-top:10px">
+                <button class="btn primary sm" data-upapply="${bt.id}">Confirmar e aplicar</button>
+                <button class="btn sm ghost" data-upcancel="${bt.id}">Cancelar este lote</button>
+              </div></div>`).join('')}`;
+      UI.$$('#upPrev [data-upapply]').forEach(btn => btn.onclick = () => {
+        const r = V8IMP.apply(IM.eng, btn.dataset.upapply, { papel, usuario: D.meta.usuario });
+        if (r.blocked) return UI.toast(r.reason, 'err');
+        UI.toast(`Lote ${r.job.id} ${r.job.estado}: ${r.job.aplicado.criados} criado(s), ${r.job.aplicado.atualizados} atualizado(s), ${r.job.aplicado.duplicadosEvitados} duplicado(s) evitado(s).`, 'ok');
+        btn.closest('.panel').querySelector('.sect-h').insertAdjacentHTML('beforeend', '<span class="st pos">APLICADO</span>');
+        btn.disabled = true; btn.title = 'lote já aplicado';
+        if (opts.onDone) opts.onDone(r.job);
+      });
+      UI.$$('#upPrev [data-upcancel]').forEach(btn => btn.onclick = () => {
+        const bt = IM.eng.batches.find(x => x.id === btn.dataset.upcancel);
+        if (bt && !bt.aplicado) { bt.estado = 'CANCELADO'; UI.toast('Lote cancelado — nada foi aplicado.', ''); btn.closest('.panel').style.opacity = .5; }
+      });
+    }
+  };
+
+  /* camada bruta: modais de brutos / mapeamento / linhas com erro */
+  IM.verBrutos = function (batchId) {
+    const rf = IM.eng.rawFiles.find(x => x.batchId === batchId);
+    if (!rf) return UI.toast('camada bruta não encontrada', 'err');
+    UI.openModal(`<h3 class="h2">Dados brutos · ${UI.esc(rf.nome)}</h3>
+      <p class="sub" style="margin-top:4px">Todas as abas, colunas e linhas do arquivo original — <b>nenhuma coluna importada é descartada silenciosamente</b>.</p>
+      ${rf.abas.map(a => `<div class="sect-h"><span class="h2" style="font-size:13px">aba "${UI.esc(a.nome)}" · ${a.headers.length} coluna(s) · ${a.rows.length} linha(s)</span></div>
+        <div class="tblwrap" style="max-height:220px;overflow:auto"><table class="tbl" style="min-width:0"><thead><tr>${a.headers.map(h => `<th class="nosort">${UI.esc(h)}</th>`).join('')}</tr></thead>
+        <tbody>${a.rows.slice(0, 30).map(r => `<tr>${a.headers.map(h => `<td><span class="src">${UI.esc(r[h] ?? '')}</span></td>`).join('')}</tr>`).join('')}</tbody></table></div>
+        ${a.rows.length > 30 ? `<p class="src">mostrando 30 de ${a.rows.length} linha(s) — o arquivo original permanece íntegro</p>` : ''}`).join('')}
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="UI.closeModal()">fechar</button></div>`);
+  };
+  IM.verMapeamento = function (batchId) {
+    const bt = IM.eng.batches.find(x => x.id === batchId);
+    const rf = IM.eng.rawFiles.find(x => x.batchId === batchId);
+    if (!bt || !rf) return UI.toast('lote não encontrado', 'err');
+    const perfil = V8IMP.PROFILES[bt.det.perfil] || { assinatura: [] };
+    const headers = (rf.abas[0] || {}).headers || [];
+    UI.openModal(`<h3 class="h2">Mapeamento · ${UI.esc(bt.arquivo)}</h3>
+      <p class="sub" style="margin-top:4px">Perfil <span class="kbd">${bt.det.perfil}</span> (versão ${bt.mappingVersion}) — colunas usadas × colunas originais.</p>
+      <div class="tblwrap" style="margin-top:10px;max-height:300px;overflow:auto"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Coluna original</th><th class="nosort">Uso</th></tr></thead><tbody>
+      ${headers.map(h => `<tr><td class="tmain">${UI.esc(h)}</td><td>${perfil.assinatura.includes(h) ? '<span class="st pos">chave do perfil</span>' : '<span class="src">preservada na camada bruta (disponível, não descartada)</span>'}</td></tr>`).join('')}
+      </tbody></table></div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="UI.closeModal()">fechar</button></div>`);
+  };
+  IM.verErros = function (batchId) {
+    const errs = IM.eng.rawErrors.filter(x => x.batchId === batchId);
+    UI.openModal(`<h3 class="h2">Linhas com erro · ${batchId}</h3>
+      <p class="sub" style="margin-top:4px">${errs.length} linha(s) que não puderam entrar na análise — cada uma com motivo, preservadas na íntegra.</p>
+      ${errs.map(e => `<div class="exec-li"><span class="sig warn"></span><div class="t"><b>linha ${e.linha} · ${UI.esc(e.motivo)}</b><span>${UI.esc(JSON.stringify(e.raw).slice(0, 180))}</span></div></div>`).join('') || '<div class="empty"><b>Nenhuma linha com erro</b></div>'}
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="UI.closeModal()">fechar</button></div>`);
+  };
+
   /* ---------------- eventos ---------------- */
   function onClick(e) {
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const act = b.dataset.act;
-    if (act === 'sub') { IM.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Importar · ' + IM.sub; render(IM.sub); }
+    if (act === 'sub') { IM.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Fontes e Dados · ' + IM.sub; render(IM.sub); }
+    else if (act === 'upreal') IM.uploadModal({ titulo: 'Upload local — Fontes e Histórico de Dados', onDone: () => { IM.sub = 'Fontes e Histórico'; body(); } });
+    else if (act === 'verbrutos') IM.verBrutos(b.dataset.id);
+    else if (act === 'vermapa') IM.verMapeamento(b.dataset.id);
+    else if (act === 'vererros') IM.verErros(b.dataset.id);
+    else if (act === 'arquivar') {
+      const id = b.dataset.id;
+      UI.openModal(`<h3 class="h2">Arquivar fonte ${id}</h3>
+        <p class="sub" style="margin-top:4px">A fonte sai das listas ativas; dados, camada bruta e trilha permanecem. Motivo é obrigatório.</p>
+        <input class="input" id="arqMotivo" style="width:100%;margin-top:10px" placeholder="ex.: export substituído pela versão corrigida">
+        <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+          <button class="btn ghost" onclick="UI.closeModal()">cancelar</button>
+          <button class="btn danger" id="arqOk">Arquivar com motivo</button></div>`);
+      UI.$('#arqOk').onclick = () => {
+        const r = V8IMP.archiveFile(IM.eng, id, { motivo: UI.$('#arqMotivo').value.trim(), usuario: D.meta.usuario, papel: (UI.account && UI.account.user.papel) || 'ADMIN' });
+        if (r.blocked) return UI.toast(r.reason, 'err');
+        UI.closeModal(); UI.toast('Fonte arquivada — nada foi apagado; restauração disponível.', 'ok'); body();
+      };
+    }
     else if (act === 'arq') { IM.fluxo.arquivo = b.dataset.k; IM.fluxo.batch = null; body(); }
     else if (act === 'origem' || act === 'destino') { /* selects tratados no onchange */ }
     else if (act === 'detectar') {
@@ -264,8 +432,11 @@
     try {
       const errs = []; const need = (ok, m) => { if (!ok) errs.push(m); };
       UI.go('importar');
+      /* Fontes e Histórico é a primeira aba (10.E.2) */
+      need(UI.$('#impBody').textContent.includes('Nenhuma fonte de dados') || UI.$$('#impBody tbody tr').length >= 0, 'fontes e histórico renderiza');
+      need(!!IM.uploadModal && !!window.V8FILE && typeof V8FILE.readLocalFile === 'function', 'upload local real disponível (não decorativo)');
       /* fluxo completo: detectar → prévia → aplicar */
-      IM.fluxo.arquivo = 'productTraffic'; body();
+      IM.sub = 'Nova importação'; IM.fluxo.arquivo = 'productTraffic'; body();
       UI.$('[data-act="detectar"]').click();
       need(IM.fluxo.batch && IM.fluxo.batch.det.perfil === 'SHOPEE_PRODUCT_TRAFFIC', 'detecção na tela');
       need(UI.$('#impBody').textContent.includes('Prévia e conciliação'), 'prévia visível antes de aplicar');

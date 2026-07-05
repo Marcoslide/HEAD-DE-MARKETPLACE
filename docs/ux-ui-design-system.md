@@ -312,3 +312,54 @@ revisar master → vendas → performance → conflitos → cobertura).
 - Headless: `?impself=1` + fluxo visual completo (detecção → prévia →
   aplicar → duplicado recusado → vínculos → master) + integrações verificadas +
   13 áreas × 4 larguras × 2 temas — zero erros de console.
+
+## Sprint 10.E.2 — Pedidos, Central de Inteligência e fontes reais de dados
+
+**Nova regra de UX**: o usuário não vai a um "Importar" genérico. Ele entra na
+área que quer analisar, vê indicadores **com fonte**, e clica em
+`[ Atualizar dados desta área ]`. O upload nasce dentro de Pedidos, Catálogo,
+das subáreas da Central de Inteligência, de Fontes e Histórico e da Ativação.
+
+- **Menu novo**: Home · Operação · **Pedidos** · Catálogo · **Central de
+  Inteligência** (ex-Crescimento) · Conexões · A Missão · Silêncio ·
+  Conhecimento · grupo *dados* → **Fontes e Dados** (ex-Importar, também no
+  botão global `⇪ Fontes` da barra) · grupo *conta*.
+- **Upload local real** (`file-reader.js`): `input type=file` + drag-and-drop;
+  XLSX (OpenXML parseado via DecompressionStream), CSV (delimitador e aspas),
+  ZIP (extraído no staging; entrada não reconhecida é declarada), XLS binário
+  → honestidade: "exporte como XLSX/CSV". Validação de extensão + MIME + 25MB.
+  Fluxo: leitura local → detecção por assinatura → escopo obrigatório →
+  prévia/conciliação → staging → **aplicação só após confirmação humana**.
+- **Pedidos**: identidade `marketplace + conta + ID do pedido`. Reimportar
+  atualiza o status (o pedido muda de aba), versiona o anterior (histórico de
+  status no drawer) e nunca duplica. 10 abas (incl. Cidades e Estados e
+  Histórico de Atualizações), 15 KPIs com Fonte · Período · Cobertura ·
+  Qualidade; taxa sempre com fórmula e denominador. CEP protegido
+  (`31270-***`); comprador só com `RAW_DATA_VIEW`.
+- **Devoluções (ZIP)**: eventos cruzam por ID (`… + tipo + ID do evento`);
+  nunca criam pedido; órfão vira "SEM PEDIDO CORRESPONDENTE".
+- **Estoque Full**: snapshot por `… + armazém + SKU + momento` — o mais
+  recente é o atual, o histórico fica. **Métricas diárias** atualizam por
+  `… + data + tipo` (nunca R$10.000 + R$10.500). **Tráfego** é agregado por
+  período (nada de dado diário inventado). **Afiliados** são camada
+  explicativa (nunca somam na receita). **Chat** só métricas.
+- **Central de Inteligência** abre na **Mesa de Inteligência**: visão geral
+  (13 indicadores com fonte/última atualização; sem fonte → SEM DADOS),
+  8 agentes com status honestos (ANALISADO · AGUARDANDO DADOS · DADO
+  INSUFICIENTE · DADO CONFLITANTE · COBERTURA PARCIAL), fila de insights
+  CRÍTICO→APRENDIZADO com fato/fonte/período/cobertura/confiança e ações
+  (abrir análise, ver fontes, criar missão, acompanhar, silenciar com motivo,
+  corrigir dado), e 8 cruzamentos que declaram exatamente a fonte que falta.
+  17 subáreas; cada área de dados tem fonte atual, upload próprio, histórico,
+  camada bruta (`Ver todas as colunas originais`), mapeamento e linhas com erro.
+- **Edição/exclusão auditadas** (enforcement no motor, não no botão):
+  correção manual = camada `MANUAL_CORRECTION` (motivo obrigatório, autor,
+  antes/depois; original intocado); excluir da análise mantém o bruto e é
+  restaurável; arquivar fonte não apaga nada; desativar vínculo e remover
+  master preservam o anúncio e o histórico. Permissões novas:
+  `DATA_SOURCE_*`, `RAW_DATA_*`, `ORDER_EDIT_CORRECTION`, `ORDER_ARCHIVE`,
+  `PRODUCT_EDIT`, `MASTER_LINK_EDIT`, `METRIC_CORRECTION`, `INTELLIGENCE_VIEW`.
+- **Testes**: `mos/test/ui-v8-orders.test.js` (29 blocos cobrindo os 40+15
+  itens do contrato); suíte completa 491 verdes; validação headless com
+  upload real (`setInputFiles` com XLSX construído), 13 auto-testes,
+  14 áreas × 2 temas × 4 larguras, zero erros de console.

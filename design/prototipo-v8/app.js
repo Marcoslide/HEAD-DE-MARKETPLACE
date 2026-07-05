@@ -55,7 +55,7 @@
     toggleTheme() { UI.setTheme(UI.theme() === 'dark' ? 'light' : 'dark'); },
 
     /* ---------- navegação ---------- */
-    NAMES: { home: 'Home', operacao: 'Operação', catalogo: 'Catálogo', crescimento: 'Crescimento', conexoes: 'Conexões', missao: 'A Missão', silencio: 'Silêncio', conhecimento: 'Conhecimento', importar: 'Importar', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
+    NAMES: { home: 'Home', operacao: 'Operação', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', conexoes: 'Conexões', missao: 'A Missão', silencio: 'Silêncio', conhecimento: 'Conhecimento', importar: 'Fontes e Histórico de Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
 
     /* ---------- conta comercial (10.V) ----------
        Sessão demonstrativa: conta semeada; sessão real: criada no gate. */
@@ -90,6 +90,7 @@
       if (v === 'catalogo' && alvo) setTimeout(() => window.CATALOGO && CATALOGO.openDrawer(alvo), 30);
       if (v === 'missao' && alvo) setTimeout(() => window.MISSAO && MISSAO.focus(alvo), 30);
       if (v === 'crescimento' && alvo) setTimeout(() => window.CRESCIMENTO && CRESCIMENTO.focus(alvo), 30);
+      if (v === 'pedidos' && alvo) setTimeout(() => window.PEDIDOS && PEDIDOS.focus(alvo), 30);
     },
 
     /* ---------- barra global ---------- */
@@ -135,6 +136,7 @@
           ${UI._gmenu === 'notif' ? `<div class="gmenu">${notifs.length ? notifs.map(n => `<button class="gm-i" data-gact="open" data-ref="${n.ref}"><span class="sig ${n.nivel}" style="width:7px;height:7px;border-radius:50%;margin-top:5px;background:var(--${n.nivel === 'info' ? 'info' : n.nivel})"></span><span><b>${UI.esc(n.txt)}</b></span></button>`).join('') : '<div class="empty" style="padding:14px"><b>Sem notificações</b></div>'}</div>` : ''}</span>
         <span class="gwrap"><button class="gicon" data-gact="menu" data-menu="jobs" title="Jobs em andamento e concluídos nesta sessão">⚙ <span class="gbadge">${jobs.length || ''}</span></button>
           ${UI._gmenu === 'jobs' ? `<div class="gmenu">${jobs.length ? jobs.slice().reverse().map(j => `<button class="gm-i" data-gact="open" data-ref="operacao:"><span><b>${j.id} · ${UI.esc(j.acao)} (${j.total} itens)</b><span class="src">${UI.esc(j.status)} · ${UI.esc(j.autor)} · reversível</span>${j.escopo ? `<span class="src">escopo: ${UI.esc(j.escopo.empresa)} · ${j.escopo.cnpjs.length} CNPJ(s) · ${j.escopo.lojas.length} loja(s)</span>` : ''}</span></button>`).join('') : '<div class="empty" style="padding:14px"><b>Nenhum job nesta sessão</b>Ações em massa aparecem aqui com trilha.</div>'}</div>` : ''}</span>
+        <button class="gicon" data-gact="open" data-ref="importar:" title="Fontes e Histórico de Dados — toda importação, arquivo, escopo e rollback num lugar só.">⇪ Fontes</button>
         ${UI.account && UI.account.plano === 'TRIAL' ? `<button class="gicon" data-gact="open" data-ref="planos:" title="Trial ativo — dias restantes; clique para ver planos e uso.">TRIAL · ${V8COM.trialDaysLeft(UI.account)}d</button>` : ''}
         <button class="gicon" onclick="UI.toggleTheme()" title="Alternar tema claro/escuro">◐</button>
         <span class="gwrap"><button class="gicon" data-gact="menu" data-menu="perfil" title="Perfil e permissões">${UI.esc(V8DATA.meta.usuario[0])} · ${UI.esc(V8DATA.meta.papel)}</button>
@@ -288,7 +290,7 @@
         need(UI.ctx.cnpj === '', 'trocar empresa limpa CNPJ órfão');
         UI.setCtx('empresa', 'e1');
         /* período muda indicadores de performance */
-        UI.go('crescimento', 'Performance');
+        UI.go('crescimento', 'Pedidos e Funil');
         UI.setCtx('periodo', '7d');
         const f7 = $('#crBody').textContent;
         UI.setCtx('periodo', '30d');

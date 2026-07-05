@@ -41,12 +41,15 @@ test('02 · alternância de tema com preferência salva por usuário', () => {
 
 /* ---------- navegação e contexto ---------- */
 
-test('03 · menu com as 8 áreas e nomes intactos; toda aba muda contexto real', () => {
-  for (const v of ['home', 'operacao', 'catalogo', 'crescimento', 'conexoes', 'missao', 'silencio', 'conhecimento'])
+test('03 · menu 10.E.2: Pedidos + Central de Inteligência; Importar vira Fontes e Dados', () => {
+  for (const v of ['home', 'operacao', 'pedidos', 'catalogo', 'crescimento', 'conexoes', 'missao', 'silencio', 'conhecimento', 'importar'])
     assert.match(html, new RegExp(`data-v="${v}"`), `área ${v}`);
-  for (const nome of ['Home', 'Operação', 'Catálogo', 'Crescimento', 'Conexões', 'A Missão', 'Silêncio', 'Conhecimento'])
+  for (const nome of ['Home', 'Operação', 'Pedidos', 'Catálogo', 'Central de Inteligência', 'Conexões', 'A Missão', 'Silêncio', 'Conhecimento', 'Fontes e Dados'])
     assert.ok(html.includes(`<span>${nome}</span>`), `nome do menu: ${nome}`);
+  assert.ok(!html.includes('<span>Importar</span>'), '"Importar" genérico deixou de ser item principal');
+  assert.ok(!html.includes('<span>Crescimento</span>'), 'Crescimento renomeado para Central de Inteligência');
   assert.match(appJs, /UI\.renderers\[v\]\(sub\)/, 'cada navegação chama o renderer da área');
+  assert.match(appJs, /data-ref="importar:"/, 'botão global de Fontes e Histórico na barra');
 });
 
 test('04 · subáreas do Catálogo completas', () => {

@@ -1,30 +1,39 @@
 /* =============================================================
-   v8 · CRESCIMENTO — mesa de crescimento de marketplace (10.UI.1)
-   SEM CRM, SEM leads, SEM pipeline comercial. Aqui vive o que
-   cresce uma operação de marketplace: performance por canal,
-   oportunidades priorizadas, pedidos não pagos, experimentos,
-   aceleração com gates e expansão consciente.
+   v8 · CENTRAL DE INTELIGÊNCIA (10.E.2 — evolução do Crescimento)
+   SEM CRM, SEM leads, SEM pipeline comercial. A Central abre na
+   MESA DE INTELIGÊNCIA: agentes de análise (módulos, não persona-
+   gens) trabalhando sobre as fontes internas importadas, com status
+   honestos — ANALISADO · AGUARDANDO DADOS · DADO INSUFICIENTE ·
+   DADO CONFLITANTE · COBERTURA PARCIAL. Cada subárea de dados tem
+   Fonte · Cobertura · Upload próprio · Histórico · Camada bruta.
    ============================================================= */
 (function () {
   'use strict';
   const D = V8DATA, L = V8LOGIC, G = D.crescimento;
-  const SUBS = ['Performance', 'Oportunidades', 'Pedidos Não Pagos', 'Experimentos', 'Aceleração', 'Expansão', 'Resultados e Aprendizados'];
-  const CR = window.CRESCIMENTO = { sub: 'Performance', mkt: 'ml' };
+  const SUBS = ['Mesa de Inteligência', 'Métricas Principais', 'Pedidos e Funil', 'Performance de Produtos',
+    'Tráfego', 'Devoluções e Cancelamentos', 'Estoque Full', 'Afiliados', 'Chat e Atendimento',
+    'Promoções e Cupons', 'Ads', 'Oportunidades', 'Experimentos', 'Aceleração', 'Expansão',
+    'Resultados e Aprendizados', 'Fontes e Histórico'];
+  const CR = window.CRESCIMENTO = { sub: 'Mesa de Inteligência', mkt: 'ml', silenciados: {}, acompanhando: {} };
+  const LEGACY = { 'Performance': 'Pedidos e Funil', 'Pedidos Não Pagos': 'Pedidos e Funil' };
 
   const mktAtivo = () => UI.ctx.marketplace || CR.mkt;
   const perAtivo = () => UI.ctx.periodo === 'hoje' ? 'hoje' : UI.ctx.periodo;
   const prods = () => UI.ctxProducts();
   const pById = id => UI.state.products.find(p => p.id === id);
   const num = v => v == null ? '—' : v.toLocaleString('pt-BR');
+  const eng = () => IMPORTAR.eng;
+  const filtroCtx = () => ({ lojaId: UI.ctx.loja || undefined, contaId: UI.ctx.conta || undefined, marketplace: UI.ctx.marketplace || undefined });
 
   /* ---------------- shell ---------------- */
   function render(sub) {
+    if (sub && LEGACY[sub]) sub = LEGACY[sub];
     if (sub && SUBS.includes(sub)) CR.sub = sub;
     UI.$('#v-crescimento').innerHTML = `
-      <div class="eyebrow">crescimento · mesa de marketplace</div>
-      <h1 class="h1">Crescimento</h1>
-      <p class="sub" style="margin-top:6px">Funil, perda de pagamento, oportunidades priorizadas, experimentos com ponto de parada e expansão com gates. ${UI.esc(D.STATUS.DADO_SIMULADO)} · rotulado.</p>
-      <div class="tabs" style="margin-top:14px">${SUBS.map(s => `<button class="tab ${s === CR.sub ? 'on' : ''}" data-act="sub" data-sub="${s}">${s}${s === 'Oportunidades' ? `<span class="cnt">${UI.state.opportunities.filter(o => o.status === 'ABERTA').length}</span>` : s === 'Pedidos Não Pagos' ? `<span class="cnt">${L.unpaidList({ marketplace: UI.ctx.marketplace }).length}</span>` : ''}</button>`).join('')}</div>
+      <div class="eyebrow">central de inteligência · agentes sobre fontes internas</div>
+      <h1 class="h1">Central de Inteligência</h1>
+      <p class="sub" style="margin-top:6px">O Head olha tudo que aconteceu na operação, cruza os dados importados e traz só o que exige <b>atenção, decisão ou oportunidade</b> — cada insight com fato, fonte, período, cobertura e confiança. ${UI.esc(D.STATUS.DADO_SIMULADO)} · rotulado.</p>
+      <div class="tabs" style="margin-top:14px;flex-wrap:wrap">${SUBS.map(s => `<button class="tab ${s === CR.sub ? 'on' : ''}" data-act="sub" data-sub="${s}">${s}${s === 'Oportunidades' ? `<span class="cnt">${UI.state.opportunities.filter(o => o.status === 'ABERTA').length}</span>` : ''}</button>`).join('')}</div>
       <div id="crBody" style="margin-top:14px"></div>`;
     body();
     UI.$('#v-crescimento').onclick = onClick;
@@ -32,22 +41,218 @@
 
   function body() {
     const el = UI.$('#crBody');
-    if (CR.sub === 'Performance') el.innerHTML = performance();
+    if (CR.sub === 'Mesa de Inteligência') el.innerHTML = mesa();
+    else if (CR.sub === 'Pedidos e Funil') el.innerHTML = performance() + naoPagos();
     else if (CR.sub === 'Oportunidades') el.innerHTML = oportunidades();
-    else if (CR.sub === 'Pedidos Não Pagos') el.innerHTML = naoPagos();
     else if (CR.sub === 'Experimentos') el.innerHTML = experimentos();
     else if (CR.sub === 'Aceleração') el.innerHTML = aceleracao();
     else if (CR.sub === 'Expansão') el.innerHTML = expansao();
-    else el.innerHTML = resultados();
+    else if (CR.sub === 'Resultados e Aprendizados') el.innerHTML = resultados();
+    else if (CR.sub === 'Ads') el.innerHTML = ads();
+    else if (CR.sub === 'Fontes e Histórico') el.innerHTML = fontesHistorico();
+    else if (AREAS_DADOS[CR.sub]) el.innerHTML = dataArea(CR.sub);
+    else el.innerHTML = mesa();
     UI.refreshBadges();
   }
 
   /* foco vindo da Home / busca global: "o1" (oportunidade) | "naopagos" */
   CR.focus = alvo => {
-    if (alvo === 'naopagos') { CR.sub = 'Pedidos Não Pagos'; render(CR.sub); }
+    if (alvo === 'naopagos') { CR.sub = 'Pedidos e Funil'; render(CR.sub); }
     else if (/^o\d+/.test(alvo)) { CR.sub = 'Oportunidades'; render(CR.sub); openOpp(alvo); }
     else render();
   };
+
+  /* =============================================================
+     MESA DE INTELIGÊNCIA — a Central abre AQUI, não numa planilha
+     ============================================================= */
+  const AG_AREA = { 'Analista de Pedidos': 'pedidos!', 'Analista de Performance': 'Performance de Produtos',
+    'Analista de Estoque': 'Estoque Full', 'Analista de Devoluções': 'Devoluções e Cancelamentos',
+    'Analista de Tráfego': 'Tráfego', 'Analista de Afiliados': 'Afiliados',
+    'Analista de Atendimento': 'Chat e Atendimento', 'Estrategista': 'Oportunidades' };
+  const stAg = st => st === 'ANALISADO' ? 'pos' : st === 'AGUARDANDO DADOS' ? '' : st === 'COBERTURA PARCIAL' ? 'warn' : st === 'DADO CONFLITANTE' ? 'neg' : 'warn';
+  const stIns = n => n === 'CRÍTICO' ? 'neg' : n === 'ATENÇÃO' ? 'warn' : n === 'OPORTUNIDADE' ? 'info' : n === 'APRENDIZADO' ? 'pos' : '';
+
+  function mesa() {
+    const m = V8IMP.mesaInsights(eng(), filtroCtx());
+    const vivos = m.insights.filter(i => !CR.silenciados[i.titulo]);
+    return `
+      <div class="callout" style="margin-top:0"><b>${UI.esc(m.honestidade)}</b> Filtros globais (grupo → conta, período, marketplace) valem aqui.</div>
+
+      <div class="sect-h"><span class="h2">Visão geral da operação</span><span class="src">cada número com fonte e última atualização — sem fonte, SEM DADOS</span></div>
+      <div class="mesa-grid">
+        ${m.visaoGeral.map(k => `<div class="mesa-kpi ${k.valor == null ? 'nodata' : ''}" title="${UI.esc(k.fonte ? 'fonte: ' + k.fonte + (k.ultima ? ' · atualizado ' + k.ultima : '') : (k.sem || ''))}">
+          <span class="k">${UI.esc(k.label)}</span>
+          <span class="v">${k.valor != null ? UI.esc(String(k.valor)) : 'SEM DADOS'}</span>
+          <span class="f">${k.fonte ? UI.esc(k.fonte.split(' · ')[0]) + (k.ultima ? ' · ' + k.ultima : '') : UI.esc((k.sem || '').split('—')[0])}</span>
+        </div>`).join('')}
+      </div>
+
+      <div class="sect-h"><span class="h2">Agentes em atividade</span><span class="src">módulos de análise — não fingem trabalho sem dado real</span></div>
+      <div class="agentes-grid">
+        ${m.agentes.map(a => `<div class="agente">
+          <div class="ag-h"><b>${UI.esc(a.nome)}</b><span class="st ${stAg(a.status)} plain">${UI.esc(a.status)}</span></div>
+          ${a.status === 'AGUARDANDO DADOS' || a.status === 'DADO INSUFICIENTE'
+            ? `<p class="src" style="margin:6px 0 0">${UI.esc(a.dadosFaltantes)}</p>
+               <button class="btn sm ghost" style="margin-top:8px" data-act="ag-pedir" data-dest="${UI.esc((a.acao || {}).destino || '')}">Solicitar dado →</button>`
+            : `<p class="src" style="margin:6px 0 0">última análise: ${a.ultimaAnalise || '—'} · ${a.insights} insight(s)<br>fontes: ${UI.esc((a.fontes || []).slice(0, 2).join(', ') || '—')}${(a.fontes || []).length > 2 ? ' +' + (a.fontes.length - 2) : ''}</p>
+               <button class="btn sm ghost" style="margin-top:8px" data-act="ag-abrir" data-ag="${UI.esc(a.nome)}">Abrir análise →</button>`}
+        </div>`).join('')}
+      </div>
+
+      <div class="sect-h"><span class="h2">Insights prontos para decisão</span><span class="src">fila priorizada: crítico → atenção → oportunidade → aprendizado</span></div>
+      ${vivos.length ? vivos.map(i => `<div class="insight">
+        <div class="in-h"><span class="st ${stIns(i.nivel)}">${i.nivel}</span><b>${UI.esc(i.titulo)}</b><span class="src">${UI.esc(i.agente)}</span></div>
+        <p class="in-fato">${UI.esc(i.fato)}${i.hipotese ? ` <span class="src">· ${UI.esc(i.hipotese)}</span>` : ''}</p>
+        <p class="src">fonte: ${UI.esc(i.fonte)} · período: ${UI.esc(i.periodo)} · ${UI.esc(i.cobertura)} · confiança: ${UI.esc(i.confianca)}</p>
+        <div class="in-acts">
+          <button class="btn sm" data-act="in-abrir" data-ag="${UI.esc(i.agente)}">Abrir análise</button>
+          <button class="btn sm ghost" data-act="in-fontes">Ver fontes</button>
+          <button class="btn sm ghost" data-act="in-missao" data-t="${UI.esc(i.titulo)}" data-f="${UI.esc(i.fato)}">Criar missão</button>
+          <button class="btn sm ghost" data-act="in-acomp" data-t="${UI.esc(i.titulo)}">Acompanhar</button>
+          <button class="btn sm ghost" data-act="in-sil" data-t="${UI.esc(i.titulo)}">Silenciar com motivo</button>
+          ${i.acoes.includes('Corrigir dado') ? `<button class="btn sm ghost" data-act="in-corrigir">Corrigir dado</button>` : ''}
+        </div>
+      </div>`).join('') : `<div class="panel"><div class="empty"><b>Nenhum insight na fila</b>${m.insights.length ? 'Todos os insights foram silenciados com motivo — trilha auditada.' : 'Importe fontes reais (Pedidos, Performance, Estoque…) e os agentes analisam — nada é inventado.'}</div></div>`}
+
+      <div class="sect-h"><span class="h2">Cruzamentos principais</span><span class="src">correlação nunca é afirmada como causa sem evidência</span></div>
+      <div class="agentes-grid">
+        ${m.cruzamentos.map(c => `<div class="agente">
+          <div class="ag-h"><b>${UI.esc(c.nome)}</b><span class="st ${c.estado === 'ANALISADO' ? 'pos' : ''} plain">${c.estado}</span></div>
+          <p class="src" style="margin:6px 0 0">${c.estado === 'ANALISADO' ? UI.esc(c.resultado) : UI.esc(c.nota)}</p>
+        </div>`).join('')}
+      </div>`;
+  }
+
+  /* =============================================================
+     ÁREAS DE DADOS — dashboard + fonte + upload próprio + bruto
+     ============================================================= */
+  const AREAS_DADOS = {
+    'Métricas Principais': { dest: ['funil', 'trafego'], ref: 'shop-stats / salesoverview (XLSX)',
+      regra: 'métrica diária tem chave marketplace + conta + data + tipo — reimportar ATUALIZA o dia; nunca somamos R$ 10.000 + R$ 10.500 do mesmo dia.' },
+    'Performance de Produtos': { dest: ['performance', 'catalogo'], ref: 'parentskudetail / producttraffic (XLSX)',
+      regra: 'conversão nunca aparece sem fórmula: pedidos ÷ cliques, com numerador e denominador visíveis.' },
+    'Tráfego': { dest: ['trafego_visao'], ref: 'traffic_overview (XLSX)',
+      regra: 'fonte agregada por período — não existe abertura diária aqui e ela não será inventada.' },
+    'Devoluções e Cancelamentos': { dest: ['devolucoes'], ref: 'Order.return_refund_cancel (ZIP)',
+      regra: 'o ZIP é extraído no staging; eventos cruzam pelo ID do pedido — nunca criam pedido novo.' },
+    'Estoque Full': { dest: ['estoque'], ref: 'Current Inventory Report (XLSX)',
+      regra: 'cada leitura é um snapshot (marketplace + conta + armazém + SKU + momento); a mais recente é o atual, o histórico fica.' },
+    'Afiliados': { dest: ['afiliados', 'atribuicao'], ref: 'ProductPerformance (CSV)',
+      regra: 'afiliados explicam a ORIGEM da venda — nunca duplicam o faturamento total.' },
+    'Chat e Atendimento': { dest: ['atendimento'], ref: 'export de métricas de chat (XLSX)',
+      regra: 'apenas métricas — nenhuma conversa privada aparece sem permissão.' },
+    'Promoções e Cupons': { dest: ['promocoes', 'cupons'], ref: 'promotionoverview / voucherreport (XLSX)',
+      regra: 'promoção e cupom EXPLICAM a receita — nunca somam de novo.' },
+  };
+
+  function dataArea(nome) {
+    const cfg = AREAS_DADOS[nome];
+    const fontes = V8IMP.areaSources(eng(), cfg.dest);
+    const snaps = eng().snapshots.filter(s => cfg.dest.includes(s.metric_type) && !s.excluidoDaAnalise);
+    const f = fontes[fontes.length - 1];
+    return `
+      <div class="fbar" style="margin-top:0">
+        <button class="btn sm primary" data-act="uparea" data-area="${UI.esc(nome)}">Atualizar dados desta área</button>
+        <span class="src">arquivo de referência: ${UI.esc(cfg.ref)}</span>
+      </div>
+      <div class="callout" style="margin-top:10px">${UI.esc(cfg.regra)}</div>
+      ${!fontes.length
+        ? `<div class="panel" style="margin-top:12px"><div class="empty"><b>SEM DADOS — nenhuma fonte aplicada para ${UI.esc(nome)}</b>Os indicadores desta subárea nascem do upload feito aqui dentro. Nada é estimado.</div></div>`
+        : `<div class="ctxcard" style="margin-top:12px"><div class="h"><b>Fonte atual</b><button class="linklike" data-act="verbrutos" data-id="${f.batchId}">Ver todas as colunas originais →</button></div>
+            <div class="ctxitem"><span>Arquivo</span><span class="src">${UI.esc(f.arquivo)} · ${f.linhas} linha(s) · ${f.granularidade || ''}</span></div>
+            <div class="ctxitem"><span>Período · escopo</span><span class="src">${f.periodo ? f.periodo.ini + ' a ' + f.periodo.fim : 'não declarado'} · ${UI.esc(f.contaId)}</span></div>
+            <div class="ctxitem"><span>Última atualização · qualidade</span><span class="src">${f.ultimaAtualizacao} · ${f.duplicidadesEvitadas} dup. evitada(s) · ${f.conflitos} conflito(s) · ${f.linhasComErro} erro(s)</span></div>
+          </div>
+          ${conteudoArea(nome, snaps)}
+          <div class="panel" style="margin-top:12px"><div class="sect-h" style="margin-top:0"><span class="h2">Histórico desta área</span><span class="src">${fontes.length} importação(ões)</span></div>
+            ${fontes.slice().reverse().map(r => `<div class="metric-row"><span class="lbl">${UI.esc(r.arquivo)}</span><span class="val"><span class="src">${r.ultimaAtualizacao} · ${r.linhas} linha(s) · ${UI.esc(r.usuario)}</span>
+              <button class="linklike" data-act="verbrutos" data-id="${r.batchId}" style="margin-left:8px">brutos</button>
+              <button class="linklike" data-act="vermapa" data-id="${r.batchId}">mapeamento</button></span></div>`).join('')}
+          </div>`}`;
+  }
+
+  function conteudoArea(nome, snaps) {
+    if (!snaps.length) return '';
+    const tbl = (headers, rowsHtml, nota) => `<div class="panel" style="margin-top:12px">
+      <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>${headers.map(h => `<th class="nosort">${h}</th>`).join('')}</tr></thead><tbody>${rowsHtml}</tbody></table></div>
+      ${nota ? `<p class="src" style="margin-top:6px">${nota}</p>` : ''}</div>`;
+    if (nome === 'Métricas Principais') {
+      const dias = snaps.filter(s => s.granularidade === 'DAILY_METRIC').sort((a, b) => String(a.data).localeCompare(String(b.data)));
+      return tbl(['Data', 'Visitantes', 'Pedidos', 'Pedidos pagos', 'Vendas pagas', 'Versões'],
+        dias.map(s => `<tr><td class="tmain">${UI.esc(s.data || s.periodo_ini)}</td><td>${num(+s.raw['Visitantes'] || null)}</td><td>${num(+s.raw['Pedidos Feitos'] || null)}</td><td>${num(+s.raw['Pedidos Pagos'] || null)}</td><td>${UI.brl(+s.raw['Vendas de Pedidos Pagos'] || 0)}</td><td>${s.versoes.length ? `<span class="st warn plain">${s.versoes.length} atualização(ões)</span>` : '<span class="src">original</span>'}</td></tr>`).join(''),
+        'reimportar o mesmo dia ATUALIZA o valor e versiona o anterior — nunca soma.');
+    }
+    if (nome === 'Performance de Produtos') {
+      const perf = snaps.filter(s => s.granularidade === 'LISTING_METRIC');
+      return tbl(['Item', 'Impressões', 'Cliques', 'Pedidos', 'Conversão (fórmula explícita)'],
+        perf.map(s => {
+          const conv = V8IMP.conversaoExplicita(+s.raw['Pedidos'] || 0, +s.raw['Cliques por Produto'] || null, 'pedidos ÷ cliques');
+          return `<tr><td class="tmain">${UI.esc(s.raw['Produto'] || s.item_id)}</td><td>${num(+s.raw['Impressões de Produto'] || null)}</td><td>${num(+s.raw['Cliques por Produto'] || null)}</td><td>${num(+s.raw['Pedidos'] || 0)}</td>
+            <td>${conv.taxa != null ? `${conv.taxa}% <span class="src">(${conv.numerador} ÷ ${conv.denominador})</span>` : `<span class="src">${UI.esc(conv.motivo)}</span>`}</td></tr>`;
+        }).join(''), 'nunca mostramos "conversão" sem explicar a fórmula e a base.');
+    }
+    if (nome === 'Tráfego') {
+      return tbl(['Período', 'Visitantes', 'Visualizações', 'Taxa de rejeição', 'Novos seguidores'],
+        snaps.map(s => `<tr><td class="tmain">${UI.esc(s.raw['Período'] || s.periodo_ini + '→' + s.periodo_fim)}</td><td>${num(+s.raw['Visitantes'] || null)}</td><td>${num(+s.raw['Visualizações da Página'] || null)}</td><td>${s.raw['Taxa de Rejeição'] ?? '—'}%</td><td>${num(+s.raw['Novos Seguidores'] || null)}</td></tr>`).join(''),
+        'agregado por período — sem abertura diária; nada é interpolado.');
+    }
+    if (nome === 'Devoluções e Cancelamentos') {
+      return `<div class="panel" style="margin-top:12px"><div class="sect-h" style="margin-top:0"><span class="h2">${snaps.length} evento(s) cruzado(s) por ID do pedido</span>
+        <button class="linklike" data-act="goped-dev">ver na área Pedidos →</button></div>
+        ${snaps.map(s => `<div class="metric-row"><span class="lbl"><span class="st warn plain">${UI.esc(s.tipo_evento)}</span> pedido ${UI.esc(s.external_order_id)}</span><span class="val"><span class="src">${UI.esc(s.raw['Motivo'] || '—')} · ${UI.brl(+s.raw['Valor reembolsado'] || 0)}</span></span></div>`).join('')}
+      </div>`;
+    }
+    if (nome === 'Estoque Full') {
+      const sv = V8IMP.stockView(eng(), filtroCtx());
+      return tbl(['SKU', 'Armazém', 'Disponível', 'Reservado', 'Em trânsito', 'Leitura atual', 'Leituras'],
+        sv.atual.map(s => `<tr><td class="tmain">${UI.esc(s.sku)}<span class="tsub">${UI.esc(s.produto || '')}</span></td><td>${UI.esc(s.armazem)}</td>
+          <td>${s.disponivel <= 5 ? `<span class="num crit" style="font-size:13px">${s.disponivel}</span>` : s.disponivel}</td>
+          <td>${s.reservado}</td><td>${s.emTransito}</td><td><span class="src">${UI.esc(String(s.momento))}</span></td><td>${s.leituras}</td></tr>`).join(''),
+        UI.esc(sv.nota));
+    }
+    if (nome === 'Afiliados') {
+      return tbl(['Afiliado', 'Produto', 'Cliques', 'Pedidos', 'Vendas (explicativa)', 'Comissão'],
+        snaps.map(s => `<tr><td class="tmain">${UI.esc(s.raw['Afiliado'] || '—')}</td><td><span class="src">${UI.esc(s.raw['Produto'] || '—')}</span></td><td>${num(+s.raw['Cliques'] || null)}</td><td>${num(+s.raw['Pedidos'] || null)}</td><td>${UI.brl(+s.raw['Vendas do Afiliado'] || 0)}</td><td>${UI.brl(+s.raw['Comissão'] || 0)}</td></tr>`).join(''),
+        'camada explicativa: mostra a origem da venda, nunca soma de novo no faturamento.');
+    }
+    if (nome === 'Chat e Atendimento') {
+      return tbl(['Data', 'Recebidas', 'Respondidas', 'Taxa de resposta', 'Tempo médio'],
+        snaps.map(s => `<tr><td class="tmain">${UI.esc(s.raw['Data'])}</td><td>${s.raw['Perguntas recebidas']}</td><td>${s.raw['Perguntas respondidas']}</td><td>${s.raw['Taxa de resposta']}%</td><td>${UI.esc(s.raw['Tempo médio de resposta'] || '—')}</td></tr>`).join(''),
+        'só métricas — conversas privadas não aparecem sem permissão.');
+    }
+    if (nome === 'Promoções e Cupons') {
+      return tbl(['Nome', 'Tipo', 'Vendas pagas (explicativa)', 'Pedidos', 'Status'],
+        snaps.map(s => `<tr><td class="tmain">${UI.esc(s.raw['Nome da promoção'] || s.raw['Nome do Cupom'] || '—')}</td><td><span class="src">${UI.esc(s.raw['Tipo de promoção'] || (s.raw['Código'] ? 'Cupom ' + s.raw['Código'] : '—'))}</span></td><td>${UI.brl(+s.raw['Vendas de Pedidos Pagos'] || +s.raw['Vendas Pagas'] || 0)}</td><td>${s.raw['Pedidos Pagos'] ?? '—'}</td><td><span class="src">${UI.esc(s.raw['Status'] || '—')}</span></td></tr>`).join(''),
+        'promoções e cupons explicam a receita do funil — nunca contam duas vezes.');
+    }
+    return '';
+  }
+
+  function ads() {
+    const list = prods();
+    return `
+      <div class="callout" style="margin-top:0"><b>Sem dados de Ads importados nesta instância</b> — quando o export de Ads entrar, esta subárea ganha fonte própria. Enquanto isso, o gate interno continua valendo: <b>Ads nunca é resposta para produto ruim ou margem ruim</b>.</div>
+      <div class="panel" style="margin-top:12px">
+        <div class="sect-h" style="margin-top:0"><span class="h2">Gate de Ads — quem pode acelerar</span></div>
+        ${list.map(p => {
+          const g = L.accelGate('ads', p);
+          return `<div class="exec-li"><span class="sig ${g.allowed ? 'pos' : 'neg'}"></span>
+            <div class="t"><b>${UI.esc(p.nome)}</b><span>${UI.esc(g.motivo)}</span></div>
+            ${g.allowed ? `<button class="linklike" data-act="plan-ads" data-id="${p.id}">planejar →</button>` : `<button class="linklike" data-act="ent" data-id="${p.id}">resolver →</button>`}</div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  function fontesHistorico() {
+    const rows = V8IMP.sourcesTable(eng());
+    return `<div class="fbar" style="margin-top:0">
+        <button class="btn sm primary" data-act="upcentral">Atualizar dados (upload local)</button>
+        <button class="btn sm ghost" data-act="gofontes">abrir Fontes e Histórico completo →</button></div>
+      ${rows.length ? `<div class="tblwrap" style="margin-top:10px"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">Arquivo</th><th class="nosort">Área</th><th class="nosort">Status</th><th class="nosort">Linhas</th><th class="nosort">Última atualização</th></tr></thead><tbody>
+        ${rows.slice().reverse().slice(0, 12).map(r => `<tr><td class="tmain">${UI.esc(r.arquivo)}</td><td><span class="kbd">${UI.esc(r.areaDestino)}</span></td><td>${UI.stBadge(r.status)}</td><td>${r.linhas}</td><td><span class="src">${r.ultimaAtualizacao}</span></td></tr>`).join('')}
+        </tbody></table></div>` : `<div class="panel" style="margin-top:12px"><div class="empty"><b>Nenhuma fonte importada</b>Cada subárea da Central tem seu próprio botão de upload.</div></div>`}`;
+  }
 
   /* ---------------- Performance ---------------- */
   function performance() {
@@ -425,7 +630,49 @@
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const act = b.dataset.act;
-    if (act === 'sub') { CR.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Crescimento · ' + CR.sub; render(CR.sub); }
+    if (act === 'sub') { CR.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Central de Inteligência · ' + CR.sub; render(CR.sub); }
+    else if (act === 'uparea') IMPORTAR.uploadModal({ titulo: 'Atualizar dados — ' + b.dataset.area, dica: 'Referência: ' + (AREAS_DADOS[b.dataset.area] || {}).ref, onDone: () => body() });
+    else if (act === 'upcentral') IMPORTAR.uploadModal({ titulo: 'Atualizar dados — Central de Inteligência', onDone: () => body() });
+    else if (act === 'gofontes') UI.go('importar');
+    else if (act === 'goped-dev') UI.open('pedidos:Devoluções e Reembolsos');
+    else if (act === 'verbrutos') IMPORTAR.verBrutos(b.dataset.id);
+    else if (act === 'vermapa') IMPORTAR.verMapeamento(b.dataset.id);
+    else if (act === 'ag-pedir') {
+      const dest = b.dataset.dest || 'pedidos';
+      UI.toast('Solicitação registrada: falta a fonte de "' + dest + '". O upload nasce dentro da própria área.', 'ok');
+      L._audit(UI.state, D.meta.usuario, 'dado_solicitado', 'mesa de inteligência pediu fonte: ' + dest);
+      if (dest === 'pedidos' || dest === 'devolucoes') UI.go('pedidos');
+      else IMPORTAR.uploadModal({ titulo: 'Enviar fonte solicitada (' + dest + ')', onDone: () => body() });
+    }
+    else if (act === 'ag-abrir' || act === 'in-abrir') {
+      const alvo = AG_AREA[b.dataset.ag] || 'Mesa de Inteligência';
+      if (alvo === 'pedidos!') UI.go('pedidos');
+      else { CR.sub = alvo; render(CR.sub); }
+    }
+    else if (act === 'in-fontes') UI.go('importar');
+    else if (act === 'in-missao') {
+      D.missoes.push({ id: 'm' + (D.missoes.length + 1), titulo: 'Insight: ' + b.dataset.t, status: D.STATUS.EM_PROCESSAMENTO, tipo: D.STATUS.ACAO_INTERNA, agora: b.dataset.f, origem: 'central de inteligência · mesa', reversivel: true });
+      L._audit(UI.state, D.meta.usuario, 'missao_de_insight', b.dataset.t);
+      UI.toast('Missão criada a partir do insight — veja em A Missão.', 'ok'); UI.refreshBadges();
+    }
+    else if (act === 'in-acomp') { CR.acompanhando[b.dataset.t] = true; UI.toast('Insight marcado para acompanhar.', 'ok'); }
+    else if (act === 'in-sil') {
+      const t = b.dataset.t;
+      UI.openModal(`<h3 class="h2">Silenciar insight</h3>
+        <p class="sub" style="margin-top:4px">O motivo fica auditado — silenciar sem motivo é recusado.</p>
+        <input class="input" id="silMotivo" style="width:100%;margin-top:10px" placeholder="ex.: já tratado na missão m4">
+        <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+          <button class="btn ghost" onclick="UI.closeModal()">cancelar</button>
+          <button class="btn danger" id="silOk">Silenciar com motivo</button></div>`);
+      UI.$('#silOk').onclick = () => {
+        const m = UI.$('#silMotivo').value.trim();
+        if (!m) return UI.toast('Silenciar sem motivo é recusado.', 'err');
+        CR.silenciados[t] = m;
+        L._audit(UI.state, D.meta.usuario, 'insight_silenciado', t + ' · motivo: ' + m);
+        UI.closeModal(); UI.toast('Insight silenciado — motivo auditado.', 'ok'); body();
+      };
+    }
+    else if (act === 'in-corrigir') { UI.go('pedidos'); UI.toast('Corrija pelo registro de origem — toda correção exige motivo e preserva o original.', ''); }
     else if (act === 'mkt') { if (UI.ctx.marketplace) return UI.toast('Marketplace está fixado pela barra global — troque lá.', ''); CR.mkt = b.dataset.mkt; body(); }
     else if (act === 'cmplojas') openCompareLojas();
     else if (act === 'focoloja') {
@@ -513,7 +760,12 @@
     if (new URLSearchParams(location.search).get('groself') !== '1') return;
     try {
       const errs = []; const need = (ok, m) => { if (!ok) errs.push(m); };
-      UI.go('crescimento', 'Performance');
+      /* a Central abre na MESA, não numa planilha */
+      UI.go('crescimento');
+      need(CR.sub === 'Mesa de Inteligência', 'abre na Mesa de Inteligência');
+      need(UI.$('#crBody').textContent.includes('AGUARDANDO DADOS'), 'agentes honestos sem dado real');
+      need(UI.$('#crBody').textContent.includes('SEM DADOS'), 'visão geral não inventa número sem fonte');
+      UI.go('crescimento', 'Pedidos e Funil');
       need(UI.$('#crBody').textContent.includes('Pedido não pago'), 'funil separa pedido não pago');
       CR.mkt = 'magalu'; body();
       need(UI.$('#crBody').textContent.includes('SEM DADOS'), 'canal sem integração → SEM DADOS, nada inventado');
@@ -526,8 +778,8 @@
       const pri = UI.$$('#crBody tbody tr td:first-child .num').map(x => +x.textContent);
       need(pri.length > 2 && pri.every((v, i) => i === 0 || pri[i - 1] >= v), 'fila ordenada por prioridade');
       need(L.opportunityAction(UI.state, 'o4', 'ignorar', '').blocked, 'ignorar sem motivo é recusado');
-      /* pedidos não pagos isolados */
-      CR.sub = 'Pedidos Não Pagos'; body();
+      /* pedidos não pagos isolados (dentro de Pedidos e Funil) */
+      CR.sub = 'Pedidos e Funil'; body();
       need(UI.$('#crBody').textContent.includes('taxa de aprovação'), 'não pago separado de aprovado');
       need(UI.$('#crBody').textContent.includes('nunca afirma causa'), 'sem causa inventada');
       /* experimento incompleto falha */
@@ -537,8 +789,44 @@
       /* gates */
       need(!L.accelGate('ads', UI.state.products.find(p => p.id === 'p3')).allowed, 'Ads bloqueado com pendência');
       need(L.accelGate('ads', UI.state.products.find(p => p.id === 'p6')).allowed, 'Ads liberado com base validada');
-      CR.sub = 'Performance'; body();
+      CR.sub = 'Mesa de Inteligência'; body();
       document.body.dataset.groselfReady = errs.length ? 'fail: ' + errs.join(' | ') : 'ok';
     } catch (e) { document.body.dataset.groselfReady = 'fail: ' + e.message; }
+  });
+
+  /* ---------- auto-teste da Mesa (?mesaself=1) — com fontes reais aplicadas ---------- */
+  document.addEventListener('DOMContentLoaded', () => {
+    if (new URLSearchParams(location.search).get('mesaself') !== '1') return;
+    try {
+      const errs = []; const need = (ok, m) => { if (!ok) errs.push(m); };
+      const E = IMPORTAR.eng;
+      const esc = { groupId: 'g1', companyId: 'e1', cnpjId: 'c1', lojaId: 's1', contaId: 'acc-sh-1', marketplace: 'shopee' };
+      const per = { ini: '2026-06-01', fim: '2026-06-30' };
+      const aplicar = f => { const r = V8IMP.stage(E, f, esc, { usuario: 'Marcos', products: UI.state.products }); (r.zip ? r.batches : [r]).forEach(bt => !bt.duplicado && bt.preview && bt.preview.aplicavel && V8IMP.apply(E, bt.id, {})); };
+      [V8IMP.FIXTURES.orders(per), V8IMP.FIXTURES.ordersV2({ ini: '2026-06-01', fim: '2026-07-05' }),
+        V8IMP.FIXTURES.returnZip(per), V8IMP.FIXTURES.inventory('2026-07-04 08:00'),
+        V8IMP.FIXTURES.affiliatesCsv(per), V8IMP.FIXTURES.trafficOverview(per), V8IMP.FIXTURES.chat(),
+        V8IMP.FIXTURES.productTraffic(per)].forEach(aplicar);
+      UI.go('crescimento', 'Mesa de Inteligência');
+      const txt = UI.$('#crBody').textContent;
+      need(txt.includes('Agentes em atividade'), 'bloco de agentes presente');
+      need(txt.includes('ANALISADO'), 'agente com dado real analisa');
+      need(txt.includes('DADO CONFLITANTE') || txt.includes('COBERTURA PARCIAL'), 'status honesto de conflito/cobertura');
+      need(txt.includes('CRÍTICO'), 'fila priorizada com crítico');
+      need(txt.includes('fonte:'), 'insight com fonte declarada');
+      need(txt.includes('Cruzamentos principais'), 'cruzamentos presentes');
+      need(txt.includes('AGUARDANDO DADOS'), 'cruzamento sem fonte declara o que falta');
+      /* subáreas de dados com fonte + upload próprio */
+      for (const s of ['Métricas Principais', 'Performance de Produtos', 'Tráfego', 'Devoluções e Cancelamentos', 'Estoque Full', 'Afiliados', 'Chat e Atendimento']) {
+        CR.sub = s; body();
+        const t2 = UI.$('#crBody').textContent;
+        need(t2.includes('Atualizar dados desta área'), s + ': upload próprio');
+        need(t2.includes('Fonte atual') || t2.includes('SEM DADOS'), s + ': fonte ou SEM DADOS');
+      }
+      CR.sub = 'Performance de Produtos'; body();
+      need(UI.$('#crBody').textContent.includes('÷'), 'conversão com fórmula explícita');
+      CR.sub = 'Mesa de Inteligência'; body();
+      document.body.dataset.mesaselfReady = errs.length ? 'fail: ' + errs.join(' | ') : 'ok';
+    } catch (e) { document.body.dataset.mesaselfReady = 'fail: ' + e.message; }
   });
 }());
