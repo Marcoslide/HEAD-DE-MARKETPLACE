@@ -1239,3 +1239,56 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   validação headless de 12 checagens (6 áreas, Mesa Estratégica com 5 blocos,
   sub-nav de Crescimento, SEO honesto, Radar, área estável em Operação, Catálogo
   preservado, console limpo). `npm test` **734 verdes**.
+
+## SPRINT 10.F.1 — Conciliação Financeira (motor + tela) · Incremento 1
+
+> "Vendeu? O Head confere se o dinheiro realmente entrou." Nova área
+> **Operação › Conciliação Financeira**: cruza os movimentos da carteira
+> Shopee com os pedidos e responde vendi / quanto deveria receber / quanto
+> recebi / o que está no prazo / o que atrasou / o que diverge / qual
+> desconto explica a diferença.
+
+- **Motor** (`design/prototipo-v8/conciliacao-engine.js`, `V8CONC`; camada
+  compartilhada Node + navegador; `mos/test/ui-v8-conciliacao.test.js` **13/13**):
+  - **Normaliza o relatório REAL da carteira Shopee** (aba "Transaction Report":
+    Data · Tipo de transação · Descrição · ID do pedido · Direção · Valor ·
+    Status · Balança · Valor a Ser Ajustado). Classifica os tipos reais —
+    *Renda do pedido* → `SALE_RELEASE`, *Shopee Acelera* (Resgate/Ajuste) →
+    `ANTICIPATION_RELEASE`/`ANTICIPATION_FEE`, *Ajuste* → `ADJUSTMENT_CREDIT/DEBIT`,
+    *Pix*/*Saques* → `WITHDRAWAL`, *Saldo da Carteira - Pagamento* → `WALLET_PAYMENT`.
+    O que não reconhece vira `UNKNOWN`, **preservado** com confiança baixa.
+  - **Agrupa por marketplace + conta + ID do pedido** (nome nunca é chave);
+    separa movimentos de venda, **tesouraria** (saques/antecipação) e
+    **movimentos sem pedido** (nunca apagados).
+  - **Compara recebido × esperado** e classifica: `CONCILIADO`,
+    `AGUARDANDO_LIBERACAO` (dentro da janela da regra), `SEM_MOVIMENTO_ENCONTRADO`/
+    `ATRASADO` (fora do prazo+tolerância), `RECEBIMENTO_PARCIAL`, `DIVERGENTE`,
+    `COM_AJUSTE_POSTERIOR`, `REEMBOLSADO`, `RECEBIDO_SEM_CONFERENCIA` (entrou com
+    ID de pedido, mas o pedido não foi importado p/ conferir), `MOVIMENTO_SEM_PEDIDO`.
+  - **Regra de ciclo configurável** (`resolverRegra`/`previsaoLiberacao`): nunca
+    marca atraso dentro da janela; sem regra, **declara** — não inventa prazo.
+  - **Rateio de taxa por SKU** (`ratearTaxaPorSku`): distribui a taxa ÚNICA do
+    pedido entre os itens (por valor bruto/quantidade/peso/valor líquido) — **não
+    duplica** comissão/frete ao somar por SKU; soma do rateio = taxa única.
+  - **Dedup** por chave estável (marketplace+conta+pedido+subtipo+data+valor+linha);
+    **preserva RAW**; reimportar o mesmo arquivo não duplica.
+  - **Previsão de entrada** por janela (hoje/7/15/30/atrasado) rotulada
+    "PREVISTO COM BASE EM CICLO CONFIGURADO — não é certeza".
+- **Prova sobre dado REAL**: o motor processou o relatório de carteira Shopee
+  enviado (1.142 linhas) — **100% classificadas (0 UNKNOWN)**: 212 SALE_RELEASE,
+  493 ANTICIPATION_FEE, 68 ANTICIPATION_RELEASE, 180 REFUND, 82 ADJUSTMENT_CREDIT,
+  67 WITHDRAWAL, 38 WALLET_PAYMENT, 2 ADJUSTMENT_DEBIT — 859 casos de pedido +
+  173 movimentos de tesouraria, R$ 25.079,12 de Renda do pedido liberada. (O
+  arquivo é dado financeiro real do vendedor e **não foi commitado**.)
+- **Tela** (`conciliacao.js`, view `v-conciliacao`, em **Operação**): Visão Geral
+  (cards estratégicos + composição por tipo), Conciliados, Aguardando Liberação,
+  Previsto para Receber, Atrasados, Recebimentos Parciais, Divergências, Pedidos
+  sem Movimento, Movimentos sem Pedido, Ajustes e Compensações, Regras. Consome
+  o relatório real quando importado; senão, conjunto **demonstrativo rotulado**.
+  Princípio fixo no topo: **carteira = verdade; pedido + regra = expectativa**.
+- **Incremento 2 (declarado, ainda não entregue)**: persistência real em Postgres
+  das entidades (`financial_reconciliation_case`, `financial_transaction`,
+  `financial_reconciliation_event`, `financial_reconciliation_rule`), jornada HTTP
+  upload→apply→query no padrão já provado em 10.E.2.5.3, e ligação da conciliação
+  com Lucratividade / Ponto de Equilíbrio (vendas × recebimentos × lucro).
+- `npm test` **747 verdes** (1 Postgres pulado sem banco).

@@ -55,7 +55,7 @@
     toggleTheme() { UI.setTheme(UI.theme() === 'dark' ? 'light' : 'dark'); },
 
     /* ---------- navegação ---------- */
-    NAMES: { home: 'Mesa Estratégica', operacao: 'Histórico Operacional', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', seo: 'Orgânico e SEO', custos: 'Lucratividade', empresas: 'Empresas e Operações', conexoes: 'Conexões', missao: 'Execução', silencio: 'Radar', conhecimento: 'Conhecimento', importar: 'Fontes e Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
+    NAMES: { home: 'Mesa Estratégica', operacao: 'Histórico Operacional', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', seo: 'Orgânico e SEO', conciliacao: 'Conciliação Financeira', custos: 'Lucratividade', empresas: 'Empresas e Operações', conexoes: 'Conexões', missao: 'Execução', silencio: 'Radar', conhecimento: 'Conhecimento', importar: 'Fontes e Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
 
     /* ---------- 10.P.3 — ARQUITETURA DE 6 ÁREAS ----------
        Reduz o menu principal a 6 áreas. Cada área agrupa, por sub-navegação
@@ -78,6 +78,7 @@
         { label: 'Radar', view: 'silencio' } ] },
       { key: 'operacao', label: 'Operação', subs: [
         { label: 'Pedidos', view: 'pedidos' },
+        { label: 'Conciliação Financeira', view: 'conciliacao' },
         { label: 'Estoque', view: 'crescimento', sub: 'Estoque Full' },
         { label: 'Devoluções', view: 'crescimento', sub: 'Devoluções e Cancelamentos' },
         { label: 'Atendimento', view: 'crescimento', sub: 'Chat e Atendimento' },
