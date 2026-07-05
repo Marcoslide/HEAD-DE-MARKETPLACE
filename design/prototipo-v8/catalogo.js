@@ -1002,6 +1002,12 @@
   const EDITOR_ABAS = ['Informação Básica', 'Especificações', 'Descrição', 'Informações de Vendas', 'Economia do Produto',
     'Variações', 'Lista de Variações', 'Fotos e Vídeos', 'Informações Fiscais', 'Envio e Logística', 'Outros',
     'Performance Comercial', 'Comparar Marketplaces', 'Histórico e Auditoria'];
+  /* 10.E.3.3 — editor Shopee FIEL AO SELLER CENTER: 8 seções VERTICAIS (não as 14 abas horizontais).
+     Cada seção do Seller Center mapeia para o corpo já existente. */
+  const SHOPEE_SECOES = [
+    ['Informações Básicas', 'Informação Básica'], ['Especificações', 'Especificações'], ['Descrição', 'Descrição'],
+    ['Informações de Vendas', 'Informações de Vendas'], ['Lista de Variações', 'Lista de Variações'],
+    ['Informações Fiscais – Opcional', 'Informações Fiscais'], ['Envio', 'Envio e Logística'], ['Outros', 'Outros']];
 
   CAT.openEditor = function (listingId, aba, campoFoco) {
     const cat = CAT.eng();
@@ -1118,16 +1124,18 @@
       corpo = `
       <div class="fbar" style="margin-top:0">
         <button class="btn sm primary" data-act="eaddfoto" data-lid="${l.id}">Adicionar fotos do computador</button>
-        <span class="src">arraste e solte também funciona · mídia deste anúncio NÃO altera outros marketplaces</span></div>
-      <div class="media-grid" style="margin-top:10px">
-        ${fotos.map(({ media: m, uso }) => `<div class="media-card">
+        <span class="src">arraste para reordenar · a 1ª posição vira a capa · mídia deste anúncio NÃO altera outros marketplaces</span></div>
+      <div class="media-grid" id="mediaGrid" style="margin-top:10px" data-lid="${l.id}">
+        ${fotos.map(({ media: m, uso }, i) => `<div class="media-card" draggable="true" data-mediacard="${m.id}" data-pos="${i}">
           <div class="media-thumb">${m.dataUrl ? `<img src="${m.dataUrl}" alt="${UI.esc(m.arquivo)}">` : m.tipo === 'video' ? '▶' : '▦'}</div>
           <b>${UI.esc(m.arquivo)}</b>
-          <span class="src">${uso.principal ? 'FOTO PRINCIPAL' : 'posição ' + (uso.posicao + 1)} · ${UI.esc(m.origem)}</span>
+          <span class="src">${uso.principal ? 'FOTO PRINCIPAL (capa)' : 'posição ' + (uso.posicao + 1)} · ${UI.esc(m.origem)}${m.skuVariacao ? ' · SKU ' + UI.esc(m.skuVariacao) : ''}</span>
           <div style="display:flex;gap:6px;margin-top:6px;flex-wrap:wrap">
-            ${uso.principal ? '' : `<button class="btn sm ghost" data-act="eprincipal" data-lid="${l.id}" data-mid="${m.id}">definir principal</button>`}
-            <button class="btn sm ghost" data-act="eremfoto" data-lid="${l.id}" data-mid="${m.id}">remover do anúncio</button>
-            <button class="btn sm ghost" data-act="mduso" data-id="${m.id}">onde é usada</button>
+            ${i === 0 ? '' : `<button class="btn sm ghost" data-act="emovefoto" data-lid="${l.id}" data-mid="${m.id}" data-pos="${i - 1}" title="mover para cima">↑</button>`}
+            ${i === fotos.length - 1 ? '' : `<button class="btn sm ghost" data-act="emovefoto" data-lid="${l.id}" data-mid="${m.id}" data-pos="${i + 1}" title="mover para baixo">↓</button>`}
+            ${uso.principal ? '' : `<button class="btn sm ghost" data-act="eprincipal" data-lid="${l.id}" data-mid="${m.id}">definir capa</button>`}
+            <button class="btn sm ghost" data-act="evincsku" data-lid="${l.id}" data-mid="${m.id}">vincular SKU</button>
+            <button class="btn sm ghost" data-act="eremfoto" data-lid="${l.id}" data-mid="${m.id}">remover</button>
           </div></div>`).join('') || '<div class="empty" style="grid-column:1/-1"><b>SEM FOTO neste anúncio</b>Adicionar do computador ou reaproveitar da biblioteca — a mídia permanece no Product Master.</div>'}
       </div>`;
     }
@@ -1205,24 +1213,166 @@
         ${l.correcoes.map(c => `<div class="exec-li"><span class="sig warn"></span><div class="t"><b>${UI.esc(c.campo)}: "${UI.esc(String(c.antes))}" → "${UI.esc(String(c.depois))}"</b><span>${UI.esc(c.motivo)} · ${UI.esc(c.autor)} · ${c.em} · ${c.origem}</span></div></div>`).join('')}` : ''}
       ${V8CAT.timelineDe(cat, l.id).slice(-8).reverse().map(e => `<div class="exec-li"><span class="sig"></span><div class="t"><b>${UI.esc(e.tipo)}</b><span>${UI.esc(e.detalhe)} · ${e.em}</span></div></div>`).join('')}`;
 
-    UI.openModal(`<div class="editor">
-      <div class="drawer-h" style="margin-bottom:4px"><div>
-        <div class="eyebrow">editor de anúncio · ${UI.esc(l.mktNome)} · conta ${UI.esc(l.contaId || '—')} · ${UI.esc(l.fonte)}</div>
-        <h2 class="h1" style="font-size:17px">${UI.esc(V('titulo'))}</h2>
-        <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">${V8CAT.listingTags(cat, l).map(t => `<span class="st ${t.kind} plain" style="font-size:9.5px">${UI.esc(t.txt)}</span>`).join('')}</div>
-      </div><button class="btn ghost sm" onclick="UI.closeModal()">✕ fechar</button></div>
-      <div class="tabs" style="flex-wrap:wrap">${EDITOR_ABAS.map(a => `<button class="tab ${a === CAT.edAba ? 'on' : ''}" data-act="eaba" data-aba="${a}">${a}</button>`).join('')}</div>
-      <div class="editor-body" style="margin-top:12px">${corpo}</div>
-    </div>`);
+    const isShopee = l.marketplace === 'shopee';
+    const id = V8CAT.identidadeExterna(cat, l);
+    const so = V8CAT.statusOperacional ? V8CAT.statusOperacional(l) : { nativo: l.status, head: l.lifecycle || '' };
+    if (isShopee) {
+      /* editor Shopee vertical fiel ao Seller Center: seção-nav à esquerda, corpo à direita */
+      UI.openModal(`<div class="editor editor-shopee">
+        <div class="drawer-h" style="margin-bottom:4px"><div>
+          <div class="eyebrow">Catálogo → Marketplaces → Shopee → ${UI.esc(V('titulo')).slice(0, 40)} → Editar anúncio</div>
+          <h2 class="h1" style="font-size:17px">${UI.esc(V('titulo'))}</h2>
+          <div class="src" style="margin-top:4px">Status nativo <b>${UI.esc(so.nativo || '—')}</b> · Status Head <b>${UI.esc(so.head || id.head_status)}</b> · Shopee Item ID <b>${UI.esc(l.itemIdExterno || '—')}</b> · SKU <b>${UI.esc(l.skuPai || '—')}</b> · ${((allProds().find(p2 => p2.id === l.produtoId) || {}).variacoes || []).length} variação(ões) · escrita: <b>${l.itemIdExterno ? 'Bloqueada' : 'Permitida após confirmação'}</b></div>
+        </div><button class="btn ghost sm" onclick="UI.closeModal()">✕ fechar</button></div>
+        <div class="fbar" style="margin-top:6px">
+          <button class="btn sm ghost" data-act="eskudrawer" data-sku="${UI.esc(l.skuPai || '')}">Abrir visão do SKU</button>
+          <button class="btn sm ghost" data-act="ematriz" data-pid="${l.produtoId}">Abrir Matriz da Loja</button>
+          <button class="btn sm ghost" data-act="eintel" data-lid="${l.id}">Inteligência e Dados Internos</button>
+          <button class="btn sm ghost" data-act="evalidar" data-lid="${l.id}">Validar cadastro</button>
+          <button class="btn sm primary" data-act="epublicar" data-lid="${l.id}">Solicitar publicação</button>
+        </div>
+        <div class="editor-shopee-grid" style="display:flex;gap:14px;margin-top:12px;align-items:flex-start">
+          <div class="editor-sidenav" style="display:flex;flex-direction:column;gap:4px;min-width:190px">
+            ${SHOPEE_SECOES.map(([label, aba], i) => `<button class="tab ${aba === CAT.edAba ? 'on' : ''}" style="text-align:left;justify-content:flex-start" data-act="eaba" data-aba="${aba}"><b>${i + 1}.</b> ${label}</button>`).join('')}
+          </div>
+          <div class="editor-body" style="flex:1;min-width:0">${corpo}</div>
+        </div>
+      </div>`);
+    } else {
+      UI.openModal(`<div class="editor">
+        <div class="drawer-h" style="margin-bottom:4px"><div>
+          <div class="eyebrow">editor de anúncio · ${UI.esc(l.mktNome)} · conta ${UI.esc(l.contaId || '—')} · ${UI.esc(l.fonte)}</div>
+          <h2 class="h1" style="font-size:17px">${UI.esc(V('titulo'))}</h2>
+          <div style="display:flex;gap:5px;margin-top:6px;flex-wrap:wrap">${V8CAT.listingTags(cat, l).map(t => `<span class="st ${t.kind} plain" style="font-size:9.5px">${UI.esc(t.txt)}</span>`).join('')}</div>
+        </div><button class="btn ghost sm" onclick="UI.closeModal()">✕ fechar</button></div>
+        <div class="tabs" style="flex-wrap:wrap">${EDITOR_ABAS.map(a => `<button class="tab ${a === CAT.edAba ? 'on' : ''}" data-act="eaba" data-aba="${a}">${a}</button>`).join('')}</div>
+        <div class="editor-body" style="margin-top:12px">${corpo}</div>
+      </div>`);
+    }
     UI.$('#modal').onclick = onEditorClick;
+    wireDragFotos();
     const foco = UI.$('#modal .input.foco'); if (foco) setTimeout(() => foco.focus(), 40);
   };
+
+  const hashish = s => Math.abs([...String(s || '')].reduce((a, c) => (a * 31 + c.charCodeAt(0)) | 0, 7));
+  const impEng = () => (window.IMPORTAR && IMPORTAR.eng) || null;
+
+  /* ---------- 10.E.3.3 · VISÃO DO SKU (SKU como chave operacional) ---------- */
+  CAT.openSku = function (sku) {
+    const cat = CAT.eng();
+    const eng = impEng();
+    const fontes = { performance: [], estoque: [], devolucoes: [], ads: [], afiliados: [] };
+    if (eng && window.V8IMP) {
+      try { const pv = V8IMP.performanceItemView(eng, {}); if (!pv.semDados) fontes.performance = pv.itens; } catch (_) {}
+      try { const sv = V8IMP.stockView(eng, {}); fontes.estoque = sv.atual || []; } catch (_) {}
+      try { const dv = V8IMP.devolucoesView(eng, {}); if (!dv.semDados) fontes.devolucoes = dv.eventos; } catch (_) {}
+    }
+    const d = V8CAT.skuDossie(cat, sku, fontes);
+    const ac = V8CAT.analiseCriativo(cat, sku);
+    const sec = (h, inner) => `<div class="sect-h" style="margin-top:14px"><span class="h2">${h}</span></div>${inner}`;
+    const linhaFonte = (nome, arr, cols) => arr.length
+      ? `<div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>${cols.map(c => `<th class="nosort">${c[0]}</th>`).join('')}</tr></thead><tbody>${arr.slice(0, 8).map(r => `<tr>${cols.map((c, i) => `<td class="${i === 0 ? 'tmain' : ''}">${c[1](r)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+      : `<div class="empty" style="padding:12px"><b>SEM DADOS de ${nome} para este SKU</b>importe a fonte — nada é inventado.</div>`;
+    UI.openModal(`<div class="editor">
+      <div class="drawer-h"><div>
+        <div class="eyebrow">Visão do SKU · chave de operação e inteligência</div>
+        <h2 class="h1" style="font-size:17px">${UI.esc(sku)}</h2>
+        <div class="src" style="margin-top:4px">Produto Master: <b>${UI.esc(d.produtoMaster || '—')}</b> · chave usada: <b>${UI.esc(d.chaveUsada)}</b> · ${d.marketplaces.length} marketplace(s) · ${d.contas.length} conta(s)</div>
+      </div><button class="btn ghost sm" onclick="UI.closeModal()">✕ fechar</button></div>
+      ${d.multiConta ? `<div class="callout warn" style="margin-top:8px">${UI.esc(d.nota)}</div>` : `<p class="src" style="margin-top:6px">${UI.esc(d.nota)}</p>`}
+      ${sec('Onde este SKU está (marketplace × conta × IDs)', `<div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Marketplace</th><th class="nosort">Conta</th><th class="nosort">Item ID</th><th class="nosort">Variation ID</th></tr></thead><tbody>${d.marketplaces.map(m => `<tr><td class="tmain">${UI.esc(m.marketplace)}</td><td><span class="src">${UI.esc(m.conta)}</span></td><td><span class="src">${UI.esc(m.itemId || '—')}</span></td><td><span class="src">${UI.esc(m.variationId || '—')}</span></td></tr>`).join('') || '<tr><td colspan="4"><span class="src">nenhum anúncio vinculado a este SKU ainda</span></td></tr>'}</tbody></table></div>`)}
+      ${sec('Performance', linhaFonte('performance', d.performance, [['Produto', r => UI.esc((r.produto || sku).slice(0, 28))], ['Impressões', r => (r.metricas || {}).impressions ?? '—'], ['Cliques', r => (r.metricas || {}).clicks ?? '—'], ['Carrinho', r => (r.metricas || {}).cart_units ?? '—'], ['Pago', r => (r.metricas || {}).orders_paid ?? '—'], ['Vendas', r => UI.brl((r.metricas || {}).sales_paid_brl || 0)]]))}
+      ${sec('Estoque Full', linhaFonte('estoque', d.estoque, [['SKU', r => UI.esc(r.sku)], ['Armazém', r => UI.esc(r.armazem || '—')], ['Vendável', r => r.disponivel ?? '—'], ['Cobertura', r => r.cobertura ?? '—'], ['V30d', r => r.vendas30d ?? '—']]))}
+      ${sec('Devoluções', linhaFonte('devoluções', d.devolucoes, [['ID', r => UI.esc(r.return_id || '—')], ['Motivo', r => UI.esc((r.motivo || '—').slice(0, 28))], ['Reembolso', r => UI.brl(r.reembolso || 0)]]))}
+      ${sec('Criativos do SKU (' + d.criativos.length + ')', d.criativos.length ? `<div class="media-grid">${d.criativos.map(c => `<div class="media-card"><div class="media-thumb">${(cat.media.find(m => m.id === c.mediaId) || {}).dataUrl ? `<img src="${(cat.media.find(m => m.id === c.mediaId) || {}).dataUrl}">` : '▦'}</div><b>${UI.esc(c.tipo)}</b><span class="src">${UI.esc(c.marketplace || '—')} · métrica ${c.metricaAvaliacao ?? '—'}</span></div>`).join('')}</div>${ac.comparavel ? `<div class="callout" style="margin-top:8px">Melhor por métrica: <b>${ac.melhor.metricaAvaliacao}</b> · ${UI.esc(ac.nota)}</div>` : `<p class="src" style="margin-top:6px">${UI.esc(ac.nota)}</p>`}` : '<div class="empty" style="padding:12px"><b>Nenhum criativo vinculado a este SKU</b>vincule fotos ao SKU no editor (botão "vincular SKU").</div>')}
+      ${sec('Testes de criativo (' + d.experimentos.length + ')', d.experimentos.length ? d.experimentos.map(e => `<div class="exec-li"><span class="sig ${e.status === 'VENCEDOR_CONFIRMADO' ? 'pos' : e.status === 'INCONCLUSIVO' ? 'warn' : ''}"></span><div class="t"><b>${UI.esc(e.hipotese)}</b><span>${UI.esc(e.status)} · ${UI.esc(e.decisao || 'em andamento')} · métrica ${UI.esc(e.metricaPrincipal)}</span></div></div>`).join('') : '<p class="src">nenhum experimento — crie um teste com hipótese, métrica e amostra.</p>')}
+    </div>`);
+    UI.$('#modal').onclick = onEditorClick;
+  };
+
+  function openMatriz(pid) {
+    const mz = V8CAT.matrizDaLoja(CAT.eng(), pid);
+    if (!mz) return UI.toast('produto não encontrado', 'err');
+    const kv = (k, v) => `<dt>${k}</dt><dd>${v == null || v === '' ? '<span class="src">—</span>' : UI.esc(String(v))}</dd>`;
+    UI.openModal(`<div class="editor">
+      <div class="drawer-h"><div><div class="eyebrow">Matriz da Loja · verdade interna reutilizável</div>
+        <h2 class="h1" style="font-size:17px">${UI.esc(mz.nomeInterno)}</h2></div>
+        <button class="btn ghost sm" onclick="UI.closeModal()">✕ fechar</button></div>
+      <p class="src" style="margin-top:4px">${UI.esc(mz.nota)}</p>
+      <dl class="kv" style="margin-top:12px">${kv('SKU pai', mz.skuPai)}${kv('Marca', mz.marca)}${kv('Modelo', mz.modelo)}${kv('Material', mz.material)}${kv('Dimensões', mz.dimensoes)}${kv('Peso', mz.peso)}${kv('GTIN/EAN', mz.gtinEan)}${kv('NCM', mz.ncm)}${kv('Custo', mz.custo != null ? UI.brl(mz.custo) : null)}${kv('Preço-base', UI.brl(mz.precoBase))}${kv('Fotos originais', mz.fotosOriginais)}${kv('Vídeos', mz.videosOriginais)}</dl>
+      <div class="sect-h"><span class="h2">Variações internas (${mz.variacoesInternas.length})</span></div>
+      <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Variação</th><th class="nosort">SKU</th><th class="nosort">EAN</th><th class="nosort">Preço</th><th class="nosort">Estoque</th></tr></thead><tbody>${mz.variacoesInternas.map(v => `<tr><td class="tmain">${UI.esc(v.nome)}</td><td><span class="kbd">${UI.esc(v.sku)}</span></td><td><span class="src">${v.ean || '—'}</span></td><td>${UI.brl(v.preco)}</td><td>${v.estoque ?? '—'}</td></tr>`).join('')}</tbody></table></div>
+      <div class="sect-h"><span class="h2">Rascunhos (${mz.rascunhos.length}) · Publicados (${mz.anunciosPublicados.length})</span></div>
+      ${mz.rascunhos.map(r => `<div class="metric-row"><span class="lbl">Rascunho · ${UI.esc(r.marketplace)}</span><span class="val"><span class="src">${UI.esc(r.lifecycle)}</span></span></div>`).join('')}
+      ${mz.anunciosPublicados.map(a => `<div class="metric-row"><span class="lbl">Publicado · ${UI.esc(a.marketplace)}</span><span class="val"><span class="src">Item ${UI.esc(a.itemId || '—')} · SKU ${UI.esc(a.sku || '—')}</span></span></div>`).join('')}
+    </div>`);
+    UI.$('#modal').onclick = onEditorClick;
+  }
+
+  function openInteligencia(lid) {
+    const cat = CAT.eng(); const l = lst(lid);
+    const id = V8CAT.identidadeExterna(cat, l);
+    UI.openModal(`<div class="editor">
+      <div class="drawer-h"><div><div class="eyebrow">Inteligência e Dados Internos</div>
+        <h2 class="h1" style="font-size:17px">${UI.esc(l.titulo || l.skuPai)}</h2></div>
+        <button class="btn ghost sm" onclick="UI.closeModal()">✕ fechar</button></div>
+      <div class="callout" style="margin-top:8px">Cada dado abaixo mostra fonte, período, conta, ID/SKU usado no vínculo, cobertura e confiança — nunca vínculo por nome.</div>
+      <dl class="kv" style="margin-top:12px"><dt>Internal Listing ID</dt><dd>${UI.esc(id.internal_listing_id)}</dd><dt>External Listing ID</dt><dd>${UI.esc(id.external_listing_id || '—')}</dd><dt>External Variation ID</dt><dd>${UI.esc(id.external_variation_id || '—')}</dd><dt>Seller SKU · SKU var.</dt><dd>${UI.esc(id.seller_sku || '—')} · ${UI.esc(id.variation_sku || '—')}</dd><dt>Confiança do vínculo</dt><dd>${UI.esc(id.identity_confidence)} (${UI.esc(id.identity_origin)})</dd></dl>
+      <div class="fbar" style="margin-top:12px"><button class="btn sm ghost" data-act="eskudrawer" data-sku="${UI.esc(l.skuPai || '')}">Abrir visão do SKU (performance, estoque, devoluções, criativos, testes)</button></div>
+    </div>`);
+    UI.$('#modal').onclick = onEditorClick;
+  }
+
+  function openPublicar(lid) {
+    const cat = CAT.eng(); const l = lst(lid);
+    UI.openModal(`<div class="editor">
+      <div class="drawer-h"><div><div class="eyebrow">Publicação controlada · nenhuma escrita externa sem autorização</div>
+        <h2 class="h1" style="font-size:17px">Solicitar publicação · ${UI.esc(l.mktNome)}</h2></div>
+        <button class="btn ghost sm" onclick="UI.closeModal()">✕ fechar</button></div>
+      <p class="sub" style="margin-top:6px">A publicação externa fica <b>bloqueada por padrão</b>. Aqui criamos apenas uma <b>solicitação interna</b> — o marketplace só é tocado com integração oficial autorizada. O anúncio só vira ativo com o <b>retorno oficial</b>.</p>
+      <dl class="kv" style="margin-top:12px"><dt>Empresa · Canal · Conta</dt><dd>${UI.esc(UI.ctx.empresaNome || 'Empresa')} · ${UI.esc(l.mktNome)} · ${UI.esc(l.contaId || '—')}</dd><dt>SKU</dt><dd>${UI.esc(l.skuPai || '—')}</dd></dl>
+      <label style="display:flex;gap:8px;margin-top:12px;align-items:center"><input type="checkbox" id="pubConfirm"> <span>Confirmo explicitamente a solicitação de publicação (auditada).</span></label>
+      <div class="fbar" style="margin-top:12px">
+        <button class="btn primary" id="pubGo">Solicitar publicação (interna)</button>
+        <span class="src">nenhuma chamada externa é disparada</span></div>
+      <div id="pubResult" style="margin-top:12px"></div>`);
+    UI.$('#modal').onclick = onEditorClick;
+    UI.$('#pubGo').onclick = () => {
+      const conf = UI.$('#pubConfirm').checked;
+      const r = V8CAT.solicitarPublicacao(cat, lid, { empresa: 'Líder', canal: l.mktNome, conta: l.contaId || 'conta', validado: true, confirmacaoExplicita: conf, integracaoAutorizada: conf, usuario: D.meta.usuario, papel: papel() });
+      if (r.blocked) { UI.$('#pubResult').innerHTML = `<div class="callout warn">Bloqueada — falta: ${UI.esc((r.faltas || []).join(', '))}</div>`; return; }
+      UI.$('#pubResult').innerHTML = `<div class="callout">${UI.esc(r.nota)}</div>
+        <div class="fbar" style="margin-top:10px"><button class="btn sm" data-act="eretorno" data-lid="${lid}">Simular retorno oficial (aceito)</button><span class="src">em produção, isto vem do marketplace</span></div>`;
+    };
+  }
+
+  /* arrastar-e-soltar fotos: dragstart guarda a origem, drop chama reorderMedia */
+  function wireDragFotos() {
+    const grid = UI.$('#mediaGrid'); if (!grid) return;
+    let dragId = null;
+    grid.querySelectorAll('[data-mediacard]').forEach(card => {
+      card.addEventListener('dragstart', () => { dragId = card.dataset.mediacard; });
+      card.addEventListener('dragover', ev => ev.preventDefault());
+      card.addEventListener('drop', ev => {
+        ev.preventDefault();
+        if (!dragId || dragId === card.dataset.mediacard) return;
+        const r = V8CAT.reorderMedia(CAT.eng(), grid.dataset.lid, dragId, +card.dataset.pos, { usuario: D.meta.usuario, papel: papel() });
+        if (!r.blocked) CAT.openEditor(grid.dataset.lid, 'Fotos e Vídeos');
+      });
+    });
+  }
 
   function onEditorClick(e) {
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const act = b.dataset.act, cat = CAT.eng(), lid = CAT.edId;
     if (act === 'eaba') CAT.openEditor(lid, b.dataset.aba);
+    else if (act === 'eskudrawer') { if (b.dataset.sku) CAT.openSku(b.dataset.sku); else UI.toast('anúncio sem SKU', 'err'); }
+    else if (act === 'ematriz') openMatriz(b.dataset.pid);
+    else if (act === 'eintel') openInteligencia(b.dataset.lid);
+    else if (act === 'evalidar') { const d = V8CAT.diagnosticoProduto ? V8CAT.diagnosticoProduto(cat, lst(lid)) : null; UI.toast('Validação: ' + ((d && d.length) ? d.length + ' ponto(s) de atenção' : 'sem pendência bloqueante detectada'), 'ok'); }
+    else if (act === 'epublicar') openPublicar(b.dataset.lid);
+    else if (act === 'eretorno') { const r = V8CAT.registrarRetornoOficial(cat, b.dataset.lid, { aceito: true, externalListingId: '1' + Math.abs(hashish(b.dataset.lid)) % 9000000000, externalVariationId: null, sellerSku: (lst(b.dataset.lid) || {}).skuPai }, { usuario: D.meta.usuario, papel: papel() }); if (r.blocked) return UI.toast(r.reason, 'err'); UI.closeModal(); UI.toast('Retorno oficial recebido — Item ID salvo, anúncio movido para Ativos.', 'ok'); CAT.sub = 'Marketplaces'; render(); }
     else if (act === 'editorAba') CAT.openEditor(b.dataset.id || lid, b.dataset.aba);
     else if (act === 'esave') {
       const l = lst(lid);
@@ -1240,7 +1390,14 @@
       UI.toast(n ? `${n} campo(s) versionado(s) em ${lst(lid).mktNome} — outros marketplaces e o master intactos.` : 'Nada mudou.', n ? 'ok' : '');
       if (n) { CAT.openEditor(lid, CAT.edAba); body(); }
     }
-    else if (act === 'eprincipal') { const r = V8CAT.setPrincipal(cat, b.dataset.lid, b.dataset.mid, { usuario: D.meta.usuario, papel: papel() }); if (r.blocked) return UI.toast(r.reason, 'err'); UI.toast('Foto principal alterada — só neste anúncio.', 'ok'); CAT.openEditor(lid, 'Fotos e Vídeos'); }
+    else if (act === 'eprincipal') { const r = V8CAT.setPrincipal(cat, b.dataset.lid, b.dataset.mid, { usuario: D.meta.usuario, papel: papel() }); if (r.blocked) return UI.toast(r.reason, 'err'); UI.toast('Capa alterada — só neste anúncio.', 'ok'); CAT.openEditor(lid, 'Fotos e Vídeos'); }
+    else if (act === 'emovefoto') { const r = V8CAT.reorderMedia(cat, b.dataset.lid, b.dataset.mid, +b.dataset.pos, { usuario: D.meta.usuario, papel: papel() }); if (r.blocked) return UI.toast(r.reason, 'err'); CAT.openEditor(lid, 'Fotos e Vídeos'); }
+    else if (b.dataset.vincsku) { V8CAT.vincularMediaSku(cat, b.dataset.mid, b.dataset.vincsku, { usuario: D.meta.usuario, papel: papel() }); const c = cat.media.find(m => m.id === b.dataset.mid); if (c) V8CAT.addCreative(cat, { sku: b.dataset.vincsku, tipo: c.tipo, mediaId: c.id, marketplace: (lst(CAT.edId) || {}).marketplace }, { usuario: D.meta.usuario, papel: papel() }); UI.closeModal(); UI.toast('Foto vinculada ao SKU — vira criativo do SKU.', 'ok'); CAT.openEditor(CAT.edId, 'Fotos e Vídeos'); }
+    else if (act === 'evincsku') {
+      const l2 = lst(b.dataset.lid); const opts = [l2.skuPai].concat(((allProds().find(p => p.id === l2.produtoId) || {}).variacoes || []).map(v => v.sku)).filter((v, i, a) => v && a.indexOf(v) === i);
+      UI.openModal(`<h3 class="h2">Vincular foto a um SKU</h3><p class="sub" style="margin-top:4px">o criativo passa a pertencer a este SKU/variação — nunca só pelo nome.</p>
+        <div style="display:flex;flex-direction:column;gap:6px;margin-top:12px">${opts.map(s => `<button class="btn ghost" data-vincsku="${UI.esc(s)}" data-mid="${b.dataset.mid}">${UI.esc(s)}</button>`).join('')}</div>`);
+    }
     else if (act === 'eremfoto') { const r = V8CAT.removeFromListing(cat, b.dataset.lid, b.dataset.mid, { usuario: D.meta.usuario, papel: papel() }); if (r.blocked) return UI.toast(r.reason, 'err'); UI.toast(r.nota, 'ok'); CAT.openEditor(lid, 'Fotos e Vídeos'); }
     else if (act === 'eaddfoto') uploadFoto(b.dataset.lid);
     else if (act === 'mduso') verUsoMidia(b.dataset.id);
@@ -1266,26 +1423,36 @@
     else if (act === 'editvar' || act === 'addvar') { UI.closeModal(); onClick(e); }
   }
 
-  /* upload REAL de foto do computador (FileReader → dataURL na biblioteca) */
-  function uploadFoto(listingId, produtoId) {
+  /* 10.E.3.3 — upload REAL de UMA OU VÁRIAS fotos (FileReader → dataURL → preview),
+     dedup por hash, vínculo por SKU/variação, origem registrada. Nunca declara upload
+     concluído sem a imagem aparecer na galeria. */
+  function uploadFoto(listingId, produtoId, skuVariacao) {
     const inp = document.createElement('input');
-    inp.type = 'file'; inp.accept = '.jpg,.jpeg,.png,.webp,.gif,.mp4';
+    inp.type = 'file'; inp.accept = '.jpg,.jpeg,.png,.webp,.gif,.mp4'; inp.multiple = true;
     inp.onchange = () => {
-      const f = inp.files && inp.files[0];
-      if (!f) return;
+      const files = Array.from(inp.files || []);
+      if (!files.length) return;
       const l = listingId ? lst(listingId) : null;
       const pid = l ? l.produtoId : (produtoId || (CAT.midiaF && CAT.midiaF.produto) || prods()[0].id);
-      const fr = new FileReader();
-      fr.onload = () => {
-        const r = V8CAT.addMedia(CAT.eng(), { arquivo: f.name, produtoId: pid, listingId: listingId || null,
-          origem: 'IMPORTAÇÃO_MANUAL', pesoKb: Math.round(f.size / 1024), dataUrl: String(fr.result).slice(0, 200000) },
-          { usuario: D.meta.usuario, papel: papel() });
-        if (r.blocked) return UI.toast(r.reason, 'err');
-        UI.toast(`"${f.name}" adicionada ${listingId ? 'a este anúncio' : 'à biblioteca do produto'} — registrada com origem, data e usuário.`, 'ok');
-        if (listingId && CAT.edId === listingId) CAT.openEditor(listingId, 'Fotos e Vídeos');
-        else body();
-      };
-      fr.readAsDataURL(f);
+      let restantes = files.length, add = 0, dup = 0;
+      files.forEach(f => {
+        const fr = new FileReader();
+        fr.onload = () => {
+          const r = V8CAT.addMediaReal(CAT.eng(), { arquivo: f.name, produtoId: pid, listingId: listingId || null,
+            origem: 'DASHBOARD_MANUAL', pesoKb: Math.round(f.size / 1024), dataUrl: String(fr.result).slice(0, 200000),
+            skuVariacao: skuVariacao || (l && l.skuPai) || null },
+            { usuario: D.meta.usuario, papel: papel() });
+          if (r.blocked) UI.toast(r.reason, 'err');
+          else if (r.duplicada) dup++;
+          else add++;
+          if (--restantes === 0) {
+            UI.toast(`${add} foto(s) carregada(s) e vinculada(s)${dup ? ` · ${dup} duplicada(s) por hash ignorada(s)` : ''}.`, 'ok');
+            if (listingId && CAT.edId === listingId) CAT.openEditor(listingId, 'Fotos e Vídeos');
+            else body();
+          }
+        };
+        fr.readAsDataURL(f);
+      });
     };
     inp.click();
   }

@@ -607,6 +607,276 @@
   const mediaUsage = (cat, mediaId) => (cat.media.find(m => m.id === mediaId) || { usos: [] }).usos
     .map(u => ({ listingId: u.listingId, marketplace: (byId(cat, u.listingId) || {}).mktNome, principal: u.principal, posicao: u.posicao }));
 
+  /* =============================================================
+     10.E.3.3 — CATÁLOGO OPERACIONAL COMPLETO
+     Matriz da Loja → Rascunho → Mídia real → Validação → Aprovação →
+     Publicação controlada → Identidade externa (Item ID + SKU) →
+     SKU como chave de inteligência + criativos + experimentos.
+     ============================================================= */
+
+  /* ---------- ciclo de vida rastreável do anúncio (16 estados) ---------- */
+  const LIFECYCLE = ['MATRIZ_DA_LOJA', 'RASCUNHO_DA_LOJA', 'RASCUNHO_DO_MARKETPLACE', 'AGUARDANDO_COMPLEMENTO',
+    'AGUARDANDO_REVISAO', 'PRONTO_PARA_APROVACAO', 'PRONTO_PARA_PUBLICACAO', 'PUBLICACAO_SOLICITADA',
+    'EM_ANALISE_NO_MARKETPLACE', 'PUBLICADO_E_ATIVO', 'NAO_PUBLICADO', 'PAUSADO_PELO_VENDEDOR',
+    'PAUSADO_PELO_MARKETPLACE', 'COM_VIOLACAO_OU_RESTRICAO', 'COM_ERRO_DE_PUBLICACAO', 'ARQUIVADO_INTERNO'];
+  /* transições permitidas — publicação nunca "pula" para ativo sem retorno oficial */
+  const TRANSICOES = {
+    MATRIZ_DA_LOJA: ['RASCUNHO_DO_MARKETPLACE', 'RASCUNHO_DA_LOJA'],
+    RASCUNHO_DA_LOJA: ['RASCUNHO_DO_MARKETPLACE', 'ARQUIVADO_INTERNO'],
+    RASCUNHO_DO_MARKETPLACE: ['AGUARDANDO_COMPLEMENTO', 'AGUARDANDO_REVISAO', 'ARQUIVADO_INTERNO'],
+    AGUARDANDO_COMPLEMENTO: ['AGUARDANDO_REVISAO', 'RASCUNHO_DO_MARKETPLACE'],
+    AGUARDANDO_REVISAO: ['PRONTO_PARA_APROVACAO', 'AGUARDANDO_COMPLEMENTO'],
+    PRONTO_PARA_APROVACAO: ['PRONTO_PARA_PUBLICACAO', 'AGUARDANDO_REVISAO'],
+    PRONTO_PARA_PUBLICACAO: ['PUBLICACAO_SOLICITADA', 'PRONTO_PARA_APROVACAO'],
+    PUBLICACAO_SOLICITADA: ['EM_ANALISE_NO_MARKETPLACE', 'COM_ERRO_DE_PUBLICACAO'],
+    EM_ANALISE_NO_MARKETPLACE: ['PUBLICADO_E_ATIVO', 'NAO_PUBLICADO', 'COM_VIOLACAO_OU_RESTRICAO', 'COM_ERRO_DE_PUBLICACAO'],
+    PUBLICADO_E_ATIVO: ['PAUSADO_PELO_VENDEDOR', 'PAUSADO_PELO_MARKETPLACE', 'COM_VIOLACAO_OU_RESTRICAO', 'ARQUIVADO_INTERNO'],
+  };
+  const estadoInicial = l => l.lifecycle || (l.interno ? 'RASCUNHO_DO_MARKETPLACE'
+    : ['ATIVO', 'PAUSADO'].includes(l.status) ? 'PUBLICADO_E_ATIVO'
+    : l.status === 'NAO_PUBLICADO' ? 'NAO_PUBLICADO' : 'RASCUNHO_DO_MARKETPLACE');
+  function transicionar(cat, listingId, novoEstado, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_EDIT')) return negar(opts.papel, 'CATALOG_EDIT');
+    const l = byId(cat, listingId);
+    if (!l) return { blocked: true, reason: 'anúncio não encontrado' };
+    if (!LIFECYCLE.includes(novoEstado)) return { blocked: true, reason: 'estado inválido: ' + novoEstado };
+    const atual = l.lifecycle || estadoInicial(l);
+    const permitidas = TRANSICOES[atual] || [];
+    if (novoEstado !== atual && !permitidas.includes(novoEstado) && !opts.forcar)
+      return { blocked: true, reason: `transição ${atual} → ${novoEstado} não permitida`, permitidas };
+    const antes = atual; l.lifecycle = novoEstado;
+    cat._audit('ciclo_de_vida', `${listingId}: ${antes} → ${novoEstado}`, { autor: opts.usuario || 'Marcos' });
+    cat._ev(listingId, 'Ciclo de vida', `${antes} → ${novoEstado}`, { autor: opts.usuario || 'Marcos' });
+    return { ok: true, de: antes, para: novoEstado };
+  }
+
+  /* ---------- MATRIZ DA LOJA: verdade interna reutilizável do produto ---------- */
+  function matrizDaLoja(cat, produtoId) {
+    const p = cat.products.find(x => x.id === produtoId);
+    if (!p) return null;
+    const m = p.master || {};
+    const rascunhos = cat.listings.filter(l => l.produtoId === produtoId && (l.interno || (l.lifecycle && /RASCUNHO|AGUARDANDO|PRONTO/.test(l.lifecycle))));
+    const publicados = cat.listings.filter(l => l.produtoId === produtoId && !l.interno && ['ATIVO', 'PAUSADO', 'BLOQUEADO'].includes(l.status));
+    return {
+      produtoId, nomeInterno: p.nome, produtoMaster: p.nome, skuPai: p.sku, skuInterno: p.sku, codigoInterno: p.codigo || p.sku,
+      marca: m.marca || null, modelo: m.modelo || null, material: m.material || null, cor: m.cor || null,
+      dimensoes: m.dimensoes || null, peso: m.pesoEmbaladoKg || null, embalagem: m.embalagem || null,
+      gtinEan: m.ean || null, ncm: m.ncm || null, descricaoBase: p.descricao || m.descricao || null,
+      variacoesInternas: (p.variacoes || []).map(v => ({ id: v.id, nome: v.nome, sku: v.sku, ean: v.codigoBarras || null, preco: v.preco, estoque: v.estoque })),
+      custo: p.custo != null ? p.custo : null, precoBase: p.precoBase, fornecedor: p.fornecedor || null,
+      fotosOriginais: cat.media.filter(x => x.produtoId === produtoId && x.tipo === 'foto').length,
+      videosOriginais: cat.media.filter(x => x.produtoId === produtoId && x.tipo === 'video').length,
+      responsavel: p.responsavel || null, fonte: p.fonte || 'MATRIZ INTERNA', criadoEm: p.criadoEm || null, atualizadoEm: p.atualizadoEm || null,
+      rascunhos: rascunhos.map(l => ({ id: l.id, marketplace: l.mktNome, lifecycle: l.lifecycle || estadoInicial(l) })),
+      anunciosPublicados: publicados.map(l => ({ id: l.id, marketplace: l.mktNome, itemId: l.itemIdExterno, sku: l.skuPai })),
+      nota: 'A Matriz é a verdade interna: existe antes, durante e depois da publicação; não é o anúncio do marketplace e não sobrescreve customizações de canal.',
+    };
+  }
+
+  /* ---------- IDENTIDADE EXTERNA persistente do anúncio ---------- */
+  const internalListingId = l => l.internalListingId || ('HEAD-' + ({ shopee: 'SHP', ml: 'MLB', tiktok: 'TT', magalu: 'MGL' }[l.marketplace] || 'GEN') + '-' + String(Math.abs(hash(l.id)) % 1000000).padStart(6, '0'));
+  function identidadeExterna(cat, l) {
+    const p = prodOf(cat, l);
+    return {
+      internal_listing_id: internalListingId(l), product_master_id: l.produtoId, draft_id: l.interno ? l.id : null,
+      company_id: (p && p.companyId) || null, channel_id: l.lojaId || null, marketplace: l.marketplace,
+      marketplace_account_id: l.contaId || null, external_listing_id: l.itemIdExterno || null,
+      external_parent_id: l.parentIdExterno || l.itemIdExterno || null, external_variation_id: l.variationIdExterno || null,
+      seller_sku: l.sellerSku || l.skuPai || null, variation_sku: l.variationSku || null, master_sku: (p && p.sku) || null, internal_sku: l.skuPai || null,
+      gtin_ean: l.ean || null, marketplace_status: l.statusNativo || l.status || null, head_status: l.lifecycle || estadoInicial(l),
+      source: l.fonte || null, source_file: l.sourceFile || null, published_at: l.publishedAt || null,
+      last_sync_at: l.atualizadoEm || null, last_external_update_at: l.lastExternalUpdateAt || null,
+      identity_confidence: l.itemIdExterno ? 'alta (ID externo)' : (l.skuPai ? 'média (SKU)' : 'baixa (só nome)'),
+      identity_origin: l.itemIdExterno ? 'ID_EXTERNO' : (l.skuPai ? 'SKU' : 'NOME'), audit_version: (l.versoes || []).length,
+    };
+  }
+
+  /* ---------- MÍDIA REAL: hash, dedup, reordenação, vínculo por SKU ---------- */
+  const mediaHash = s => 'h' + Math.abs(hash(String(s || ''))).toString(16);
+  function reorderMedia(cat, listingId, mediaId, novaPos, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_EDIT')) return negar(opts.papel, 'CATALOG_EDIT');
+    const lista = fotosDe(cat, listingId);
+    const alvo = lista.find(x => x.media.id === mediaId);
+    if (!alvo) return { blocked: true, reason: 'mídia não está neste anúncio' };
+    const ordem = lista.map(x => x.media.id).filter(id => id !== mediaId);
+    ordem.splice(Math.max(0, Math.min(novaPos, ordem.length)), 0, mediaId);
+    ordem.forEach((id, i) => { const m = cat.media.find(x => x.id === id); const u = m.usos.find(u => u.listingId === listingId); if (u) { u.posicao = i; u.principal = i === 0 && cat._capaPrimeira !== false; } });
+    cat._audit('midia_reordenada', `${listingId}: ${mediaId} → posição ${novaPos}`, { autor: opts.usuario || 'Marcos' });
+    cat._ev(listingId, 'Foto reordenada', `${mediaId} movida para posição ${novaPos + 1}`, { autor: opts.usuario || 'Marcos' });
+    return { ok: true, ordem };
+  }
+  /* dedup por hash: mesma imagem no mesmo anúncio não duplica silenciosamente */
+  function addMediaReal(cat, meta, opts) {
+    opts = opts || {};
+    const h = meta.hash || mediaHash(meta.dataUrl || meta.arquivo);
+    const dup = cat.media.find(m => m.hash === h && (!meta.listingId || m.usos.some(u => u.listingId === meta.listingId)));
+    if (dup && meta.listingId) return { ok: true, duplicada: true, media: dup, nota: 'imagem idêntica (hash) já existe neste anúncio — não duplicada' };
+    const r = addMedia(cat, meta, opts);
+    if (r.ok) { r.media.hash = h; if (meta.skuVariacao) r.media.skuVariacao = meta.skuVariacao; if (meta.variacaoId) r.media.variacaoId = meta.variacaoId; if (meta.tipoMidia) r.media.tipoMidia = meta.tipoMidia; }
+    return r;
+  }
+  function vincularMediaSku(cat, mediaId, sku, opts) {
+    opts = opts || {};
+    const m = cat.media.find(x => x.id === mediaId);
+    if (!m) return { blocked: true, reason: 'mídia não encontrada' };
+    m.skuVariacao = sku;
+    cat._audit('midia_vinculada_sku', `${mediaId} → SKU ${sku}`, { autor: (opts.usuario || 'Marcos') });
+    return { ok: true };
+  }
+
+  /* ---------- CREATIVE INTELLIGENCE por SKU ---------- */
+  function addCreative(cat, def, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_EDIT')) return negar(opts.papel, 'CATALOG_EDIT');
+    cat.creatives = cat.creatives || [];
+    if (!def.sku) return { blocked: true, reason: 'criativo exige SKU (nunca vincula só por nome)' };
+    const c = {
+      creative_id: 'cr' + (++cat.seq), tipo: def.tipo || 'foto', conteudo: def.conteudo || def.arquivo || null,
+      hash: def.hash || (def.mediaId ? (cat.media.find(m => m.id === def.mediaId) || {}).hash : null) || mediaHash(def.conteudo || def.arquivo),
+      ordem: def.ordem != null ? def.ordem : (cat.creatives.filter(x => x.sku === def.sku).length),
+      imagemPrincipal: !!def.imagemPrincipal, mediaId: def.mediaId || null,
+      sku: def.sku, variacao: def.variacao || null, listingId: def.listingId || null,
+      marketplace: def.marketplace || null, conta: def.conta || null,
+      dataInicio: def.dataInicio || HOJE, dataFim: def.dataFim || null, origem: def.origem || 'DASHBOARD_MANUAL',
+      versao: def.versao || 1, hipoteseTeste: def.hipoteseTeste || null, status: def.status || 'ATIVO',
+      resultado: def.resultado || null, metricaAvaliacao: def.metricaAvaliacao || null,
+      fontePerformance: def.fontePerformance || null, periodo: def.periodo || null, confianca: def.confianca || null,
+    };
+    cat.creatives.push(c);
+    cat._audit('criativo_adicionado', `SKU ${def.sku} · ${c.tipo} · ${c.creative_id}`, { autor: opts.usuario || 'Marcos' });
+    return { ok: true, creative: c };
+  }
+  const criativosDoSku = (cat, sku) => (cat.creatives || []).filter(c => c.sku === sku);
+  /* análise honesta: CTR/venda por criativo, sempre com fonte/período; nunca causa sem dados comparáveis */
+  function analiseCriativo(cat, sku) {
+    const cs = criativosDoSku(cat, sku).filter(c => c.metricaAvaliacao != null);
+    if (cs.length < 2) return { comparavel: false, nota: 'menos de 2 criativos com métrica — sem comparação; nada é declarado vencedor' };
+    const ord = cs.slice().sort((a, b) => (b.metricaAvaliacao || 0) - (a.metricaAvaliacao || 0));
+    return { comparavel: true, criativos: ord, melhor: ord[0], pior: ord[ord.length - 1],
+      nota: 'diferença observada não é causa comprovada — validar período, tráfego, amostra, preço, Ads e estoque antes de decidir.' };
+  }
+
+  /* ---------- EXPERIMENTOS DE CRIATIVO (nunca vencedor sem evidência) ---------- */
+  const EXP_STATUS = ['PLANEJADO', 'EM_EXECUCAO', 'PAUSADO', 'ENCERRADO', 'INCONCLUSIVO', 'VENCEDOR_CONFIRMADO', 'DESCARTADO'];
+  function criarExperimento(cat, def, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_EDIT')) return negar(opts.papel, 'CATALOG_EDIT');
+    if (!def.sku) return { blocked: true, reason: 'experimento exige SKU' };
+    if (!def.hipotese) return { blocked: true, reason: 'experimento exige hipótese declarada' };
+    if (!def.metricaPrincipal) return { blocked: true, reason: 'experimento exige métrica principal' };
+    cat.experiments = cat.experiments || [];
+    const e = { experiment_id: 'exp' + (++cat.seq), sku: def.sku, produtoMaster: def.produtoMaster || null,
+      marketplace: def.marketplace || null, conta: def.conta || null, anuncio: def.listingId || null, variacao: def.variacao || null,
+      criativoControle: def.criativoControle || null, criativoTeste: def.criativoTeste || null,
+      hipotese: def.hipotese, metricaPrincipal: def.metricaPrincipal, metricasSecundarias: def.metricasSecundarias || [],
+      dataInicio: def.dataInicio || HOJE, dataFim: def.dataFim || null, amostra: def.amostra || null,
+      resultado: null, decisao: null, confianca: null, responsavel: opts.usuario || 'Marcos',
+      fontesUsadas: def.fontesUsadas || [], status: 'PLANEJADO' };
+    cat.experiments.push(e);
+    cat._audit('experimento_criado', `SKU ${def.sku} · ${e.experiment_id} · hip: ${def.hipotese}`, { autor: e.responsavel });
+    return { ok: true, experimento: e };
+  }
+  /* avaliar: só declara VENCEDOR_CONFIRMADO quando há amostra + período + cobertura suficientes */
+  function avaliarExperimento(cat, expId, dados, opts) {
+    opts = opts || {};
+    const e = (cat.experiments || []).find(x => x.experiment_id === expId);
+    if (!e) return { blocked: true, reason: 'experimento não encontrado' };
+    dados = dados || {};
+    const faltas = [];
+    if (!dados.amostraSuficiente) faltas.push('amostra');
+    if (!dados.periodoSuficiente) faltas.push('período');
+    if (!dados.coberturaSuficiente) faltas.push('cobertura de dados');
+    if (dados.alteracoesParalelas) faltas.push('houve alteração paralela (preço/Ads/promoção/estoque)');
+    e.resultado = dados.resultado || null; e.confianca = dados.confianca || (faltas.length ? 'baixa' : 'alta');
+    e.fontesUsadas = dados.fontesUsadas || e.fontesUsadas;
+    if (faltas.length || !dados.vencedorClaro) { e.status = 'INCONCLUSIVO'; e.decisao = 'não declarar vencedor — faltou: ' + (faltas.join(', ') || 'diferença clara'); }
+    else { e.status = 'VENCEDOR_CONFIRMADO'; e.decisao = 'vencedor: ' + (dados.vencedor || e.criativoTeste); }
+    cat._audit('experimento_avaliado', `${expId} → ${e.status}`, { autor: opts.usuario || 'Marcos' });
+    return { ok: true, experimento: e, faltas };
+  }
+
+  /* ---------- PUBLICAÇÃO CONTROLADA: só solicitação interna, nunca escrita externa ---------- */
+  function solicitarPublicacao(cat, listingId, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_EDIT')) return negar(opts.papel, 'CATALOG_EDIT');
+    const l = byId(cat, listingId);
+    if (!l) return { blocked: true, reason: 'anúncio não encontrado' };
+    const faltas = [];
+    if (!(opts.empresa && opts.canal && l.marketplace && (l.contaId || opts.conta))) faltas.push('Empresa/Canal/Marketplace/Conta');
+    if (!opts.validado) faltas.push('rascunho validado');
+    if (opts.pendenciasBloqueantes) faltas.push('sem pendência bloqueante');
+    if (!opts.confirmacaoExplicita) faltas.push('confirmação explícita');
+    if (!opts.integracaoAutorizada) faltas.push('integração oficial autorizada (ambiente de escrita)');
+    if (faltas.length && !opts.somenteInterno) return { blocked: true, reason: 'publicação bloqueada — falta: ' + faltas.join(', '), faltas };
+    /* NUNCA escreve externamente: cria SOLICITAÇÃO interna e move o ciclo de vida */
+    cat.publicacoes = cat.publicacoes || [];
+    const pedido = { id: 'pub' + (++cat.seq), listingId, marketplace: l.marketplace, conta: l.contaId || opts.conta || null,
+      empresa: opts.empresa || null, canal: opts.canal || null, solicitadoEm: HOJE, solicitadoPor: opts.usuario || 'Marcos',
+      estado: 'PUBLICACAO_SOLICITADA', escritaExterna: false, retornoOficial: null };
+    cat.publicacoes.push(pedido);
+    l.lifecycle = 'PUBLICACAO_SOLICITADA';
+    cat._audit('publicacao_solicitada', `${listingId} · ${l.marketplace} · SEM escrita externa (só solicitação interna)`, { autor: pedido.solicitadoPor });
+    cat._ev(listingId, 'Publicação', 'publicação solicitada — aguardando retorno oficial; nenhuma escrita externa disparada', { autor: pedido.solicitadoPor });
+    return { ok: true, pedido, nota: 'somente solicitação interna criada — o marketplace não foi tocado. Ativo só após retorno oficial.' };
+  }
+  /* retorno oficial: só aqui o anúncio vira ativo e ganha IDs externos persistentes */
+  function registrarRetornoOficial(cat, listingId, retorno, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_EDIT')) return negar(opts.papel, 'CATALOG_EDIT');
+    const l = byId(cat, listingId);
+    if (!l) return { blocked: true, reason: 'anúncio não encontrado' };
+    const pedido = (cat.publicacoes || []).find(p => p.listingId === listingId && p.estado === 'PUBLICACAO_SOLICITADA');
+    retorno = retorno || {};
+    if (retorno.aceito === false) { l.lifecycle = retorno.motivo && /viol/i.test(retorno.motivo) ? 'COM_VIOLACAO_OU_RESTRICAO' : 'NAO_PUBLICADO';
+      if (pedido) { pedido.estado = l.lifecycle; pedido.retornoOficial = retorno; }
+      cat._audit('retorno_oficial', `${listingId} → ${l.lifecycle} (${retorno.motivo || 'recusado'})`);
+      return { ok: true, lifecycle: l.lifecycle, ativo: false };
+    }
+    /* aceito: registra identidade externa e move para ativo */
+    if (retorno.externalListingId) l.itemIdExterno = String(retorno.externalListingId);
+    if (retorno.externalVariationId) l.variationIdExterno = String(retorno.externalVariationId);
+    if (retorno.sellerSku) l.sellerSku = retorno.sellerSku;
+    if (retorno.variationSku) l.variationSku = retorno.variationSku;
+    l.interno = false; l.status = 'ATIVO'; l.lifecycle = 'PUBLICADO_E_ATIVO'; l.publishedAt = HOJE;
+    if (pedido) { pedido.estado = 'PUBLICADO_E_ATIVO'; pedido.retornoOficial = retorno; }
+    cat._audit('retorno_oficial', `${listingId} → PUBLICADO_E_ATIVO · Item ${l.itemIdExterno || '—'} · Var ${l.variationIdExterno || '—'} · SKU ${l.sellerSku || l.skuPai}`);
+    cat._ev(listingId, 'Publicação', `retorno oficial: ativo · Item ID ${l.itemIdExterno || '—'}`, { autor: opts.usuario || 'Marcos' });
+    return { ok: true, lifecycle: 'PUBLICADO_E_ATIVO', ativo: true, identidade: identidadeExterna(cat, l) };
+  }
+
+  /* ---------- SKU COMO CHAVE OPERACIONAL: dossiê cruzando todas as fontes ----------
+     A caller passa as fontes já lidas (V8IMP/V8INT) — o engine cruza pela HIERARQUIA:
+     Item ID → Variation ID → Seller SKU → SKU da Variação → SKU Principal → GTIN → Master → nome (só sugestão).
+     Contas diferentes NUNCA são somadas sem informar; mesmo SKU em mkts diferentes = comparação com origem separada. */
+  function skuDossie(cat, sku, fontes) {
+    fontes = fontes || {};
+    const norm = s => String(s || '').trim();
+    const bateSku = r => [r.sku_variacao, r.sku_pai, r.seller_sku, r.variation_sku, r.sku].map(norm).includes(norm(sku));
+    const listings = cat.listings.filter(l => norm(l.skuPai) === norm(sku) || norm(l.sellerSku) === norm(sku) || norm(l.variationSku) === norm(sku)
+      || (cat.products.find(p => p.id === l.produtoId) || { variacoes: [] }).variacoes.some(v => norm(v.sku) === norm(sku)));
+    const porMkt = {};
+    for (const l of listings) { const k = l.marketplace + '|' + (l.contaId || '—'); (porMkt[k] = porMkt[k] || { marketplace: l.mktNome, conta: l.contaId || '—', listingId: l.id, itemId: l.itemIdExterno, variationId: l.variationIdExterno }); }
+    const perf = (fontes.performance || []).filter(bateSku);
+    const estoque = (fontes.estoque || []).filter(bateSku);
+    const devolucoes = (fontes.devolucoes || []).filter(bateSku);
+    const ads = (fontes.ads || []).filter(bateSku);
+    const afiliados = (fontes.afiliados || []).filter(bateSku);
+    const criativos = criativosDoSku(cat, sku);
+    const experimentos = (cat.experiments || []).filter(e => e.sku === sku);
+    const contas = Array.from(new Set([].concat(listings.map(l => l.contaId), perf.map(r => r.conta), estoque.map(r => r.conta)).filter(Boolean)));
+    return {
+      sku, produtoMaster: (prodOf(cat, listings[0]) || {}).nome || null,
+      marketplaces: Object.values(porMkt), contas, multiConta: contas.length > 1,
+      performance: perf, estoque, devolucoes, ads, afiliados, criativos, experimentos,
+      criativosVencedores: criativos.filter(c => c.status === 'VENCEDOR' || c.resultado === 'VENCEDOR'),
+      criativosBaixa: criativos.filter(c => c.status === 'BAIXA_PERFORMANCE'),
+      chaveUsada: listings.some(l => l.itemIdExterno) ? 'Item ID + SKU' : 'SKU',
+      nota: contas.length > 1 ? 'ATENÇÃO: este SKU aparece em mais de uma conta — dados NÃO são somados entre contas; compare com origem separada.' : 'SKU semelhante não é SKU igual; nome nunca substitui Item ID/Variation ID/SKU.',
+    };
+  }
+
   /* ---------- duplicar e adaptar (rascunho interno; original intacto) ---------- */
   const ADAPT_RULES = {
     ml: { nome: 'Mercado Livre', tituloMax: 60, exige: ['ean', 'marca'], video: false,
@@ -1293,5 +1563,9 @@
     /* 10.E.3.1 — convergência para o editor completo */
     cadastroConverge, STATUS_INTERNO,
     /* 10.E.3.1 (redesign) — status nativo × Head + diagnóstico */
-    STATUS_OPERACIONAL, statusOperacional, diagnosticoProduto, TAG_HEAD };
+    STATUS_OPERACIONAL, statusOperacional, diagnosticoProduto, TAG_HEAD,
+    /* 10.E.3.3 — catálogo operacional: ciclo de vida, matriz, identidade, SKU-chave, criativos, experimentos, publicação */
+    LIFECYCLE, TRANSICOES, transicionar, estadoInicial, matrizDaLoja, identidadeExterna,
+    mediaHash, reorderMedia, addMediaReal, vincularMediaSku, addCreative, criativosDoSku, analiseCriativo,
+    EXP_STATUS, criarExperimento, avaliarExperimento, solicitarPublicacao, registrarRetornoOficial, skuDossie };
 }));

@@ -274,7 +274,13 @@ test('30 · registros importados têm origem de planilha, nunca DEMO', () => {
 /* 31 — nenhuma escrita externa é disparada */
 test('31 · nada é publicado nem alterado na Shopee', () => {
   const eng = read('catalog-engine.js');
-  assert.ok(!/\bpublicar|publish|sincroniza|push_to_shopee|api\.shopee/i.test(eng.replace(/nunca (é )?public|não .*public/gi, '')), 'sem função de escrita externa');
+  /* 10.E.3.3 — published_at/publishedAt são timestamps da identidade externa (contrato),
+     e a publicação é só SOLICITAÇÃO interna (escritaExterna:false) — não escrita externa.
+     Removemos esses tokens de DADO antes do heurístico, que segue barrando qualquer FUNÇÃO
+     de escrita externa real (api.shopee, push_to_shopee, sincroniza, publishToShopee...). */
+  const engSemDados = eng.replace(/nunca (é )?public|não .*public/gi, '')
+    .replace(/publish(ed)?_?[aA]t/g, '');
+  assert.ok(!/\bpublicar|publish|sincroniza|push_to_shopee|api\.shopee/i.test(engSemDados), 'sem função de escrita externa');
   const { cat } = aplicado();
   assert.ok(cat.cadastro.listings.every(l => l.situacao === 'STATUS REPORTADO POR PLANILHA'));
 });

@@ -915,3 +915,64 @@ coluna desaparece; nenhum campo importante fica só na camada técnica.
   idempotência; sem escrita externa). Suíte completa **669 verdes**. Headless:
   as três fontes injetadas renderizam com subabas, Campos Recebidos, Cruzamentos
   e Análises; console limpo, light/dark/mobile.
+
+## 10.E.3.3 — Catálogo operacional: SKU como chave, Matriz da Loja, foto real, publicação controlada (Parte 1)
+
+O Catálogo vira o núcleo que conecta o ciclo do produto: Matriz da Loja →
+Rascunho → mídia → validação → aprovação → publicação controlada → identidade
+externa (Item ID + SKU) → inteligência, criativos e aprendizados. O SKU deixa
+de ser só dado de estoque/pedido e passa a ser **chave estratégica**.
+
+- **Ciclo de vida rastreável** (`catalog-engine.js`): 16 estados (`LIFECYCLE`,
+  de `MATRIZ_DA_LOJA` a `ARQUIVADO_INTERNO`) com transições permitidas
+  (`transicionar`). Rascunho nunca é ativo; aprovação interna ≠ publicação
+  externa; ativo só após retorno oficial.
+- **Matriz da Loja** (`matrizDaLoja`): a verdade interna reutilizável do produto
+  (SKU pai, marca/material/dimensões/GTIN/NCM, custo, variações internas, fotos
+  originais). Existe antes, durante e depois da publicação; não é o anúncio do
+  marketplace e não sobrescreve customizações de canal.
+- **Identidade externa persistente** (`identidadeExterna`): internal_listing_id,
+  external_listing_id/variation_id, seller_sku/variation_sku/master_sku,
+  gtin_ean, head_status, e **confiança + origem do vínculo** (ID externo → SKU →
+  nome). Nome nunca substitui Item ID/Variation ID/SKU.
+- **SKU como chave operacional** (`skuDossie` + tela "Visão do SKU"): agrega, por
+  SKU, marketplaces/contas, performance, estoque, devoluções, Ads, afiliados,
+  criativos e testes — cruzando pela **hierarquia** Item ID → Variation ID →
+  Seller SKU → SKU da Variação → SKU Principal → GTIN → Master → (nome só
+  sugere). Mesmo SKU em contas diferentes **não é somado sem avisar**; entre
+  marketplaces é comparável com origem separada.
+- **Mídia real** (`addMediaReal`/`reorderMedia`/`vincularMediaSku`): upload de
+  uma ou várias fotos com **preview real** (FileReader → dataURL renderizado na
+  galeria), **dedup por hash**, **arrastar-e-soltar** e ↑/↓ para reordenar (a 1ª
+  posição vira capa), **definir capa** e **vincular ao SKU/variação** (a foto
+  vira criativo do SKU). Nunca declara upload concluído sem a imagem aparecer.
+- **Creative Intelligence + experimentos** (`addCreative`/`analiseCriativo`/
+  `criarExperimento`/`avaliarExperimento`): criativos ligados por SKU (nunca só
+  por nome); experimento exige hipótese + métrica; **nunca declara vencedor** sem
+  amostra, período e cobertura suficientes (e sem alteração paralela) —
+  `INCONCLUSIVO` por padrão.
+- **Publicação controlada** (`solicitarPublicacao`/`registrarRetornoOficial`):
+  bloqueada por padrão; exige Empresa/Canal/Marketplace/Conta + validação +
+  confirmação explícita + integração autorizada. Cria **apenas solicitação
+  interna** (`escritaExterna:false`) — o marketplace não é tocado. Só o **retorno
+  oficial** salva Item ID/Variation ID/SKU e move o anúncio para ativo.
+- **Editor Shopee fiel ao Seller Center** (`SHOPEE_SECOES`): no contexto Shopee o
+  editor abre **vertical em 8 seções** (Informações Básicas → Especificações →
+  Descrição → Informações de Vendas → Lista de Variações → Informações Fiscais →
+  Envio → Outros), com topo mostrando Item ID + status nativo × Head e ações
+  (Abrir Matriz / Visão do SKU / Inteligência e Dados Internos / Validar /
+  Solicitar publicação). Fora da Shopee, o editor de 14 abas segue igual.
+- **Testes**: `ui-v8-catalog-operacional.test.js` (mapeando os testes
+  obrigatórios do sprint: Matriz, rascunho ≠ ativo, mídia real/hash/ordem/capa/
+  SKU, editor Shopee 8 seções, Item/Variation ID e SKU persistentes, cruzamento
+  por Item ID/SKU, contas separadas, criativos por SKU, experimento honesto,
+  publicação com confirmação e IDs, ativo só após retorno, sem escrita externa).
+  Suíte completa **692 verdes**. Headless: editor Shopee vertical, foto real com
+  preview/reordenar/capa, Visão do SKU, publicação controlada + retorno oficial;
+  console limpo, light/dark/mobile.
+- **Parte 2 (continuação, declarada)**: filtros recolhíveis + chips + seletor de
+  colunas na tela de Marketplaces; painel lateral fixo completo no editor; fluxo
+  conversacional de criação por WhatsApp ("Criar anúncio deste produto na
+  Shopee" / "Coloque essa foto no anúncio X"); adaptação de criativo vencedor
+  entre marketplaces. A base de motor (Matriz, identidade, SKU-chave, mídia,
+  publicação) já suporta esses passos.
