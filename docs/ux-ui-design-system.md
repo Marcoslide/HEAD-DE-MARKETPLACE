@@ -1057,3 +1057,39 @@ dias nunca é fatiado em dias falsos); a reimportação faz **upsert de verdade*
   com preview de 20 linhas e a aplicação do filtro célula-a-célula em todas as
   telas (Home/Pedidos/Ads/Afiliados/Chat) ficam como continuação — o motor
   (`V8TIME` + campos temporais) já está pronto para essas telas consumirem.
+
+## 10.E.3.4 — Fidelidade do editor de anúncio Shopee (Informações Fiscais completas)
+
+Ao editar um anúncio Shopee, o editor deve ser um clone funcional do Seller
+Center — não um formulário genérico. O ponto principal era **Informações
+Fiscais**, que estava reduzida.
+
+- **Informações Fiscais fiéis (16 campos reais)**: Regime Fiscal, NCM, **Origem**
+  (dropdown com a tabela ICMS real — códigos 0 a 8), CFOP Venda Mesmo Estado,
+  CFOP Vendas Diferentes Estados, Unidade de Medida, CFOP (Exportar), % total de
+  tributos federais/estaduais/municipais, PIS e COFINS CST, Tipo de Operação,
+  CEST, EX TIPI (tabela de exceções IPI), Nr. RECOPI, Informações adicionais do
+  produto, Nr. de controle da FCI e **Produto é um item agregável?** (Não/Sim).
+  Obrigatórios marcados com *, tooltips do fluxo Shopee, e **valor importado da
+  planilha preservado** (inclusive selecionado no dropdown; valor fora da lista
+  vira opção "(importado)"). Nada de bloco fiscal reduzido nem campos fundidos.
+- **Especificações enriquecida**: País de Origem, Duração da Garantia, Tipo de
+  Garantia, Estilo, Tipo de armação, Comprimento, Largura — além de marca,
+  material, cor, dimensões, EAN, com o contador "Complete X/21" da Shopee.
+- **Envio fiel**: Peso, Comprimento/Largura/Altura, prazo de postagem, e **Taxa
+  de Frete por transportadora** (Shopee Xpress, Entrega pelo Comprador, Entrega
+  Direta, Entrega Turbo) com toggle habilitado/desabilitado, mais **Sob
+  encomenda** (Não/Sim). Estoque Full observado quando importado.
+- **Helpers fiéis** (`esel`/`erad`): selects e radios do Seller Center; o
+  handler de salvar passou a ler corretamente **input, select, radio e
+  checkbox** (radio só o selecionado; checkbox como booleano) e versiona.
+- **Ações do editor Shopee**: Salvar rascunho interno · Salvar versão Shopee ·
+  Validar cadastro · Solicitar publicação · Fechar. Nenhuma escrita externa.
+- **Guarda**: `body()` do Catálogo não re-renderiza se o editor for aberto fora
+  da view (evita erro de console ao editar a partir de outra tela).
+- **Testes**: `ui-v8-editor-shopee.test.js` (11 blocos: 8 seções, 16 campos
+  fiscais + labels, tabela ICMS de Origem, obrigatório/tooltip, esel/erad, valor
+  importado preservado, Especificações/Envio fiéis, ações do editor, save de
+  select/radio/checkbox, sem escrita externa). Suíte completa **721 verdes**.
+  Headless: 16 campos fiscais presentes, NCM/Origem importados preservados, save
+  de select+radio versiona; console limpo, light/dark/mobile.

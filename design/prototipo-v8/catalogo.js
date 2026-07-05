@@ -99,6 +99,7 @@
   function body() {
     ensureConverged();
     const el = UI.$('#catBody');
+    if (!el) return; /* editor pode ser aberto fora da view do Catálogo — nada a re-renderizar */
     if (CAT.sub === 'Visão Geral') el.innerHTML = visaoGeral();
     else if (CAT.sub === 'Marketplaces') el.innerHTML = marketplacesHub();
     else if (CAT.sub === 'Produtos Master') el.innerHTML = produtos();
@@ -1044,8 +1045,29 @@
         <span class="eyebrow">${label}${opts.ob ? ' *' : ''}</span> ${vazio && opts.ob ? '<span class="st warn plain">CAMPO PENDENTE</span>' : ''} ${estadoCampo(campo)}<br>
         <input class="input ${campoFoco === campo ? 'foco' : ''}" style="width:100%;margin-top:4px" type="${opts.tipo || 'text'}" data-efield="${campo}" value="${UI.esc(val ?? '')}" placeholder="${vazio ? (opts.ob ? 'obrigatório — informe para destravar' : 'opcional') : ''}"></label>`;
     };
-    const salvarBar = `<div style="display:flex;gap:8px;margin-top:14px">
-      <button class="btn primary" data-act="esave">Salvar (só ${UI.esc(l.mktNome)} — versiona)</button>
+    /* 10.E.3.4 — select e radio fiéis ao Seller Center (valor importado preservado) */
+    const esel = (campo, label, val, opcoes, opts) => {
+      opts = opts || {};
+      const vazio = val == null || val === '';
+      const cur = String(val ?? '');
+      return `<label style="display:block;margin-top:10px">
+        <span class="eyebrow">${label}${opts.ob ? ' *' : ''}</span> ${vazio && opts.ob ? '<span class="st warn plain">CAMPO PENDENTE</span>' : ''} ${opts.ajuda ? `<span class="src" title="${UI.esc(opts.ajuda)}">ⓘ</span>` : ''} ${estadoCampo(campo)}<br>
+        <select class="select" style="width:100%;margin-top:4px" data-efield="${campo}">
+          <option value="">${opts.ph || 'selecione…'}</option>
+          ${opcoes.map(o => { const v = Array.isArray(o) ? o[0] : o; const t = Array.isArray(o) ? o[1] : o; return `<option value="${UI.esc(v)}" ${cur === String(v) ? 'selected' : ''}>${UI.esc(t)}</option>`; }).join('')}
+          ${cur && !opcoes.some(o => String(Array.isArray(o) ? o[0] : o) === cur) ? `<option value="${UI.esc(cur)}" selected>${UI.esc(cur)} (importado)</option>` : ''}
+        </select></label>`;
+    };
+    const erad = (campo, label, val, opts) => {
+      opts = opts || {};
+      const cur = String(val ?? 'Não');
+      return `<div style="margin-top:10px"><span class="eyebrow">${label}</span> ${opts.ajuda ? `<span class="src" title="${UI.esc(opts.ajuda)}">ⓘ</span>` : ''}<br>
+        <div class="fbar" style="margin-top:4px">${['Não', 'Sim'].map(o => `<label class="fchip ${cur === o ? 'on' : ''}" style="cursor:pointer"><input type="radio" name="${campo}" data-efield="${campo}" value="${o}" ${cur === o ? 'checked' : ''} style="margin-right:5px">${o}</label>`).join('')}</div></div>`;
+    };
+    const salvarBar = `<div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn primary" data-act="esave">Salvar rascunho interno</button>
+      ${l.marketplace === 'shopee' ? '<button class="btn ghost" data-act="esaveshopee">Salvar versão Shopee</button>' : ''}
+      <button class="btn ghost" data-act="evalidar" data-lid="${l.id}">Validar cadastro</button>
       <button class="btn ghost" onclick="UI.closeModal()">fechar</button>
       <span class="src" style="align-self:center">editar aqui não toca outros marketplaces nem o Product Master</span></div>`;
 
@@ -1067,16 +1089,28 @@
         <dt>Situação</dt><dd><span class="st warn plain">${UI.esc(l.situacao || 'STATUS REPORTADO POR PLANILHA')}</span> · status reportado: ${UI.esc(l.cadastroRef.statusReportado)}</dd>` : ''}
       </dl>
       ${l.camposExtras && l.camposExtras.length ? `<div class="callout" style="margin-top:10px">Campos extras recebidos: <b>${l.camposExtras.length}</b> — nada se perdeu. <button class="btn sm ghost" data-act="eaba" data-aba="Outros">Abrir em Outros</button></div>` : ''}${salvarBar}`;
-    else if (A === 'Especificações') corpo = `
-      ${einp('marca', 'Marca', V('marca') ?? p.master.marca, { ob: true })}
-      ${einp('material', 'Material', V('material') ?? p.master.material, { ob: true })}
-      ${einp('cor', 'Cor', V('cor'))}
-      ${einp('dimensoes', 'Dimensões (LxAxC)', V('dimensoes'))}
-      ${einp('pesoEmbaladoKg', 'Peso (kg)', V('pesoEmbaladoKg') ?? p.master.pesoEmbaladoKg, { ob: true, tipo: 'number' })}
-      ${einp('garantia', 'Garantia', V('garantia'))}
-      ${einp('ean', 'Código de barras / EAN / GTIN', V('ean'), { ob: true })}
-      ${einp('quantidadeKit', 'Quantidade por kit', V('quantidadeKit'), { tipo: 'number' })}
+    else if (A === 'Especificações') {
+      const preench = ['marca', 'paisOrigem', 'duracaoGarantia', 'material', 'estilo', 'tipoArmacao', 'tipoGarantia', 'comprimento', 'largura'].filter(c => { const v = V(c); return v != null && v !== ''; }).length;
+      corpo = `
+      <p class="src" style="margin-top:0">Complete ${preench}/21 · preencha mais atributos para aumentar a exposição do anúncio (regra da Shopee).</p>
+      <div class="editor-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+        ${einp('marca', 'Marca', V('marca') ?? p.master.marca, { ob: true })}
+        ${esel('paisOrigem', 'País de Origem', V('paisOrigem') || 'Brasil', ['Brasil', 'China', 'Estados Unidos', 'Outro'], { ob: true })}
+        ${esel('duracaoGarantia', 'Duração da Garantia', V('duracaoGarantia') || '3 Meses', ['Sem garantia', '3 Meses', '6 Meses', '12 Meses', '24 Meses'])}
+        ${einp('material', 'Material', V('material') ?? p.master.material, { ob: true })}
+        ${einp('estilo', 'Estilo', V('estilo'))}
+        ${esel('tipoArmacao', 'Tipo de armação', V('tipoArmacao') || 'Single', ['Single', 'Múltipla', 'Kit'])}
+        ${esel('tipoGarantia', 'Tipo de Garantia', V('tipoGarantia') || 'Garantia do Fornecedor', ['Garantia do Fornecedor', 'Garantia do Vendedor', 'Sem garantia'])}
+        ${einp('comprimento', 'Comprimento (cm)', V('comprimento'), { tipo: 'number' })}
+        ${einp('largura', 'Largura (cm)', V('largura'), { tipo: 'number' })}
+        ${einp('cor', 'Cor', V('cor'))}
+        ${einp('dimensoes', 'Dimensões (LxAxC)', V('dimensoes'))}
+        ${einp('ean', 'Código de barras / EAN / GTIN', V('ean'), { ob: true })}
+        ${einp('quantidadeKit', 'Quantidade por kit', V('quantidadeKit'), { tipo: 'number' })}
+      </div>
+      <button class="btn sm ghost" style="margin-top:8px" data-act="eaba" data-aba="Outros">Todos os atributos ▾</button>
       <p class="src" style="margin-top:8px">atributos obrigatórios variam por marketplace e categoria — pendências aparecem em Saúde e Pendências.</p>${salvarBar}`;
+    }
     else if (A === 'Descrição') corpo = `
       ${einp('descricaoCurta', 'Descrição curta', V('descricaoCurta'))}
       <label style="display:block;margin-top:10px"><span class="eyebrow">Descrição completa</span> ${estadoCampo('descricao')}<br>
@@ -1154,24 +1188,63 @@
           </div></div>`).join('') || '<div class="empty" style="grid-column:1/-1"><b>SEM FOTO neste anúncio</b>Adicionar do computador ou reaproveitar da biblioteca — a mídia permanece no Product Master.</div>'}
       </div>`;
     }
-    else if (A === 'Informações Fiscais') corpo = `
-      ${einp('ncm', 'NCM', V('ncm') ?? p.master.ncm)}
-      ${einp('cst', 'CST', V('cst'))}
-      ${einp('csosn', 'CSOSN', V('csosn'))}
-      ${einp('origemFiscal', 'Origem', V('origemFiscal'))}
-      ${einp('ean', 'EAN/GTIN', V('ean'), { ob: true })}
-      <p class="src" style="margin-top:8px">dados obrigatórios variam por categoria — o Head marca pendência, nunca inventa valor fiscal.</p>${salvarBar}`;
-    else if (A === 'Envio e Logística') corpo = `
-      ${einp('pesoEmbaladoKg', 'Peso embalado (kg)', V('pesoEmbaladoKg') ?? p.master.pesoEmbaladoKg, { ob: true, tipo: 'number' })}
-      ${einp('alturaCm', 'Altura embalada (cm)', V('alturaCm'), { tipo: 'number' })}
-      ${einp('larguraCm', 'Largura embalada (cm)', V('larguraCm'), { tipo: 'number' })}
-      ${einp('comprimentoCm', 'Comprimento embalado (cm)', V('comprimentoCm'), { tipo: 'number' })}
-      ${einp('prazoProducao', 'Prazo de produção (dias)', V('prazoProducao'), { tipo: 'number' })}
-      ${einp('prazoPostagem', 'Prazo de postagem (dias)', V('prazoPostagem'), { tipo: 'number' })}
+    else if (A === 'Informações Fiscais') {
+      /* 10.E.3.4 — FIEL AO SELLER CENTER: todos os campos fiscais reais da Shopee,
+         obrigatório/opcional marcados, valor importado preservado, tooltips do fluxo. */
+      const ORIGEM_OPC = [
+        ['0', '0 (Nacional, exceto as indicadas nos códigos 3, 4, 5 e 8)'],
+        ['1', '1 (Estrangeira - Importação direta, exceto a indicada no código 6)'],
+        ['2', '2 (Estrangeira - Adquirida no mercado interno, exceto a indicada no código 7)'],
+        ['3', '3 (Nacional, mercadoria com conteúdo de importação superior a 40% e inferior ou igual a 70%)'],
+        ['4', '4 (Nacional, cuja produção tenha sido feita em conformidade com processos produtivos básicos)'],
+        ['5', '5 (Nacional, mercadoria com conteúdo de importação inferior ou igual a 40%)'],
+        ['6', '6 (Estrangeira - Importação direta, sem similar nacional, constante em lista da CAMEX)'],
+        ['7', '7 (Estrangeira - Adquirida no mercado interno, sem similar nacional, constante em lista da CAMEX)'],
+        ['8', '8 (Nacional, mercadoria com conteúdo de importação superior a 70%)']];
+      corpo = `
+      <div class="callout" style="margin-top:0">A Shopee oferece suporte à emissão de NF-e, caso queira utilizá-la, selecione a Shopee em <b>Configuração da NF-e</b> ou se você é participante da fila de faturamento por parceiros. Campos opcionais dependem da categoria e do regime fiscal.</div>
+      <div class="editor-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px;margin-top:8px">
+        ${esel('regimeFiscal', 'Regime Fiscal', V('regimeFiscal') || 'Regra Padrão', ['Regra Padrão', 'Simples Nacional', 'Lucro Presumido', 'Lucro Real'], { ob: true, ajuda: 'Regime tributário usado no cálculo da NF-e' })}
+        <div></div>
+        ${einp('ncm', 'NCM', V('ncm') ?? p.master.ncm, { ob: true, ajuda: 'Nomenclatura Comum do Mercosul — 8 dígitos' })}
+        ${esel('origemFiscal', 'Origem', V('origemFiscal'), ORIGEM_OPC, { ob: true, ajuda: 'Origem da mercadoria (tabela ICMS)' })}
+        ${einp('cfopMesmoEstado', 'CFOP Venda Mesmo Estado', V('cfopMesmoEstado'), { ajuda: 'CFOP para operações dentro do mesmo estado' })}
+        ${einp('cfopDiferentesEstados', 'CFOP Vendas Diferentes Estados', V('cfopDiferentesEstados'), { ajuda: 'CFOP para operações interestaduais' })}
+        ${esel('unidadeMedida', 'Unidade de Medida', V('unidadeMedida') || 'UN (UNIDADE)', ['UN (UNIDADE)', 'PC (PEÇA)', 'KG (QUILOGRAMA)', 'CX (CAIXA)', 'M (METRO)', 'M2 (METRO QUADRADO)'], { ob: true })}
+        ${einp('cfopExportar', 'CFOP (Exportar)', V('cfopExportar'), { ajuda: 'CFOP para operações de exportação' })}
+        ${einp('tributosTotal', '% total de tributos federais, estaduais e municipais', V('tributosTotal') ?? '0,00', { ajuda: 'Lei da Transparência (IBPT)' })}
+        ${einp('pisCofinsCst', 'PIS e COFINS CST', V('pisCofinsCst'), { ajuda: 'Código de Situação Tributária de PIS/COFINS' })}
+        ${esel('tipoOperacao', 'Tipo de Operação', V('tipoOperacao') || '0-Fabricante', ['0-Fabricante', '1-Revendedor', '2-Importador', '3-Distribuidor'])}
+        ${einp('cest', 'CEST', V('cest'), { ajuda: 'Código Especificador da Substituição Tributária' })}
+        ${einp('exTipi', 'EX TIPI (tabela de exceções IPI)', V('exTipi'), { ajuda: 'Exceção da TIPI, quando aplicável' })}
+        ${einp('recopi', 'Nr. RECOPI', V('recopi'), { ajuda: 'Registro de Controle da Produção de Imunes (papel)' })}
+        ${einp('infoAdicionaisFiscal', 'Informações adicionais do produto', V('infoAdicionaisFiscal'))}
+        ${einp('controleFci', 'Nr. de controle da FCI', V('controleFci'), { ajuda: 'Ficha de Conteúdo de Importação' })}
+      </div>
+      ${erad('itemAgregavel', 'Produto é um item agregável?', V('itemAgregavel') || 'Não', { ajuda: 'Item vendido em conjunto com outro (kit) para fins fiscais' })}
+      <p class="src" style="margin-top:8px">todos os campos fiscais reais da Shopee — obrigatórios marcados com *. Dados importados da planilha são preservados; o Head marca pendência, nunca inventa valor fiscal.</p>${salvarBar}`;
+    }
+    else if (A === 'Envio e Logística') {
+      const fullSku = window.IMPORTAR ? V8IMP.stockView(IMPORTAR.eng, {}).atual.filter(s => s.sku === l.skuPai) : [];
+      const FRETES = [['Shopee Xpress', 'shopeeXpress', true], ['Entrega pelo Comprador', 'entregaComprador', true], ['Entrega Direta', 'entregaDireta', true], ['Entrega Turbo', 'entregaTurbo', false]];
+      corpo = `
+      <p class="src" style="margin-top:0">Possui dimensões diferentes por variação? <span class="src">(defina no bloco de variações se necessário)</span></p>
+      <div class="editor-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:0 16px">
+        ${einp('pesoEmbaladoKg', 'Peso (em Kg)', V('pesoEmbaladoKg') ?? p.master.pesoEmbaladoKg, { ob: true, tipo: 'number' })}
+        <div></div>
+        ${einp('comprimentoCm', 'Comprimento (cm)', V('comprimentoCm'), { tipo: 'number' })}
+        ${einp('larguraCm', 'Largura (cm)', V('larguraCm'), { tipo: 'number' })}
+        ${einp('alturaCm', 'Altura (cm)', V('alturaCm'), { tipo: 'number' })}
+        ${einp('prazoPostagem', 'Prazo de postagem (dias)', V('prazoPostagem'), { tipo: 'number' })}
+      </div>
+      <div class="sect-h"><span class="h2">Taxa de Frete</span><span class="src">canais de envio habilitados por conta</span></div>
+      ${FRETES.map(([nome, campo, on]) => `<div class="metric-row"><span class="lbl">${nome} <span class="src">${nome === 'Shopee Xpress' ? '(máx 30kg)' : nome === 'Entrega pelo Comprador' ? '(máx 300kg)' : '(máx 30kg)'}</span></span>
+        <span class="val"><label class="fchip ${(V(campo) ?? on) ? 'on' : ''}" style="cursor:pointer"><input type="checkbox" data-efield="${campo}" ${(V(campo) ?? on) ? 'checked' : ''} style="margin-right:5px">${(V(campo) ?? on) ? 'habilitado' : 'desabilitado'}</label></span></div>`).join('')}
+      ${erad('sobEncomenda', 'Sob encomenda', V('sobEncomenda') || (p.tipo === 'SOB_ENCOMENDA' ? 'Sim' : 'Não'), { ajuda: 'Deixará livre as formas de fabricação por pedido, desde que o público concorde' })}
       <dl class="kv" style="margin-top:12px">
-        <dt>Full / fulfillment</dt><dd>${window.IMPORTAR && V8IMP.stockView(IMPORTAR.eng, {}).atual.find(s => s.sku === l.skuPai) ? 'estoque Full observado: ' + V8IMP.stockView(IMPORTAR.eng, {}).atual.filter(s => s.sku === l.skuPai).map(s => s.armazem + ' (' + s.disponivel + ')').join(', ') : '<span class="src">SEM DADOS de armazém — importe o Current Inventory Report</span>'}</dd>
-        <dt>Restrições logísticas</dt><dd>${p.tipo === 'SOB_ENCOMENDA' ? '<span class="st warn plain">sob encomenda — validar modalidade por canal</span>' : '<span class="src">nenhuma registrada</span>'}</dd>
+        <dt>Full / fulfillment</dt><dd>${fullSku.length ? 'estoque Full observado: ' + fullSku.map(s => s.armazem + ' (' + s.disponivel + ')').join(', ') : '<span class="src">SEM DADOS de armazém — importe o Current Inventory Report</span>'}</dd>
       </dl>${salvarBar}`;
+    }
     else if (A === 'Outros') corpo = `
       ${einp('statusInterno', 'Status interno', V('statusInterno'))}
       ${einp('observacoes', 'Observações da equipe', V('observacoes'))}
@@ -1458,12 +1531,15 @@
     else if (act === 'epublicar') openPublicar(b.dataset.lid);
     else if (act === 'eretorno') { const r = V8CAT.registrarRetornoOficial(cat, b.dataset.lid, { aceito: true, externalListingId: '1' + Math.abs(hashish(b.dataset.lid)) % 9000000000, externalVariationId: null, sellerSku: (lst(b.dataset.lid) || {}).skuPai }, { usuario: D.meta.usuario, papel: papel() }); if (r.blocked) return UI.toast(r.reason, 'err'); UI.closeModal(); UI.toast('Retorno oficial recebido — Item ID salvo, anúncio movido para Ativos.', 'ok'); CAT.sub = 'Marketplaces'; render(); }
     else if (act === 'editorAba') CAT.openEditor(b.dataset.id || lid, b.dataset.aba);
-    else if (act === 'esave') {
+    else if (act === 'esave' || act === 'esaveshopee') {
       const l = lst(lid);
       const campos = UI.$$('#modal [data-efield]');
       let n = 0;
       for (const i of campos) {
-        const v = i.type === 'number' ? (i.value === '' ? null : +i.value) : i.value;
+        if (i.type === 'radio' && !i.checked) continue; /* radio: só o selecionado */
+        const v = i.type === 'number' ? (i.value === '' ? null : +i.value)
+          : i.type === 'checkbox' ? i.checked
+          : i.value;
         const antes = V8CAT.valorDe(cat, l, i.dataset.efield);
         if (String(antes ?? '') !== String(v ?? '')) {
           const r = V8CAT.editListing(cat, lid, i.dataset.efield, v, { usuario: D.meta.usuario, papel: papel() });
@@ -1471,7 +1547,8 @@
           if (r.changed) n++;
         }
       }
-      UI.toast(n ? `${n} campo(s) versionado(s) em ${lst(lid).mktNome} — outros marketplaces e o master intactos.` : 'Nada mudou.', n ? 'ok' : '');
+      const ondeSalvou = act === 'esaveshopee' ? 'versão Shopee do anúncio (interna)' : lst(lid).mktNome;
+      UI.toast(n ? `${n} campo(s) versionado(s) em ${ondeSalvou} — outros marketplaces e o master intactos.` : 'Nada mudou.', n ? 'ok' : '');
       if (n) { CAT.openEditor(lid, CAT.edAba); body(); }
     }
     else if (act === 'eprincipal') { const r = V8CAT.setPrincipal(cat, b.dataset.lid, b.dataset.mid, { usuario: D.meta.usuario, papel: papel() }); if (r.blocked) return UI.toast(r.reason, 'err'); UI.toast('Capa alterada — só neste anúncio.', 'ok'); CAT.openEditor(lid, 'Fotos e Vídeos'); }
