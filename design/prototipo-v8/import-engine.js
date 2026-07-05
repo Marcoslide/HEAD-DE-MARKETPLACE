@@ -94,6 +94,19 @@
        nunca "Impressões de Produto"/"Cliques por Produto" — esses são do perfil de performance) */
     SHOPEE_PRODUCT_CONTRIBUTION: P('SUPPORTED', 'shopee', 'LISTING_METRIC', 'contrib_produto',
       ['ID do Item', 'Produto', 'Status Atual do Item', 'Vendas', 'Impressões', 'Cliques', 'Pedidos', 'Unidades'], 'item_period'),
+    /* ---------- 10.E.2.5 · fontes REAIS Shopee (cabeçalhos exatos dos exports) ---------- */
+    /* Ads CPC — o CSV traz metadados antes do cabeçalho (tratado no file-reader) */
+    SHOPEE_ADS: P('SUPPORTED', 'shopee', 'CHANNEL_ATTRIBUTION', 'ads',
+      ['Nome do Anúncio', 'Impressões', 'Cliques', 'GMV', 'Despesas', 'ROAS'], 'campaign'),
+    /* Afiliados — AFILIADO.csv (atribuição por pedido, comissão, despesa, reembolso) */
+    SHOPEE_AFFILIATE_REAL: P('SUPPORTED', 'shopee', 'CHANNEL_ATTRIBUTION', 'afiliados',
+      ['ID do pedido', 'Id de atribuição da comissão', 'Campanha do parceiro', 'Preço(R$)'], 'affiliate_attr'),
+    /* Estoque Full — Current Inventory Report (abas Total / Warehouse Stock) */
+    SHOPEE_INVENTORY_FULL: P('SUPPORTED', 'shopee', 'STATE_SNAPSHOT', 'estoque',
+      ['Seller SKU ID', 'Warehouse SKU ID', 'Sellable', 'Reserved'], 'stock_snapshot'),
+    /* Chat e Atendimento — export real (Métricas Principais / Tendências) */
+    SHOPEE_CHAT_REAL: P('SUPPORTED', 'shopee', 'SERVICE_METRIC', 'atendimento',
+      ['Chats Respondidos', 'Chats Não-Respondidos', 'CSAT %', 'Tempo médio de resposta'], 'day_metric'),
   };
 
   /* ---------------- detecção por CONJUNTO de colunas (10.E.3.1) ----------------
@@ -115,6 +128,11 @@
     SHOPEE_METRICAS_DIARIAS: { ident: ['Data', 'Vendas (BRL)', 'Pedidos'], minIdent: 3, minHits: 4, prio: 9 },
     SHOPEE_TRAFFIC_SOURCE: { ident: ['Fonte de Tráfego'], minIdent: 1, minHits: 4, prio: 9 },
     SHOPEE_PRODUCT_CONTRIBUTION: { ident: ['ID do Item', 'Produto', 'Status Atual do Item', 'Impressões', 'Cliques'], minIdent: 5, minHits: 6, prio: 8 },
+    /* 10.E.2.5 — fontes reais com identificadores próprios */
+    SHOPEE_ADS: { ident: ['Nome do Anúncio', 'GMV', 'ROAS'], minIdent: 2, minHits: 4, prio: 9 },
+    SHOPEE_AFFILIATE_REAL: { ident: ['Id de atribuição da comissão', 'Campanha do parceiro'], minIdent: 2, minHits: 3, prio: 9 },
+    SHOPEE_INVENTORY_FULL: { ident: ['Seller SKU ID', 'Warehouse SKU ID', 'Sellable'], minIdent: 2, minHits: 3, prio: 9 },
+    SHOPEE_CHAT_REAL: { ident: ['Chats Respondidos', 'CSAT %'], minIdent: 2, minHits: 3, prio: 9 },
     SHOPEE_HOT_LISTING: { aux: true, prio: -1 }, /* só vence se NENHUM perfil forte qualificar */
   };
   const NOME_PERFIL = {
@@ -126,6 +144,8 @@
     SHOPEE_PROMOTION_SUMMARY: 'Promoções', SHOPEE_VOUCHER: 'Cupons', CUSTOM_CSV_MAPPING: 'Outro / Referência',
     SHOPEE_METRICAS_DIARIAS: 'Métricas Principais', SHOPEE_TRAFFIC_SOURCE: 'Fontes de Tráfego',
     SHOPEE_PRODUCT_CONTRIBUTION: 'Contribuição por Produto',
+    SHOPEE_ADS: 'Ads (CPC)', SHOPEE_AFFILIATE_REAL: 'Afiliados', SHOPEE_INVENTORY_FULL: 'Estoque Full',
+    SHOPEE_CHAT_REAL: 'Chat e Atendimento',
   };
   /* nome amigável da base de métricas por aba */
   const NOME_BASE = { pedido_feito: 'Pedido Feito', produto_pago: 'Produto Pago' };
@@ -153,6 +173,26 @@
     'Cliques únicos': 'unique_clicks',
   };
   const PROD_COLS = Object.assign({ 'Taxa de Vendas': 'sales_rate' }, FONTE_COLS);
+  /* 10.E.2.5 — colunas reais dos exports Shopee */
+  const ESTOQUE_COLS = {
+    'Stock Level': 'stock_level', 'Sellable': 'sellable', 'Reserved': 'reserved', 'Unsellable': 'unsellable',
+    'Recommend Replenishment Qty': 'recommend_replenishment', 'Coverage Days': 'coverage_days', 'Selling Speed': 'selling_speed',
+    'Excess Qty': 'excess_qty', 'unitsSoldInLast7Days': 'sold_7d', 'unitsSoldInLast15Days': 'sold_15d',
+    'unitsSoldInLast30Days': 'sold_30d', 'unitsSoldInLast60Days': 'sold_60d', 'unitsSoldInLast90Days': 'sold_90d',
+    'Disponível': 'sellable', 'Reservado': 'reserved', 'Em trânsito': 'in_transit',
+  };
+  const ADS_COLS = {
+    'Impressões': 'impressions', 'Cliques': 'clicks', 'CTR': 'ctr', 'Conversões': 'conversions',
+    'Conversões Diretas': 'direct_conversions', 'Taxa de Conversão': 'conversion_rate', 'Itens Vendidos': 'items_sold',
+    'GMV': 'gmv', 'Receita direta': 'direct_revenue', 'Receita Direta': 'direct_revenue', 'Despesas': 'ad_spend',
+    'ROAS': 'roas', 'ROAS Direto': 'direct_roas', 'ACOS': 'acos', 'ACOS Direto': 'direct_acos',
+    'Add to Cart': 'add_to_cart', 'Custo por Conversão': 'cost_per_conversion', 'Voucher Amount': 'voucher_amount',
+  };
+  const AFILIADO_COLS = {
+    'Preço(R$)': 'price_brl', 'Qtd': 'qty', 'Valor da Compra(R$)': 'purchase_value_brl', 'Valor do reembolso(R$)': 'refund_value_brl',
+    'Comissão do pedido da marca para o Afiliado(R$)': 'affiliate_commission_brl', 'Comissão do item da marca para o Afiliado(R$)': 'affiliate_item_commission_brl',
+    'Taxa de serviço de Afiliados do Vendedor(R$)': 'affiliate_service_fee_brl', 'despesas(R$)': 'affiliate_expenses_brl',
+  };
   /* números brasileiros — engine autossuficiente (mesma regra do V8FILE.parseBrNumber) */
   function brNum(v) {
     if (v == null || v === '') return null;
@@ -282,6 +322,9 @@
     }
     if (r.metric_type === 'fonte_trafego') return ['ft', r.marketplace, r.contaId, r.sourceSheet || '', r.fonte, r.periodo_ini, r.periodo_fim].join('|');
     if (r.metric_type === 'contrib_produto') return ['cp', r.marketplace, r.contaId, r.sourceSheet || '', r.item_id, r.periodo_ini, r.periodo_fim].join('|');
+    /* 10.E.2.5 — Ads por campanha+período; Afiliados por pedido+id de atribuição (nunca duplica) */
+    if (r.metric_type === 'ads') return ['ad', r.marketplace, r.contaId, r.campanha, r.periodo_ini, r.periodo_fim].join('|');
+    if (r.metric_type === 'afiliados') return ['af', r.marketplace, r.contaId, r.external_order_id || '-', r.attributionId || '-', r.item_id || '-'].join('|');
     /* PEDIDOS: marketplace + conta + ID do pedido = pedido único (nunca duplica) */
     if (r.metric_type === 'pedidos' && gran === 'TRANSACTIONAL') return KEYS.order(r);
     /* DEVOLUÇÃO/REEMBOLSO/CANCELAMENTO: + tipo + ID do evento quando existir */
@@ -445,9 +488,11 @@
     const stagingRows = [];
     rows.forEach((r, i) => {
       /* linha sem chave obrigatória NÃO é descartada em silêncio: vai para "linhas com erro" com motivo */
+      const skuEstoque = r['SKU'] || r['Seller SKU ID'] || r['Warehouse SKU ID'] || r['Shop SKU ID'];
+      const armazemEstoque = r['Armazém'] || r['Warehouse'] || (det.perfil === 'SHOPEE_INVENTORY_FULL' ? 'Full' : null);
       const semChave = det.destino === 'pedidos' && !r['ID do pedido'] ? 'ID do pedido ausente'
         : det.destino === 'devolucoes' && !r['ID do pedido'] ? 'ID do pedido ausente no evento'
-        : det.destino === 'estoque' && !(r['SKU'] && r['Armazém']) ? 'SKU/Armazém ausente' : null;
+        : det.destino === 'estoque' && !(skuEstoque && armazemEstoque) ? 'SKU/Armazém ausente' : null;
       if (semChave) {
         linhasComErro++;
         eng.rawErrors.push({ batchId: batch.id, linha: i + 1, motivo: semChave, raw: r, arquivo: file.nome });
@@ -472,8 +517,22 @@
         base.tipo_evento = r['Tipo de evento'] || 'DEVOLUÇÃO';
         base.event_id = r['ID do evento'] != null ? String(r['ID do evento']) : null;
       } else if (det.destino === 'estoque') {
-        base.armazem = r['Armazém']; base.sku_ref = r['SKU'];
+        base.armazem = armazemEstoque; base.sku_ref = skuEstoque;
         base.momento = r['Momento da leitura'] || file.momento || ((file.periodo || {}).fim) || HOJE;
+        base.metricas = normCols(r, ESTOQUE_COLS);
+        base.produtoNome = r['Product Name'] || r['Nome do Produto'] || null;
+      } else if (det.destino === 'ads') {
+        /* 10.E.2.5 — Ads: campanha explica atribuição/custo, NUNCA soma no faturamento */
+        base.campanha = r['Nome do Anúncio'] || r['Campanha'] || ('campanha ' + (i + 1));
+        base.item_id = base.campanha;
+        base.metricas = normCols(r, ADS_COLS);
+      } else if (det.destino === 'afiliados') {
+        /* 10.E.2.5 — Afiliados: atribuição por pedido + id de comissão (nunca duplica faturamento) */
+        base.external_order_id = r['ID do pedido'] != null ? String(r['ID do pedido']) : null;
+        base.attributionId = r['Id de atribuição da comissão'] != null ? String(r['Id de atribuição da comissão']) : null;
+        base.item_id = r['ID do Produto'] != null ? String(r['ID do Produto']) : (r['Afiliado'] || base.external_order_id);
+        base.campanha = r['Campanha do parceiro'] || r['Afiliado'] || null;
+        base.metricas = normCols(r, AFILIADO_COLS);
       } else if (det.destino === 'fonte_trafego') {
         /* 10.E.2.3 — tabela de fontes de tráfego: cada linha é uma fonte (Card, Afiliado, Ads…) */
         base.fonte = r['Fonte de Tráfego'] || r['Fonte'] || r['Origem'] || ('fonte ' + (i + 1));
@@ -642,6 +701,7 @@
         /* 10.E.2.3 — métricas normalizadas + proveniência de aba/bloco/linha */
         metricas: s.metricas || null, tipoLinha: s.tipoLinha || null, baseMetrica: s.baseMetrica || null,
         nomeBase: s.nomeBase || null, fonte: s.fonte || null, classeFonte: s.classeFonte || null,
+        campanha: s.campanha || null, attributionId: s.attributionId || null,
         produtoNome: s.produtoNome || null, statusItem: s.statusItem || null,
         sourceSheet: s.sourceSheet || null, granLabel: s.granLabel || null, vinculo: s.vinculo || null,
         periodo_ini: s.periodo_ini, periodo_fim: s.periodo_fim, metric_type: s.metric_type,
@@ -1668,6 +1728,29 @@
     return { semDados: false, fontes,
       trafego: fontes.filter(f => f.classe === 'trafego'), afiliados: fontes.filter(f => f.classe === 'afiliados'), ads: fontes.filter(f => f.classe === 'ads') };
   }
+  /* 10.E.2.5 — Ads (campanhas) e Afiliados: sempre explicativos, nunca somam receita */
+  function adsView(eng, filtro) {
+    filtro = filtro || {};
+    const snaps = eng.snapshots.filter(s => s.metric_type === 'ads' && !s.excluidoDaAnalise && (!filtro.contaId || s.escopo.contaId === filtro.contaId));
+    if (!snaps.length) return { semDados: true, campanhas: [] };
+    const campanhas = snaps.map(s => Object.assign({ campanha: s.campanha, fonteArquivo: s.sourceFile,
+      periodo: { ini: s.periodo_ini, fim: s.periodo_fim }, origem: s.origem, status: (s.raw && s.raw['Status']) || null }, s.metricas || {}));
+    const totalGmv = Math.round(campanhas.reduce((a, c) => a + (c.gmv || 0), 0) * 100) / 100;
+    const totalSpend = Math.round(campanhas.reduce((a, c) => a + (c.ad_spend || 0), 0) * 100) / 100;
+    return { semDados: false, campanhas, totalGmv, totalSpend,
+      nota: 'GMV e receita de Ads são métricas de atribuição/performance — NÃO são somadas ao faturamento total' };
+  }
+  function afiliadosView(eng, filtro) {
+    filtro = filtro || {};
+    const snaps = eng.snapshots.filter(s => s.metric_type === 'afiliados' && !s.excluidoDaAnalise && (!filtro.contaId || s.escopo.contaId === filtro.contaId));
+    if (!snaps.length) return { semDados: true, registros: [] };
+    const registros = snaps.map(s => Object.assign({ pedido: s.external_order_id, atribuicao: s.attributionId, campanha: s.campanha,
+      produto: (s.raw && s.raw['Nome do Produto']) || null, fonteArquivo: s.sourceFile }, s.metricas || {}));
+    const comissao = Math.round(registros.reduce((a, r) => a + (r.affiliate_commission_brl || 0), 0) * 100) / 100;
+    const reembolso = Math.round(registros.reduce((a, r) => a + (r.refund_value_brl || 0), 0) * 100) / 100;
+    return { semDados: false, registros, comissaoTotal: comissao, reembolsoTotal: reembolso,
+      nota: 'afiliados explicam atribuição, comissão e reembolso — nunca duplicam o faturamento' };
+  }
   function productContribView(eng, filtro) {
     filtro = filtro || {};
     const snaps = eng.snapshots.filter(s => s.metric_type === 'contrib_produto' && !s.excluidoDaAnalise &&
@@ -1934,6 +2017,49 @@
         ] }],
     }),
 
+    /* ---------- 10.E.2.5 — fontes REAIS Shopee (schema exato dos exports) ---------- */
+    adsReal: periodo => ({
+      nome: 'Dados+Gerais+de+Anúncios+Shopee.csv', sourceType: 'PLANILHA_SHOPEE', formato: 'csv', periodo,
+      abas: [{ nome: 'csv', meta: ['Relatório de Todos os Anúncios CPC - Shopee Brasil', 'Nome da loja: Líder Molduras'],
+        headers: ['#', 'Nome do Anúncio', 'Status', 'Tipo de Anúncio', 'ID do produto', 'Método de Lance', 'Data de Início',
+          'Impressões', 'Cliques', 'CTR', 'Conversões', 'Taxa de Conversão', 'Itens Vendidos', 'GMV', 'Receita direta', 'Despesas', 'ROAS', 'ROAS Direto', 'ACOS'],
+        rows: [
+          { '#': 1, 'Nome do Anúncio': 'Grupo de Anúncios 24/06/2026 - 1', 'Status': 'Em Andamento', 'ID do produto': '-', 'Impressões': 45845, 'Cliques': 1636, 'CTR': '3.57%', 'Conversões': 24, 'Itens Vendidos': 24, 'GMV': 4494.65, 'Receita direta': 3507.05, 'Despesas': 350, 'ROAS': 12.84, 'ROAS Direto': 10.02, 'ACOS': '7.79%' },
+          { '#': 2, 'Nome do Anúncio': 'Novo Grupo - 21/02', 'Status': 'Encerrado', 'Impressões': 225007, 'Cliques': 6586, 'CTR': '2.93%', 'Conversões': 104, 'Itens Vendidos': 105, 'GMV': 15452.20, 'Receita direta': 4439.07, 'Despesas': 2669.84, 'ROAS': 5.79, 'ACOS': '17.28%' },
+        ] }],
+    }),
+    affiliateReal: periodo => ({
+      nome: 'AFILIADO.csv', sourceType: 'PLANILHA_SHOPEE', formato: 'csv', periodo,
+      abas: [{ nome: 'csv', headers: ['ID do pedido', 'Status do Pedido', 'Horário do pedido', 'ID do Produto', 'Nome do Produto',
+        'ID da Promoção', 'Preço(R$)', 'Qtd', 'Id de atribuição da comissão', 'Campanha do parceiro', 'Campaign Type',
+        'Valor da Compra(R$)', 'Valor do reembolso(R$)', 'Comissão do pedido da marca para o Afiliado(R$)', 'Taxa de Comissão do item da marca para o Afiliado', 'Canal', 'despesas(R$)'],
+        rows: [
+          { 'ID do pedido': '260705TQMQMPKT', 'Status do Pedido': 'Pendente', 'ID do Produto': '44411503612', 'Nome do Produto': 'Quadro Decorativo Grande', 'Preço(R$)': 288.61, 'Qtd': 1, 'Id de atribuição da comissão': '87129062', 'Campanha do parceiro': 'Campanha Aberta do Vendedor', 'Valor da Compra(R$)': 274.16, 'Valor do reembolso(R$)': 0, 'Comissão do pedido da marca para o Afiliado(R$)': 41.124, 'Canal': 'Ordem de Descoberta', 'despesas(R$)': 41.124 },
+          { 'ID do pedido': '260705TQ4C1NHF', 'Status do Pedido': 'Pendente', 'ID do Produto': '55455415518', 'Nome do Produto': 'Kit 6 Quadros', 'Preço(R$)': 198.37, 'Qtd': 1, 'Id de atribuição da comissão': '87128863', 'Campanha do parceiro': 'Campanha Aberta do Vendedor', 'Valor da Compra(R$)': 198.37, 'Valor do reembolso(R$)': 0, 'Comissão do pedido da marca para o Afiliado(R$)': 8.92665, 'Canal': 'Ordem indireta', 'despesas(R$)': 8.92665 },
+        ] }],
+    }),
+    inventoryFull: momento => ({
+      nome: 'Current Inventory Report ' + String(momento).replace(/\D/g, '') + '.xlsx', sourceType: 'PLANILHA_SHOPEE', periodo: null, momento,
+      abas: [
+        { nome: 'Total', headers: ['Product Name', 'Variations', 'Warehouse SKU ID', 'Seller SKU ID', 'Shop SKU ID', 'Barcode', 'Sellable', 'Reserved', 'Unsellable', 'Selling Speed', 'Coverage Days', 'unitsSoldInLast7Days', 'unitsSoldInLast30Days'],
+          rows: [
+            { 'Product Name': 'Quadro Paisagem 60x90', 'Variations': '60x90', 'Warehouse SKU ID': 'WH-QP-6090', 'Seller SKU ID': 'QP-6090', 'Barcode': '7890001112223', 'Sellable': 4, 'Reserved': 2, 'Unsellable': 0, 'Selling Speed': 1.2, 'Coverage Days': 3, 'unitsSoldInLast7Days': 8, 'unitsSoldInLast30Days': 36 },
+            { 'Product Name': 'Kit 3 Quadros', 'Variations': 'Sala', 'Warehouse SKU ID': 'WH-KIT3', 'Seller SKU ID': 'KIT3-SALA', 'Barcode': '7890004445556', 'Sellable': 40, 'Reserved': 1, 'Unsellable': 0, 'Selling Speed': 0.4, 'Coverage Days': 100, 'unitsSoldInLast7Days': 3, 'unitsSoldInLast30Days': 12 },
+          ] },
+        { nome: 'Warehouse Stock', headers: ['Product Name', 'Warehouse SKU ID', 'Seller SKU ID', 'Warehouse', 'Stock Level', 'Sellable', 'Reserved'],
+          rows: [{ 'Product Name': 'Quadro Paisagem 60x90', 'Warehouse SKU ID': 'WH-QP-6090', 'Seller SKU ID': 'QP-6090', 'Warehouse': 'Full BR-SP', 'Stock Level': 6, 'Sellable': 4, 'Reserved': 2 }] },
+      ],
+    }),
+    chatReal: periodo => ({
+      nome: 'chat_20260604_20260703.xlsx', sourceType: 'PLANILHA_SHOPEE', periodo,
+      abas: [
+        { nome: 'Tendências das Métricas', headers: ['Data', 'Visitantes', 'Chat Consultado', 'Chats Respondidos', 'Chats Não-Respondidos', 'Tempo médio de resposta', 'CSAT %', 'Taxa de Resposta do Chat', 'Compradores', 'Pedidos', 'Vendas (BRL)'],
+          rows: [
+            { 'Data': '2026-07-01', 'Visitantes': 340, 'Chat Consultado': 34, 'Chats Respondidos': 24, 'Chats Não-Respondidos': 10, 'Tempo médio de resposta': '3h12', 'CSAT %': '92%', 'Taxa de Resposta do Chat': '71%', 'Compradores': 12, 'Pedidos': 14 },
+            { 'Data': '2026-07-02', 'Visitantes': 310, 'Chat Consultado': 28, 'Chats Respondidos': 21, 'Chats Não-Respondidos': 7, 'Tempo médio de resposta': '2h40', 'CSAT %': '95%', 'Taxa de Resposta do Chat': '75%', 'Compradores': 10, 'Pedidos': 11 },
+          ] }],
+    }),
+
     /* ---------- 10.E.2.3 — MÉTRICAS PRINCIPAIS: arquivo real multiabas (8 abas) ----------
        Valores em formato brasileiro (335.392,51 · 0,63% · 1.375) e linha consolidada
        de período (04/06/2026-03/07/2026) convivendo com linhas diárias. Os totais do
@@ -2015,7 +2141,7 @@
     restaurarCampo, reprocess, relacoesReport, decidirRelacao, coberturaReal, applyImportChain,
     lastImpact, sinaisSilencio, fatosConhecimento,
     /* 10.E.2.3 — importação multiabas real */
-    stageMulti, metricasView, trafficSourcesView, productContribView, brNum, isoBr, rangeBr, NOME_BASE,
+    stageMulti, metricasView, trafficSourcesView, productContribView, adsView, afiliadosView, brNum, isoBr, rangeBr, NOME_BASE,
     /* 10.E.2 */
     DATA_PERMS, DATA_PERMS_ALL, canData, orderTab, cepProtegido, ordersView, orderStats, geoStats, stockView,
     conversaoExplicita, valorEfetivo, correct, excludeFromAnalysis, restaurar, archiveFile, desativarVinculo,

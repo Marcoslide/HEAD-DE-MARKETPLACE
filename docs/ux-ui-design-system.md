@@ -758,3 +758,47 @@ histórico já existentes; o que é novo é a camada de estado e diagnóstico.
   suíte completa **620 verdes**; validação headless da Visão Geral, colunas
   de status/diagnóstico, filtro por diagnóstico e importado com status
   nativo+Head, em light/dark e mobile, console limpo.
+
+## Sprint 10.E.2.5 — Fontes Shopee REAIS (contrato de dados + idempotência)
+
+Integra os relatórios reais da Shopee enviados pelo owner como fonte interna,
+com os cabeçalhos exatos dos exports, todas as colunas preservadas e
+importação idempotente (reimportar nunca duplica pedidos, vendas, estoque,
+métricas, comissões ou GMV).
+
+- **CSV com metadados antes do cabeçalho** (`parseCsvText`): o relatório de
+  Ads CPC traz título + `Nome da loja` + `Período` antes do cabeçalho real; o
+  parser detecta o delimitador varrendo as primeiras linhas e escolhe a
+  primeira linha "larga" como cabeçalho, preservando o preâmbulo em `meta`.
+- **Perfis reais** (`import-engine.js`): `SHOPEE_ADS` (Ads CPC: Nome do
+  Anúncio/GMV/ROAS/ACOS → destino `ads`), `SHOPEE_AFFILIATE_REAL`
+  (AFILIADO.csv: ID do pedido/Id de atribuição da comissão/Campanha do
+  parceiro → destino `afiliados`), `SHOPEE_INVENTORY_FULL` (Current Inventory:
+  Seller SKU ID/Warehouse/Sellable/Reserved/unitsSoldInLast30Days → `estoque`),
+  `SHOPEE_CHAT_REAL` (Chats Respondidos/CSAT % → `atendimento`). O arquivo de
+  Métricas Principais real (8 abas) já era lido pelo parser multiabas.
+- **Chaves naturais novas**: Ads = `campanha + período`; Afiliados = `pedido +
+  id de atribuição + item`; Estoque Full lê `Seller SKU ID`/`Warehouse` como
+  snapshot (o mais recente vira atual, nunca soma). Ads e Afiliados são
+  **explicativos** (CHANNEL_ATTRIBUTION): o GMV de Ads e a comissão de
+  afiliado **não somam** no faturamento — `receitaConsolidada` os ignora.
+- **Leitores**: `adsView` (campanhas com GMV/investimento/ROAS/ACOS, nota de
+  não-soma), `afiliadosView` (comissão/reembolso/despesa por pedido). Central
+  → Ads e Central → Afiliados mostram os dados reais com fonte e período.
+- **Camada bruta**: toda coluna de cada arquivo fica preservada (Afiliados
+  tem 38 colunas, Ads 35+, Estoque 25) — nada some; campos sem mapa ficam
+  `PRESERVADO_AGUARDANDO_MAPEAMENTO`.
+- **Validado com os arquivos reais**: script Node lê os 5 arquivos enviados,
+  reconhece cada perfil, aplica e prova idempotência (snapshots estáveis na
+  reimportação); headless sobe os 5 pela tela e confirma Métricas/Estoque/
+  Ads/Afiliados na Central, console limpo.
+- **Testes**: `ui-v8-realsources.test.js` (8 blocos: CSV com metadados, Ads,
+  Afiliados, Estoque Full, Chat, colunas preservadas, idempotência, snapshot
+  de estoque); suíte completa **628 verdes**.
+
+Escopo entregue vs. spec completo 10.E.2.5: este incremento cobre o **contrato
+de dados e a idempotência** (o núcleo que torna os arquivos reais utilizáveis).
+O scaffolding restante do prompt — Import Ledger como página, seletor
+Empresa/Loja/Conta em wizard dedicado, cabeçalhos "onde baixar na Shopee" por
+aba e o toggle de análise consolidada — fica como continuação, apoiado nesta
+base de fontes reais.

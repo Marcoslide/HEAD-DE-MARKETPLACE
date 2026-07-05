@@ -261,10 +261,29 @@
     </div>`;
   }
 
+  function afiliadosReaisPanel() {
+    const av = V8IMP.afiliadosView(eng(), filtroCtx());
+    if (av.semDados) return '';
+    const brl = v => v == null ? '—' : 'R$ ' + (+v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const r0 = av.registros[0];
+    return `<div class="panel" style="margin-top:12px">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Afiliados — base real importada</span><span class="st ok plain">IMPORTADO</span></div>
+      <div class="mesa-grid" style="margin-top:8px">
+        <div class="mesa-kpi"><span class="lbl">Comissão total</span><span class="val">${brl(av.comissaoTotal)}</span></div>
+        <div class="mesa-kpi"><span class="lbl">Reembolso total</span><span class="val">${brl(av.reembolsoTotal)}</span></div>
+        <div class="mesa-kpi"><span class="lbl">Registros</span><span class="val">${av.registros.length}</span></div>
+      </div>
+      <div class="tblwrap" style="margin-top:10px"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">Pedido</th><th class="nosort">Produto</th><th class="nosort">Campanha</th><th class="nosort">Compra</th><th class="nosort">Comissão</th><th class="nosort">Despesa</th></tr></thead><tbody>
+        ${av.registros.slice(0, 12).map(r => `<tr><td class="tmain">${UI.esc(r.pedido || '—')}</td><td><span class="src">${UI.esc((r.produto || '—').slice(0, 40))}</span></td><td><span class="src">${UI.esc(r.campanha || '—')}</span></td><td>${brl(r.purchase_value_brl)}</td><td>${brl(r.affiliate_commission_brl)}</td><td>${brl(r.affiliate_expenses_brl)}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="src" style="margin-top:6px">dados importados reais · fonte: <b>${UI.esc(r0.fonteArquivo)}</b>. <b>${UI.esc(av.nota)}</b></p>
+    </div>`;
+  }
   function conteudoArea(nome, snaps) {
     if (nome === 'Métricas Principais') { const p = metricasReaisPanel(); if (p) return p + conteudoAreaBase(nome, snaps); }
     if (nome === 'Tráfego') { const p = fontesReaisPanel(['trafego', 'ads'], 'Tráfego'); if (p) return p + conteudoAreaBase(nome, snaps); }
-    if (nome === 'Afiliados') { const p = fontesReaisPanel(['afiliados'], 'Afiliados'); if (p) return p + conteudoAreaBase(nome, snaps); }
+    if (nome === 'Afiliados') { const p = (afiliadosReaisPanel() || '') + (fontesReaisPanel(['afiliados'], 'Afiliados') || ''); if (p) return p + conteudoAreaBase(nome, snaps); }
     if (nome === 'Performance de Produtos') { const p = produtosReaisPanel(); if (p) return p + conteudoAreaBase(nome, snaps); }
     return conteudoAreaBase(nome, snaps);
   }
@@ -326,9 +345,28 @@
     return '';
   }
 
+  function adsReaisPanel() {
+    const av = V8IMP.adsView(eng(), filtroCtx());
+    if (av.semDados) return '';
+    const brl = v => v == null ? '—' : 'R$ ' + (+v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const c0 = av.campanhas[0];
+    return `<div class="panel" style="margin-top:12px">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Ads (CPC) — base real importada</span><span class="st ok plain">IMPORTADO</span></div>
+      <div class="mesa-grid" style="margin-top:8px">
+        <div class="mesa-kpi"><span class="lbl">GMV atribuído</span><span class="val">${brl(av.totalGmv)}</span></div>
+        <div class="mesa-kpi"><span class="lbl">Investimento</span><span class="val">${brl(av.totalSpend)}</span></div>
+        <div class="mesa-kpi"><span class="lbl">Campanhas</span><span class="val">${av.campanhas.length}</span></div>
+      </div>
+      <div class="tblwrap" style="margin-top:10px"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">Campanha</th><th class="nosort">Status</th><th class="nosort">Impressões</th><th class="nosort">Cliques</th><th class="nosort">GMV</th><th class="nosort">Despesa</th><th class="nosort">ROAS</th><th class="nosort">ACOS</th></tr></thead><tbody>
+        ${av.campanhas.map(c => `<tr><td class="tmain">${UI.esc(c.campanha || '—')}</td><td><span class="src">${UI.esc(c.status || '—')}</span></td><td>${num(c.impressions)}</td><td>${num(c.clicks)}</td><td>${brl(c.gmv)}</td><td>${brl(c.ad_spend)}</td><td>${c.roas ?? '—'}</td><td>${UI.esc(String((c.raw && c.raw['ACOS']) || c.acos || '—'))}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="src" style="margin-top:6px">dados importados reais · fonte: <b>${UI.esc(c0.fonteArquivo)}</b> · período ${c0.periodo.ini || '—'} a ${c0.periodo.fim || '—'}. <b>${UI.esc(av.nota)}</b></p>
+    </div>`;
+  }
   function ads() {
     const list = prods();
-    const adsPanel = fontesReaisPanel(['ads'], 'Ads');
+    const adsPanel = adsReaisPanel() || fontesReaisPanel(['ads'], 'Ads');
     return `
       ${adsPanel || `<div class="callout" style="margin-top:0"><b>Sem dados de Ads importados nesta instância</b> — quando o export de Ads entrar, esta subárea ganha fonte própria. Enquanto isso, o gate interno continua valendo: <b>Ads nunca é resposta para produto ruim ou margem ruim</b>.</div>`}
       <div class="panel" style="margin-top:12px">

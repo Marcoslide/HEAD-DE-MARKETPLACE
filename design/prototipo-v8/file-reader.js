@@ -90,8 +90,9 @@
   /* ---------------- CSV ---------------- */
   function parseCsvText(text) {
     text = String(text).replace(/^﻿/, '');
-    const firstLine = text.split(/\r?\n/, 1)[0] || '';
-    const delim = [';', ',', '\t'].map(d => [d, firstLine.split(d).length]).sort((a, b) => b[1] - a[1])[0][0];
+    /* delimitador detectado nas primeiras linhas COM separador (o cabeçalho real pode não ser a linha 1) */
+    const amostra = text.split(/\r?\n/).slice(0, 25);
+    const delim = [',', ';', '\t'].map(d => [d, Math.max(0, ...amostra.map(l => l.split(d).length - 1))]).sort((a, b) => b[1] - a[1])[0][0];
     const rows = []; let cur = [''], inQ = false, row = cur;
     const pushRow = () => { if (row.length > 1 || row[0] !== '') rows.push(row); row = cur = ['']; };
     for (let i = 0; i < text.length; i++) {
@@ -105,10 +106,20 @@
       else if (ch !== '\r') cur[cur.length - 1] += ch;
     }
     pushRow();
-    if (!rows.length) return { headers: [], rows: [] };
-    const headers = rows[0].map(h => h.trim());
+    if (!rows.length) return { headers: [], rows: [], meta: [] };
+    /* 10.E.2.5 — CSV com METADADOS antes do cabeçalho (ex.: relatório de Ads Shopee):
+       o cabeçalho real é a primeira linha "larga" (nº de colunas perto do máximo). */
+    const janela = rows.slice(0, 20);
+    const maxCols = Math.max(...janela.map(r => r.filter(c => String(c).trim() !== '').length));
+    let hIdx = 0;
+    if (maxCols >= 4) { hIdx = rows.findIndex(r => r.filter(c => String(c).trim() !== '').length >= Math.max(4, maxCols * 0.7)); if (hIdx < 0) hIdx = 0; }
+    const meta = rows.slice(0, hIdx).filter(r => r.some(c => String(c).trim() !== '')).map(r => r.filter(c => String(c).trim() !== '').join(': '));
+    const headers = rows[hIdx].map(h => h.trim());
     const num = v => (v !== '' && !isNaN(v) && String(v).trim() !== '') ? +v : v;
-    return { headers, rows: rows.slice(1).map(r => Object.fromEntries(headers.map((h, i) => [h, num((r[i] ?? '').trim())]))) };
+    const dataRows = rows.slice(hIdx + 1)
+      .map(r => Object.fromEntries(headers.map((h, i) => [h, num((r[i] ?? '').trim())])))
+      .filter(o => Object.values(o).some(v => v !== '' && v != null));
+    return { headers: headers.filter(Boolean), rows: dataRows, meta };
   }
 
   /* ---------------- ZIP (leitor mínimo: central directory + deflate-raw) ---------------- */
