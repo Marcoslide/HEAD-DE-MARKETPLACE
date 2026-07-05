@@ -9,8 +9,9 @@
   'use strict';
   const D = V8DATA;
   const CC = window.CUSTOS = { sub: 'Visão Financeira', empresaId: 'e1', simProd: 'p1' };
-  const SUBS = ['Visão Financeira', 'Custos Fixos', 'Custos Variáveis', 'Taxas de Marketplace', 'Ads, Cupons e Afiliados',
-    'Regras de Rateio', 'Economia por Produto', 'Margem por Canal', 'Ponto de Equilíbrio', 'Simulador de Preço',
+  const SUBS = ['Visão Financeira', 'Ponto de Equilíbrio', 'Rentabilidade por SKU', 'Taxas por Faixa', 'Perdas e Vazamentos',
+    'Custos Fixos', 'Custos Variáveis', 'Taxas de Marketplace', 'Ads, Cupons e Afiliados',
+    'Regras de Rateio', 'Economia por Produto', 'Margem por Canal', 'Simulador de Preço',
     'Histórico de Regras', 'Fontes e Cobertura'];
   const biz = () => window.bizState();
   const papel = () => (UI.account && UI.account.user.papel) || D.meta.papel || 'ADMIN';
@@ -59,7 +60,10 @@
     else if (CC.sub === 'Regras de Rateio') el.innerHTML = rateios();
     else if (CC.sub === 'Economia por Produto') el.innerHTML = economia();
     else if (CC.sub === 'Margem por Canal') el.innerHTML = margemCanal();
-    else if (CC.sub === 'Ponto de Equilíbrio') el.innerHTML = pontoEquilibrio();
+    else if (CC.sub === 'Ponto de Equilíbrio') el.innerHTML = pontoEquilibrio() + projecaoBE();
+    else if (CC.sub === 'Rentabilidade por SKU') el.innerHTML = rentabilidadeSku();
+    else if (CC.sub === 'Taxas por Faixa') el.innerHTML = taxasPorFaixa();
+    else if (CC.sub === 'Perdas e Vazamentos') el.innerHTML = perdasVazamentos();
     else if (CC.sub === 'Simulador de Preço') el.innerHTML = simulador();
     else if (CC.sub === 'Histórico de Regras') el.innerHTML = historicoRegras();
     else el.innerHTML = fontesCobertura();
@@ -271,6 +275,109 @@
         ${be.mediaDiariaNecessaria != null ? `<div class="mesa-kpi"><span class="k">Média diária necessária</span><span class="v">${brl(be.mediaDiariaNecessaria)}</span><span class="f">${be.diasRestantes} dia(s) restante(s)</span></div>` : ''}
       </div>
       <p class="src" style="margin-top:8px">custos fixos: ${brl(be.custoFixoTotal)}/mês (cadastro manual) · margem de contribuição: ${vf.margemContribuicaoPct}% (${UI.esc(vf.origemDados.regras)}) · período: ${UI.esc(v.periodo)}</p>`;
+  }
+
+  /* ---------- 10.P.3 · projeção do ponto de equilíbrio (V8LUCRO) ---------- */
+  function projecaoBE() {
+    if (typeof V8LUCRO === 'undefined') return '';
+    const v = vendasDoEscopo();
+    const vf = V8BIZ.visaoFinanceira(biz(), { empresaId: CC.empresaId, vendas: v, diasRestantes: 10 });
+    const be = vf.breakEven;
+    if (be.insuficiente) return '';
+    const proj = V8LUCRO.projecaoEquilibrio({ custoFixoTotal: be.custoFixoTotal, faturamentoBE: be.faturamentoBE, realizado: be.realizado }, { diaAtual: 20, diasNoMes: 30 });
+    if (proj.insuficiente) return '';
+    const tbadge = proj.tendencia === 'AVANÇANDO' ? 'ok' : proj.tendencia === 'AFASTANDO' ? 'danger' : 'plain';
+    return `<div class="panel" style="margin-top:12px">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Projeção do ponto de equilíbrio</span><span class="st ${tbadge} plain">${UI.esc(proj.tendencia)}</span></div>
+      <div class="mesa-grid" style="margin-top:8px">
+        <div class="mesa-kpi"><span class="k">Atingido</span><span class="v">${proj.pctAtingido}%</span><span class="f">${brl(proj.realizado)} de ${brl(proj.metaFaturamento)}</span></div>
+        <div class="mesa-kpi"><span class="k">Ritmo atual</span><span class="v">${brl(proj.ritmoDia)}/dia</span><span class="f">necessário: ${brl(proj.mediaNecessariaDia)}/dia</span></div>
+        <div class="mesa-kpi ${proj.atingeNoMes ? '' : 'nodata'}"><span class="k">Projeção de atingir</span><span class="v">${proj.diaProjetadoBE ? 'dia ' + proj.diaProjetadoBE : '—'}</span><span class="f">${proj.atingeNoMes ? 'dentro do mês' : 'fora do mês no ritmo atual'}</span></div>
+        <div class="mesa-kpi"><span class="k">Projeção fim do mês</span><span class="v">${brl(proj.projecaoFimMes)}</span><span class="f">pess. ${brl(proj.cenarios.pessimista)} · otim. ${brl(proj.cenarios.otimista)}</span></div>
+      </div>
+      <p class="src" style="margin-top:8px">${UI.esc(proj.nota)}</p>`
+      + contribuicaoCard();
+  }
+  function skusDoEscopo() {
+    if (typeof V8CAT === 'undefined' || !window.CATALOGO) return [];
+    const cat = CATALOGO.eng();
+    return V8CAT.ativos(cat).slice(0, 40).map(l => {
+      const p = cat.products.find(x => x.id === l.produtoId) || {};
+      const preco = V8CAT.valorDe(cat, l, 'preco') || p.precoBase || 0;
+      const faixa = V8LUCRO.resolverTaxaFixa([{ nivel: 'global', escopo: {}, faixas: V8LUCRO.FAIXAS_EXEMPLO }], { preco });
+      return { sku: l.skuPai, produto: p.nome, marketplace: l.mktNome, preco,
+        custoProduto: p.custo != null ? p.custo : null, comissaoPct: 14, impostoPct: 7,
+        taxaFixa: faixa.valor, embalagem: 4, adsRateado: 0, fixoRateado: 2,
+        unidades30d: (l.perf && l.perf.vendidos30d) || 0, margemMinimaPct: 15 };
+    });
+  }
+  function contribuicaoCard() {
+    const cart = V8LUCRO.contribuicaoCarteira(skusDoEscopo());
+    if (!cart.linhas.length) return '';
+    return `<div class="panel" style="margin-top:12px">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Quem ajuda a pagar a estrutura × quem consome</span><span class="src">contribuição = margem × unidades</span></div>
+      <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">SKU</th><th class="nosort">Contribuição total</th><th class="nosort">Margem contrib.</th><th class="nosort">Classe</th></tr></thead><tbody>
+        ${cart.ajudam.slice(0, 5).map(l => `<tr><td class="tmain">${UI.esc(l.sku)}</td><td>${brl(l.contribuicaoTotal)}</td><td>${l.margemContribuicaoPct ?? '—'}%</td><td><span class="st ok plain">${UI.esc(l.classe)}</span></td></tr>`).join('')}
+        ${cart.prejudicam.slice(0, 4).map(l => `<tr><td class="tmain">${UI.esc(l.sku)}</td><td><span class="num crit">${brl(l.contribuicaoTotal)}</span></td><td>${l.margemContribuicaoPct ?? '—'}%</td><td><span class="st danger plain">${UI.esc(l.classe)}</span></td></tr>`).join('')}
+        ${(cart.semGiro || []).slice(0, 3).map(l => `<tr><td class="tmain">${UI.esc(l.sku)}</td><td><span class="src">R$ 0,00 · sem giro</span></td><td>${l.margemContribuicaoPct ?? '—'}%</td><td><span class="st plain">${UI.esc(l.classe)}</span></td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="src" style="margin-top:6px">${UI.esc(cart.nota)}</p></div>`;
+  }
+
+  /* ---------- 10.P.3 · Rentabilidade por Produto/SKU ---------- */
+  function rentabilidadeSku() {
+    if (typeof V8LUCRO === 'undefined') return '<div class="panel"><div class="empty"><b>Motor de lucratividade indisponível</b></div></div>';
+    const itens = skusDoEscopo();
+    if (!itens.length) return '<div class="panel"><div class="empty"><b>Sem SKUs no escopo</b>Importe cadastro/pedidos para calcular rentabilidade.</div></div>';
+    const CLS = { ESCALAR: 'ok', MANTER: 'plain', CORRIGIR: 'danger', REPRECIFICAR: 'warn', PAUSAR: 'danger', INVESTIGAR: 'warn', SEM_DADOS_SUFICIENTES: 'plain' };
+    return `<div class="callout" style="margin-top:0">Cada linha mostra a fórmula da margem; sem custo cadastrado, a classe é <b>SEM_DADOS_SUFICIENTES</b> — nunca inventamos lucro.</div>
+      <div class="tblwrap" style="margin-top:12px"><table class="tbl"><thead><tr>
+        <th class="nosort">SKU · produto</th><th class="nosort">Preço</th><th class="nosort">Taxa (faixa)</th><th class="nosort">Contrib./un.</th><th class="nosort">Margem contrib.</th><th class="nosort">Líquida est.</th><th class="nosort">Un. 30d</th><th class="nosort">Classe</th></tr></thead><tbody>
+        ${itens.map(it => { const c = V8LUCRO.contribuicaoSku(it); return `<tr>
+          <td class="tmain">${UI.esc(it.sku || '—')}<span class="tsub">${UI.esc((it.produto || '').slice(0, 26))}</span></td>
+          <td>${brl(it.preco)}</td><td>${it.taxaFixa != null ? brl(it.taxaFixa) : '<span class="src">—</span>'}</td>
+          <td>${c.contribuicaoUnidade != null ? brl(c.contribuicaoUnidade) : '<span class="src">—</span>'}</td>
+          <td>${c.margemContribuicaoPct != null ? c.margemContribuicaoPct + '%' : '—'}</td>
+          <td>${c.margemLiquidaEstimada != null ? brl(c.margemLiquidaEstimada) : '<span class="src">sem rateio</span>'}</td>
+          <td>${it.unidades30d || 0}</td><td><span class="st ${CLS[c.classe] || 'plain'} plain">${UI.esc(c.classe)}</span></td></tr>`; }).join('')}
+      </tbody></table></div>
+      <p class="src" style="margin-top:8px">classificação: ESCALAR / MANTER / CORRIGIR / REPRECIFICAR / INVESTIGAR / SEM_DADOS_SUFICIENTES — nunca PAUSAR sem evidência.</p>`;
+  }
+
+  /* ---------- 10.P.3 · Taxas por faixa de preço + hierarquia ---------- */
+  function taxasPorFaixa() {
+    if (typeof V8LUCRO === 'undefined') return '';
+    const faixas = V8LUCRO.FAIXAS_EXEMPLO;
+    const exemplos = [49.9, 89.9, 150, 250].map(preco => ({ preco, res: V8LUCRO.taxaPorFaixa(faixas, preco) }));
+    return `<div class="callout" style="margin-top:0">A taxa fixa por venda muda por <b>faixa de preço</b>. O sistema olha o preço real e aplica a faixa correta — e declara qual regra venceu (global → marketplace → conta → categoria → produto → SKU → manual).</div>
+      <div class="panel" style="margin-top:12px"><div class="sect-h" style="margin-top:0"><span class="h2">Tabela de faixas (exemplo)</span><span class="src">configurável por marketplace/conta/categoria/produto/SKU</span></div>
+        <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Faixa de preço</th><th class="nosort">Taxa fixa por item</th></tr></thead><tbody>
+          ${faixas.map(f => `<tr><td class="tmain">${brl(f.de)} a ${f.ate === Infinity ? 'acima' : brl(f.ate)}</td><td>${brl(f.taxa)}</td></tr>`).join('')}
+        </tbody></table></div></div>
+      <div class="panel" style="margin-top:12px"><div class="sect-h" style="margin-top:0"><span class="h2">Aplicação automática por preço</span></div>
+        <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Preço do produto</th><th class="nosort">Faixa aplicada</th><th class="nosort">Taxa</th></tr></thead><tbody>
+          ${exemplos.map(e => `<tr><td class="tmain">${brl(e.preco)}</td><td>${e.res.faixa ? brl(e.res.faixa.de) + ' a ' + (e.res.faixa.ate === Infinity ? 'acima' : brl(e.res.faixa.ate)) : '<span class="src">fora das faixas</span>'}</td><td>${e.res.valor != null ? brl(e.res.valor) : '<span class="src">—</span>'}</td></tr>`).join('')}
+        </tbody></table></div>
+        <p class="src" style="margin-top:6px">a regra mais específica vence e é declarada; sem regra aplicável, o sistema declara a ausência — nunca inventa taxa.</p></div>`;
+  }
+
+  /* ---------- 10.P.3 · Perdas e vazamentos ---------- */
+  function perdasVazamentos() {
+    if (typeof V8LUCRO === 'undefined') return '';
+    const itens = [];
+    if (window.IMPORTAR && window.V8IMP) {
+      try { const dv = V8IMP.devolucoesView(IMPORTAR.eng, {}); if (!dv.semDados && dv.reembolsoTotal > 0) itens.push({ tipo: 'Reembolsos', valor: dv.reembolsoTotal, origem: 'Devoluções importadas' }); } catch (e) {}
+      try { const av = V8IMP.adsView(IMPORTAR.eng, {}); if (!av.semDados && av.totalSpend > (av.totalGmv || 0)) itens.push({ tipo: 'Ads sem retorno', valor: Math.round((av.totalSpend - av.totalGmv) * 100) / 100, origem: 'Ads (investimento acima do GMV atribuído)' }); } catch (e) {}
+    }
+    const p = V8LUCRO.perdas(itens);
+    if (!p.itens.length) return `<div class="panel"><div class="empty"><b>Sem perdas mensuráveis no escopo importado</b>Importe Devoluções e Ads reais — o painel só mostra vazamento com valor de fonte, nunca estimado.</div></div>`;
+    return `<div class="mesa-grid">
+        <div class="mesa-kpi"><span class="k">Perda total</span><span class="v">${brl(p.total)}</span><span class="f">no escopo importado</span></div>
+        <div class="mesa-kpi"><span class="k">Maior vazamento</span><span class="v">${UI.esc(p.maiorVazamento.tipo)}</span><span class="f">${brl(p.maiorVazamento.valor)} · ${p.maiorVazamento.pct}%</span></div>
+      </div>
+      <div class="panel" style="margin-top:12px"><div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Tipo</th><th class="nosort">Valor</th><th class="nosort">Origem</th></tr></thead><tbody>
+        ${p.itens.map(l => `<tr><td class="tmain">${UI.esc(l.tipo)}</td><td><span class="num crit">${brl(l.valor)}</span></td><td><span class="src">${UI.esc(l.origem || '—')}</span></td></tr>`).join('')}
+      </tbody></table></div><p class="src" style="margin-top:6px">${UI.esc(p.nota)}</p></div>`;
   }
 
   /* ---------- Simulador ---------- */

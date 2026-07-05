@@ -13,7 +13,7 @@
   const SUBS = ['Visão Geral', 'Empresas', 'Canais de Venda', 'Contas Marketplace', 'Integrações',
     'Equipe e Responsáveis', 'Arquivados', 'Histórico e Auditoria'];
   /* estado de negócio compartilhado (Empresas ↔ Centro de Custos ↔ Catálogo ↔ Central) */
-  window.bizState = () => (window._v8biz || (window._v8biz = V8BIZ.createBiz(D.scope)));
+  window.bizState = () => (window._v8biz || (window._v8biz = V8BIZ.createBiz(D.scope, { seedCustosDemo: true })));
   const biz = () => bizState();
   const papel = () => (UI.account && UI.account.user.papel) || D.meta.papel || 'ADMIN';
   const empNome = id => (biz().empresas.find(e => e.id === id) || { nome: id }).nome;

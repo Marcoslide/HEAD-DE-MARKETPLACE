@@ -60,7 +60,8 @@
     'Taxa de fulfillment', 'Taxa de serviço', 'Taxa de coleta', 'Taxa de anúncio', 'Taxa de campanha', 'Outra taxa'];
 
   /* ---------- criação + seed a partir do escopo existente ---------- */
-  function createBiz(scope) {
+  function createBiz(scope, opts) {
+    opts = opts || {};
     const biz = { empresas: [], canais: [], contas: [], custosFixos: [], custosVariaveis: [], taxas: [], adsRegras: [],
       rateios: [], produtoCustos: {}, simulacoes: [], audit: [], seq: 0, _scope: scope || null };
     const audit = (acao, detalhe, extra) => biz.audit.push(Object.assign({ id: 'ba' + (++biz.seq), acao, detalhe, em: HOJE, usuario: (extra && extra.usuario) || 'Marcos' }, extra || {}));
@@ -85,6 +86,23 @@
           }
       }
       audit('seed', biz.empresas.length + ' empresa(s), ' + biz.canais.length + ' canal(is), ' + biz.contas.length + ' conta(s) da estrutura existente');
+      /* 10.P.3 — modelo de custos DEMONSTRATIVO para a empresa operacional (e1), rotulado.
+         Sem isto o Centro de Lucratividade só mostraria "dados insuficientes".
+         Valores plausíveis de cadastro manual; nada importado, nada externo.
+         Só quando o app pede (opts.seedCustosDemo) — os testes recebem biz limpo. */
+      if (opts.seedCustosDemo && biz.empresas.some(e => e.id === 'e1')) {
+        addCustoFixo(biz, { nome: 'Aluguel + condomínio (galpão)', categoria: 'Aluguel', valor: 4800, periodicidade: 'Mensal', inicio: '2026-06-01', empresaId: 'e1' }, { usuario: 'seed', papel: 'OWNER', silencioso: true });
+        addCustoFixo(biz, { nome: 'Equipe operacional (pró-labore)', categoria: 'Pessoal', valor: 9200, periodicidade: 'Mensal', inicio: '2026-06-01', empresaId: 'e1' }, { usuario: 'seed', papel: 'OWNER', silencioso: true });
+        addCustoFixo(biz, { nome: 'Software + energia + internet', categoria: 'Ferramentas', valor: 1600, periodicidade: 'Mensal', inicio: '2026-06-01', empresaId: 'e1' }, { usuario: 'seed', papel: 'OWNER', silencioso: true });
+        addCustoVariavel(biz, { nome: 'Comissão Shopee (média)', categoria: 'Comissão marketplace', percentual: 14, base: 'Por faturamento', empresaId: 'e1' }, { usuario: 'seed', papel: 'OWNER' });
+        addCustoVariavel(biz, { nome: 'Embalagem por pedido', categoria: 'Embalagem por pedido', valorFixo: 2.5, base: 'Por pedido', empresaId: 'e1' }, { usuario: 'seed', papel: 'OWNER' });
+        addRateio(biz, { nome: 'Rateio por pedidos pagos', metodo: 'Por pedidos pagos', empresaId: 'e1', motivo: 'Distribuição de estrutura sobre pedidos efetivamente pagos' }, { usuario: 'seed', papel: 'OWNER', silencioso: true });
+        addTaxa(biz, { marketplace: 'shopee', empresaId: 'e1', tipo: 'Comissão percentual', percentual: 14 }, { usuario: 'seed', papel: 'OWNER', silencioso: true });
+        biz.custosFixos.forEach(c => { c.seed = true; });
+        biz.custosVariaveis.forEach(c => { c.seed = true; });
+        biz.rateios.forEach(r => { r.seed = true; });
+        biz.taxas.forEach(t => { t.seed = true; });
+      }
     }
     return biz;
   }

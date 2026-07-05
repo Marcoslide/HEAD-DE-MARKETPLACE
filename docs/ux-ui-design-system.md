@@ -1146,3 +1146,51 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   seguem a MESMA estrutura — os endpoints já aceitam o `metric_type` e a base já
   guarda todos os tipos; falta o parser/derivação específica de cada um e o
   rewire de cada tela da Central para consumir `V8API` em vez da engine local.
+
+## SPRINT 10.P.3 (Parte 1) — Centro de Lucratividade e Ponto de Equilíbrio
+
+> "Vender mais, com margem, controle e execução." O Centro de Custos deixa de
+> ser só cadastro e vira **centro de lucratividade**: taxa por faixa de preço,
+> contribuição por SKU, ponto de equilíbrio com projeção e perdas — sempre com
+> **fórmula visível**, **fonte declarada** e **estimativa que nunca vira lucro real**.
+
+- **Motor honesto** (`design/prototipo-v8/lucro-engine.js`, `V8LUCRO`; camada
+  compartilhada Node + navegador, provada por `mos/test/ui-v8-lucratividade.test.js`,
+  **11/11 verdes**):
+  - **Taxa fixa por faixa de preço** (`taxaPorFaixa`): olha o **preço real** e
+    aplica a faixa correta; sem tabela, **declara ausência** — nunca inventa taxa.
+  - **Hierarquia de regras** (`resolverTaxaFixa`): global → marketplace → conta →
+    categoria → produto → SKU → manual; a **mais específica vence** e a interface
+    **declara qual regra venceu** ("REGRA DO SKU"). Sem regra aplicável, declara
+    a ausência explicitamente.
+  - **Contribuição por SKU** (`contribuicaoSku`): margem de contribuição e margem
+    líquida ESTIMADA com **fórmula**; classifica em ESCALAR / MANTER / CORRIGIR /
+    REPRECIFICAR / INVESTIGAR / **SEM_DADOS_SUFICIENTES**. Sem custo/comissão,
+    não estima — declara o que falta. Preço abaixo do custo variável é **CORRIGIR**.
+  - **Carteira** (`contribuicaoCarteira`): separa **quem ajuda a pagar a estrutura**
+    (contribuição > 0) de **quem consome** (contribuição < 0). Contribuição = 0 é
+    **SKU sem giro** no período — mostrado à parte, **não como vazamento**.
+  - **Projeção do ponto de equilíbrio** (`projecaoEquilibrio`): % atingido, ritmo/dia,
+    dia projetado de atingir, projeção de fim de mês com **cenários** (pessimista /
+    atual / otimista) e **tendência** (AVANÇANDO / AFASTANDO). Sem PE calculável,
+    declara insuficiência — nada é projetado no vazio.
+  - **Perdas e vazamentos** (`perdas`): agrega por tipo e aponta o **maior
+    vazamento**; só mostra com **valor de fonte** (Devoluções/Ads reais), nunca estimado.
+- **Interface** (`custos.js`): o Centro de Custos ganhou as abas **Ponto de
+  Equilíbrio** (com a projeção e o quadro "Quem ajuda a pagar a estrutura ×
+  quem consome"), **Rentabilidade por SKU**, **Taxas por Faixa** e **Perdas e
+  Vazamentos**, alimentadas pelos SKUs reais do Catálogo (`V8CAT.ativos`).
+- **Modelo de custos demonstrativo** (`business-engine.js`, `createBiz(scope,
+  { seedCustosDemo:true })`): para que o centro **demonstre** o cálculo, a empresa
+  operacional recebe custos fixos, custos variáveis (comissão %, embalagem/pedido),
+  taxa e regra de rateio **rotulados como demonstração** — todos marcados `seed`.
+  O flag só é ligado pelo app; a **suíte recebe `biz` limpo**, então nenhum teste
+  de custo/rateio é contaminado.
+- **Honestidade preservada**: sem custo fixo cadastrado, o PE continua dizendo
+  "dados insuficientes"; sem Devoluções/Ads importados, Perdas continua vazio e
+  honesto; toda margem carrega a fórmula e o rótulo **margem líquida ESTIMADA**.
+  Nenhuma escrita externa — `ESCRITA EXTERNA BLOQUEADA`.
+- **Suíte**: `ui-v8-lucratividade.test.js` (11) + validação headless
+  (`Ponto de Equilíbrio com projeção`, `contribuição`, `Rentabilidade por SKU`,
+  `Taxas por Faixa`, `Perdas`, dark, **console limpo**). `npm test` **734 verdes**
+  (o teste de Postgres é pulado sem banco).
