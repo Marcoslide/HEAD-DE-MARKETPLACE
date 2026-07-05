@@ -234,6 +234,67 @@
     </div>`;
   }
 
+  /* 10.E.2.4 — anúncios do cadastro Shopee importado (base real) */
+  function cadastroListingsPanel() {
+    const cat = CAT.eng();
+    const lst = V8CAT.cadListings(cat);
+    if (!lst.length) return '';
+    const rel = window.IMPORTAR ? V8CAT.cadastroRelacoes(cat, IMPORTAR.eng) : { relacoes: [] };
+    const perfDe = id => rel.relacoes.find(r => r.listingId === id) || {};
+    const brl = v => v == null ? '—' : 'R$ ' + (+v).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `<div class="panel" style="margin-top:12px">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Cadastro Shopee importado</span><span class="st ok plain">${lst.length} ANÚNCIO(S)</span></div>
+      <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">Foto</th><th class="nosort">Produto · SKU</th><th class="nosort">item_id</th><th class="nosort">Variações</th><th class="nosort">Preço</th><th class="nosort">Estoque</th><th class="nosort">Status</th><th class="nosort">Vendidos (real)</th><th class="nosort">Saúde</th><th class="nosort"></th></tr></thead><tbody>
+        ${lst.map(l => {
+          const vars = V8CAT.cadVariacoesDe(cat, l.key);
+          const est = vars.reduce((a, v) => a + (v.estoque || 0), 0);
+          const precos = vars.map(v => v.preco).filter(x => x != null);
+          const md = l.midias.find(m => m.principal);
+          const p = perfDe(l.id);
+          return `<tr><td>${md ? `<span class="st info plain" title="${UI.esc(md.url || '')}">ref</span>` : '<span class="src">—</span>'}</td>
+            <td class="tmain">${UI.esc(l.titulo || '—')}<span class="tsub">${UI.esc((V8CAT.cadMasterDe(cat, l.masterKey) || {}).skuPai || '—')}</span></td>
+            <td>${UI.esc(l.itemIdExterno || '—')}</td><td>${vars.length}</td>
+            <td>${precos.length ? brl(Math.min(...precos)) : '—'}</td><td>${est || '—'}</td>
+            <td><span class="st ${/Ativo/.test(l.statusReportado) ? 'pos' : /Desconhecido/.test(l.statusReportado) ? 'warn' : ''} plain">${UI.esc(l.statusReportado)}</span></td>
+            <td>${p.vendas != null ? brl(p.vendas) : `<span class="src">${UI.esc(p.vinculoPerf || 'sem vínculo')}</span>`}</td>
+            <td>${md ? (md.status === 'MÍDIA REFERENCIADA' ? '<span class="st warn plain">mídia ref.</span>' : '<span class="st pos plain">ok</span>') : '<span class="st warn plain">sem foto</span>'}</td>
+            <td><span class="rowact"><button class="btn sm" data-act="vercad" data-id="${l.id}">ver cadastro</button></span></td></tr>`;
+        }).join('')}
+      </tbody></table></div>
+      <p class="src" style="margin-top:6px">status <b>reportado por planilha</b> (nunca ao vivo) · mídia por URL é <b>referenciada</b>, não validada · vínculo de performance por item_id, incerto vai para revisão. Nada é enviado à Shopee.</p>
+    </div>`;
+  }
+  const CAD_ABAS = ['Informação Básica', 'Categoria', 'Descrição', 'Especificações', 'Informações de Vendas',
+    'Lista de Variações', 'Envio e Logística', 'Fotos e Vídeos', 'Histórico e Auditoria'];
+  function openCadastro(listingId, abaIni) {
+    const cat = CAT.eng();
+    const l = V8CAT.cadListings(cat).find(x => x.id === listingId) || cadStore().listings.find(x => x.id === listingId);
+    if (!l) return UI.toast('anúncio de cadastro não encontrado', 'err');
+    const m = V8CAT.cadMasterDe(cat, l.masterKey) || {};
+    const vars = V8CAT.cadVariacoesDe(cat, l.key);
+    CAT.cadAba = abaIni && CAD_ABAS.includes(abaIni) ? abaIni : (CAT.cadAba || 'Informação Básica');
+    const kv = (rows) => `<dl class="kv">${rows.map(([k, v]) => `<dt>${UI.esc(k)}</dt><dd>${v == null || v === '' ? '<span class="src">—</span>' : UI.esc(String(v))}</dd>`).join('')}</dl>`;
+    const A = CAT.cadAba;
+    let corpo = '';
+    if (A === 'Informação Básica') corpo = kv([['Título', l.titulo], ['item_id externo', l.itemIdExterno], ['Marca', m.marca], ['Status reportado', l.statusReportado], ['Situação', l.situacao], ['Fonte', l.arquivo], ['Importado em', l.importadoEm]]);
+    else if (A === 'Categoria') corpo = kv([['Categoria', l.categoria]]);
+    else if (A === 'Descrição') corpo = kv([['Descrição', l.descricao]]);
+    else if (A === 'Especificações') corpo = kv([['SKU pai', m.skuPai], ['Modelo', m.modelo], ['Material', m.material], ['NCM', (vars[0] || {}).fiscal ? vars[0].fiscal.ncm : null], ['Origem fiscal', (vars[0] || {}).fiscal ? vars[0].fiscal.origem : null]]);
+    else if (A === 'Informações de Vendas') corpo = `<div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Variação</th><th class="nosort">SKU</th><th class="nosort">Preço</th><th class="nosort">Promo</th><th class="nosort">Estoque</th></tr></thead><tbody>${vars.map(v => `<tr><td class="tmain">${UI.esc(v.nome)}</td><td>${UI.esc(v.sku || '—')}</td><td>${v.preco != null ? 'R$ ' + v.preco.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}</td><td>${v.precoPromo != null ? 'R$ ' + v.precoPromo.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) : '—'}</td><td>${v.estoque ?? '—'}</td></tr>`).join('')}</tbody></table></div>`;
+    else if (A === 'Lista de Variações') corpo = `<div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Nome</th><th class="nosort">Atributo</th><th class="nosort">SKU</th><th class="nosort">EAN/GTIN</th><th class="nosort">Status</th><th class="nosort"></th></tr></thead><tbody>${vars.map(v => `<tr><td class="tmain">${UI.esc(v.nome)}</td><td><span class="src">${UI.esc((v.atributoNome || '') + ': ' + (v.atributoValor || ''))}</span></td><td>${UI.esc(v.sku || '—')}${v.conflitoSku ? ' <span class="st warn plain">conflito</span>' : ''}</td><td>${UI.esc(v.ean || '—')}</td><td><span class="src">${UI.esc(v.statusReportado)}</span></td><td><span class="rowact"><button class="btn sm ghost" data-act="cadcorr" data-tipo="variacao" data-id="${v.id}" data-campo="preco">corrigir preço</button></span></td></tr>`).join('')}</tbody></table></div>`;
+    else if (A === 'Envio e Logística') corpo = `<div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">SKU</th><th class="nosort">Peso</th><th class="nosort">Emb.</th><th class="nosort">L×A×C</th><th class="nosort">Prazo</th><th class="nosort">Envio</th></tr></thead><tbody>${vars.map(v => { const g = v.logistica || {}; return `<tr><td class="tmain">${UI.esc(v.sku || '—')}</td><td>${v.pesoKg ?? '—'}</td><td>${g.pesoEmbaladoKg ?? '—'}</td><td>${[g.larguraCm, g.alturaCm, g.comprimentoCm].map(x => x ?? '—').join('×')}</td><td>${UI.esc(g.prazoManuseio || '—')}</td><td>${UI.esc(g.tipoEnvio || '—')}</td></tr>`; }).join('')}</tbody></table></div>`;
+    else if (A === 'Fotos e Vídeos') corpo = `<div class="media-grid">${l.midias.map(md => `<div class="media-card"><div class="src" style="word-break:break-all">${UI.esc(md.url || md.arquivo || '—')}</div><div style="margin-top:4px"><span class="st ${md.status === 'MÍDIA REFERENCIADA' ? 'warn' : 'pos'} plain">${UI.esc(md.status)}</span> ${md.principal ? '<span class="kbd">principal</span>' : ''}</div></div>`).join('') || '<p class="src">sem mídia.</p>'}<div class="media-card" style="display:flex;align-items:center;justify-content:center"><button class="btn sm primary" data-act="cadmidia" data-id="${l.id}">+ carregar foto/vídeo real</button></div></div><p class="src" style="margin-top:6px">mídia por URL é <b>referenciada</b> e fica <b>pendente de validação visual</b> — nunca marcada como validada sem arquivo real.</p>`;
+    else if (A === 'Histórico e Auditoria') corpo = (l.versoes.length || l.correcoes.length) ? [...l.versoes.map(v => `<div class="exec-li"><span class="sig info"></span><div class="t"><b>${UI.esc(v.campo)}: "${UI.esc(v.antes ?? '—')}" → "${UI.esc(v.depois)}"</b><span>${UI.esc(v.origem)} · ${v.em}</span></div></div>`), ...l.correcoes.map(c => `<div class="exec-li"><span class="sig"></span><div class="t"><b>correção · ${UI.esc(c.campo)}</b><span>${UI.esc(c.motivo)} · ${c.usuario} · ${c.em}</span></div></div>`)].join('') : '<p class="src">sem alterações registradas.</p>';
+    UI.openModal(`<div class="editor"><h3 class="h2">${UI.esc(l.titulo || 'Anúncio Shopee')} <span class="kbd">cadastro importado</span></h3>
+      <p class="sub" style="margin-top:2px">${UI.esc(l.mktNome)} · conta ${UI.esc(l.contaId)} · ${UI.esc(l.situacao)} — edição interna auditada, <b>nada é enviado à Shopee</b>.</p>
+      <div class="tabs" style="margin-top:10px;flex-wrap:wrap">${CAD_ABAS.map(a => `<button class="tab ${a === A ? 'on' : ''}" data-act="cadaba" data-aba="${UI.esc(a)}" data-id="${l.id}">${a}</button>`).join('')}</div>
+      <div style="margin-top:12px">${corpo}</div>
+      <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn ghost" onclick="UI.closeModal()">fechar</button></div></div>`);
+    UI.$('#modal').onclick = onClick;
+  }
+  const cadStore = () => (CAT.eng().cadastro || { listings: [] });
+
   function anuncios() {
     const cat = CAT.eng();
     const mk = UI.ctx.marketplace || CAT.anuncioMkt;
@@ -249,6 +310,7 @@
     const sel = CAT.lsel;
     const C = CAT.anCols;
     return `
+      ${cadastroListingsPanel()}
       ${contribProdutoPanel()}
       <div class="fbar" style="margin-top:12px">
         ${D.MKTS.map(m => `<button class="fchip ${m.key === mk ? 'on' : ''}" data-act="anmkt" data-mkt="${m.key}" ${UI.ctx.marketplace ? 'title="marketplace fixado pela barra global"' : ''}>${m.nome}</button>`).join('')}
@@ -479,28 +541,112 @@
       }).join('') : `<div class="panel" style="margin-top:12px"><div class="empty"><b>Nenhum produto com anúncios vinculados</b>Importe cadastro/performance e confirme vínculos de SKU — o master exige vínculo confiável e revisão humana.</div></div>`}`;
   }
 
-  /* ---------------- Importar Cadastro (dentro do Catálogo) ---------------- */
+  /* ---------------- Importar Cadastro Shopee (10.E.2.4 — dentro do Catálogo) ---------------- */
   function importarCadastro() {
-    const eng = window.IMPORTAR ? IMPORTAR.eng : null;
-    const fontes = eng ? V8IMP.areaSources(eng, ['catalogo']) : [];
-    const OPCOES = [['Carregar cadastro de produtos Shopee', 'Referência: Shopee_mass_upload_2026-07-05_basic_template.xlsx / mass_update_parent_sku'],
-      ['Atualizar produtos existentes', 'reimportação atualiza por chave natural — nunca duplica por diferença de nome'],
-      ['Importar variações', 'SKU de variação vincula por ID → SKU; conflito bloqueia'],
-      ['Importar atributos', 'campos importados mostram origem e nunca são sobrescritos em silêncio'],
-      ['Importar preços e estoque', 'valores viram versão; o anterior é preservado'],
-      ['Criar rascunhos internos', 'linhas sem correspondência viram candidatos — nada publicado externamente']];
+    const cat = CAT.eng();
+    const ov = V8CAT.cadastroOverview(cat);
+    const imps = V8CAT.cadImports(cat);
+    const ult = imps[imps.length - 1];
+    const ETAPAS = [['1 · Arquivo', 'selecionar o cadastro Shopee do computador'], ['2 · Leitura', 'abas, blocos, linhas, colunas, campos preservados'],
+      ['3 · Escopo', 'Empresa · Canal · Marketplace · Conta Shopee'], ['4 · Mapeamento', 'Master · Anúncio · Variações · Preço · Estoque · Logística · Fiscal · Mídia'],
+      ['5 · Prévia', 'produtos novos · anúncios · variações · duplicidades · conflitos · pendentes'], ['6 · Aplicação', 'aplicar só após confirmação humana']];
     return `
-      <div class="callout" style="margin-top:0">Fluxo: marketplace → escopo (Grupo→Empresa→CNPJ→Loja→Conta) → arquivo do computador → detecção de abas e campos → prévia → vínculos e duplicidades → conflitos → staging → <b>aplicar só após confirmação humana</b>. Camada bruta, arquivo original, mapeamento, hash, usuário e data são preservados.</div>
-      <div class="obpick" style="margin-top:12px">
-        ${OPCOES.map(([lbl, dica]) => `<button data-act="upcat" data-dica="${UI.esc(dica)}">▤ <b>${lbl}</b><br><span class="src">${UI.esc(dica)}</span></button>`).join('')}
-        <button data-act="vertemplate">▤ <b>Revisar campos do template</b><br><span class="src">colunas reconhecidas pelo perfil SHOPEE_PARENT_SKU / SHOPEE_PRODUCT_BASIC_INFO</span></button>
+      <div class="callout" style="margin-top:0">Importação específica de <b>Cadastro Shopee</b> — não é importação genérica. Fluxo: arquivo → leitura de todas as abas → escopo → mapeamento por entidade → prévia (Product Master × Anúncio × Variação) → aplicar. Camada bruta preservada. <b>Nada é publicado nem alterado na Shopee.</b></div>
+      <div class="fbar" style="margin-top:12px">
+        <button class="btn primary sm" data-act="upcatshopee">Importar Cadastro Shopee (arquivo real)</button>
+        <button class="btn sm ghost" data-act="upcatdemo">Ver com o template de referência</button>
+        <button class="btn sm ghost" data-act="vertemplate">Revisar campos do template</button>
+        <span class="src">XLSX · CSV · ZIP — até 25MB · ref.: Shopee_mass_upload_2026-07-05_basic_template.xlsx</span>
       </div>
-      <div class="sect-h"><span class="h2">Importações de cadastro aplicadas</span><span class="src">${fontes.length} fonte(s)</span></div>
-      ${fontes.length ? fontes.slice().reverse().map(r => `<div class="metric-row"><span class="lbl">${UI.esc(r.arquivo)}</span>
-        <span class="val"><span class="src">${r.ultimaAtualizacao} · ${r.linhas} linha(s) · ${r.duplicidadesEvitadas} dup. evitada(s) · ${UI.esc(r.usuario)}</span>
-        <button class="linklike" data-act="verbrutos" data-id="${r.batchId}" style="margin-left:8px">brutos</button>
-        <button class="linklike" data-act="vermapa" data-id="${r.batchId}">mapeamento</button></span></div>`).join('')
-      : '<p class="src">nenhuma importação de cadastro ainda — o upload nasce aqui dentro, com XLSX, XLS, CSV ou ZIP reais.</p>'}`;
+      <div class="steps" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px">
+        ${ETAPAS.map(([t, d]) => `<div class="ctxcard" style="flex:1;min-width:150px"><div class="h"><b style="font-size:12px">${UI.esc(t)}</b></div><span class="src">${UI.esc(d)}</span></div>`).join('')}
+      </div>
+      ${ov.imports ? `<div class="panel" style="margin-top:14px">
+        <div class="sect-h" style="margin-top:0"><span class="h2">O QUE MUDOU COM O CADASTRO SHOPEE</span><span class="st ok plain">IMPORTADO</span></div>
+        <div class="mesa-grid" style="margin-top:8px">
+          <div class="mesa-kpi"><span class="lbl">Produtos Master</span><span class="val">${ov.masters}</span></div>
+          <div class="mesa-kpi"><span class="lbl">Anúncios Shopee</span><span class="val">${ov.listings}</span></div>
+          <div class="mesa-kpi"><span class="lbl">Variações</span><span class="val">${ov.variacoes}</span></div>
+          <div class="mesa-kpi"><span class="lbl">Aguardando revisão</span><span class="val">${ov.aguardandoRevisao}</span></div>
+          <div class="mesa-kpi"><span class="lbl">Mídias referenciadas</span><span class="val">${ov.midiasReferenciadas}</span></div>
+          <div class="mesa-kpi"><span class="lbl">Pendências</span><span class="val">${V8CAT.saudeCadastro(cat).reduce((a, f) => a + f.itens.length, 0)}</span></div>
+        </div>
+        <p class="src" style="margin-top:8px">fonte: <b>${UI.esc(ult.arquivo)}</b> · ${ult.camposPreservados} campo(s) preservado(s) · escopo ${UI.esc(ult.escopo.contaId)} · ${ult.em}. Veja os anúncios na aba <b>Anúncios</b>, os campos em <b>Campos de Cadastro</b> e as filas em <b>Saúde e Pendências</b>.</p>
+        <div style="display:flex;gap:8px;margin-top:8px"><button class="btn sm" data-act="sub" data-sub="Anúncios">ver anúncios importados →</button>
+          <button class="btn sm ghost" data-act="sub" data-sub="Saúde e Pendências">ver pendências →</button></div>
+      </div>` : '<p class="src" style="margin-top:14px">nenhum cadastro Shopee importado ainda — o upload nasce aqui dentro, com o arquivo real do computador.</p>'}
+      ${imps.length ? `<div class="sect-h"><span class="h2">Histórico de importações de cadastro</span><span class="src">${imps.length} importação(ões)</span></div>
+        ${imps.slice().reverse().map(im => `<div class="metric-row"><span class="lbl">${UI.esc(im.arquivo)}</span>
+          <span class="val"><span class="src">${im.em} · ${im.contagens.mastersCriados} master · ${im.contagens.listingsVinc} anúncio · ${im.contagens.variacoesCriadas} variação · ${UI.esc(im.usuario)}</span></span></div>`).join('')}` : ''}`;
+  }
+
+  /* upload real + wizard de cadastro Shopee */
+  function cadUpload(usarDemo) {
+    const pp = papel();
+    if (!V8CAT.canCat(pp, 'CATALOG_IMPORT')) return UI.toast(`papel ${pp} não possui CATALOG_IMPORT`, 'err');
+    const lojas = D.scope.lojas.filter(s => (s.marketplace || 'shopee') === 'shopee' && s.tipo !== 'fisica');
+    const lojaIni = (UI.ctx.loja && lojas.some(s => s.id === UI.ctx.loja)) ? UI.ctx.loja : (lojas[0] || {}).id;
+    UI.openModal(`
+      <h3 class="h2">Importar Cadastro Shopee</h3>
+      <p class="sub" style="margin-top:4px">A planilha é lida <b>no seu computador</b>. Detectamos abas, blocos e campos, montamos Produto Master × Anúncio × Variação e mostramos a prévia. <b>Nada é aplicado sem a sua confirmação e nada é enviado à Shopee.</b></p>
+      <label style="display:block;margin-top:10px"><span class="eyebrow">Escopo — Empresa · Canal · Conta Shopee</span><br>
+        <select class="select" id="cadLoja" style="width:100%;margin-top:3px">${lojas.map(s => `<option value="${s.id}" ${s.id === lojaIni ? 'selected' : ''}>${UI.esc(s.nome)} · ${UI.esc((D.scope.cnpjs.find(c => c.id === s.cnpjId) || {}).nome || '')}</option>`).join('')}</select></label>
+      <div class="dropzone" id="cadDrop">
+        <b>Arraste o cadastro Shopee aqui</b><span class="src">ou</span>
+        <button class="btn primary sm" id="cadPick" type="button">Selecionar cadastro do computador</button>
+        <input type="file" id="cadFile" accept=".xlsx,.xls,.csv,.zip" hidden>
+        ${usarDemo ? `<button class="btn sm ghost" id="cadDemo" type="button" style="margin-top:8px">usar template de referência</button>` : ''}
+      </div>
+      <div id="cadPrev"></div>
+      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:12px"><button class="btn ghost" onclick="UI.closeModal()">fechar</button></div>`);
+    const inp = UI.$('#cadFile'), drop = UI.$('#cadDrop');
+    UI.$('#cadPick').onclick = () => inp.click();
+    inp.onchange = () => inp.files && inp.files[0] && handleCad(inp.files[0]);
+    drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+    drop.ondragleave = () => drop.classList.remove('over');
+    drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files && e.dataTransfer.files[0]; if (f) handleCad(f); };
+    if (usarDemo) UI.$('#cadDemo').onclick = () => renderCadPrev(V8CAT.cadastroFixture());
+
+    async function handleCad(f) {
+      UI.$('#cadPrev').innerHTML = `<p class="src" style="margin-top:10px">lendo ${UI.esc(f.name)} localmente…</p>`;
+      let file;
+      try { file = await V8FILE.readLocalFile(f); }
+      catch (err) { UI.$('#cadPrev').innerHTML = `<div class="err-state" style="margin-top:10px"><b>FALHOU</b> — ${UI.esc(err.message)}. Nada foi importado.</div>`; return; }
+      if (file.erro) { UI.$('#cadPrev').innerHTML = `<div class="err-state" style="margin-top:10px"><b>${UI.esc(file.estado)}</b> — ${UI.esc(file.erro)}${/xls$/i.test(f.name) ? ' — exporte como XLSX ou CSV e importe novamente.' : ''}</div>`; return; }
+      renderCadPrev(file);
+    }
+    function renderCadPrev(file) {
+      const loja = D.scope.lojas.find(s => s.id === UI.$('#cadLoja').value) || {};
+      const cnpj = D.scope.cnpjs.find(c => c.id === loja.cnpjId);
+      const conta = D.scope.contas.find(a => a.lojaId === loja.id);
+      const esc = { companyId: cnpj ? cnpj.empresaId : UI.ctx.empresa, contaId: conta ? conta.id : 'sem-conta', marketplace: 'shopee' };
+      const st = V8CAT.cadastroStage(CAT.eng(), file, esc, { usuario: D.meta.usuario });
+      if (st.blocked) { UI.$('#cadPrev').innerHTML = `<div class="callout" style="margin-top:10px;border-left-color:var(--warn)"><b>${UI.esc(file.nome)}</b> — ${UI.esc(st.reason)}</div>`; return; }
+      const R = st.resumo;
+      UI.$('#cadPrev').innerHTML = `
+        <div class="panel" style="margin-top:12px">
+          <div class="sect-h" style="margin-top:0"><span class="h2" style="font-size:13px">${UI.esc(st.arquivo)}</span><span class="st ok plain">CADASTRO SHOPEE</span></div>
+          <div class="ctxcard">
+            <div class="ctxitem"><span>Abas · blocos</span><span class="src">${st.abas.join(', ')} · ${st.blocos.join(', ')}</span></div>
+            <div class="ctxitem"><span>Campos preservados</span><span class="src">${st.camposPreservados} coluna(s) · ${st.rawRows.length} linha(s) de cadastro</span></div>
+            <div class="ctxitem"><span>Produtos novos · anúncios</span><span class="src">${R.produtosNovos} novo(s) · ${R.anunciosExistentes} vinculado(s) a master existente</span></div>
+            <div class="ctxitem"><span>Variações · duplicidades</span><span class="src">${R.variacoesNovas} variação(ões) · ${R.duplicidades} duplicidade(s)</span></div>
+            <div class="ctxitem"><span>Conflitos · pendentes · inválidas</span><span class="src">${R.conflitos} conflito(s) · ${R.aguardandoRevisao} aguardando revisão · ${R.linhasInvalidas} linha(s) inválida(s)</span></div>
+          </div>
+          ${st.conflitos.length ? `<div class="callout" style="margin-top:8px;border-left-color:var(--warn)">${st.conflitos.map(c => UI.esc(c.motivo)).join('<br>')}</div>` : ''}
+          <div class="tblwrap" style="margin-top:10px"><table class="tbl" style="min-width:0"><thead><tr><th class="nosort">Produto Master</th><th class="nosort">Anúncio (item_id)</th><th class="nosort">Variações</th><th class="nosort">Vínculo</th></tr></thead><tbody>
+            ${st.masters.map(m => `<tr><td class="tmain">${UI.esc(m.nome || m.skuPai || '—')}<span class="tsub">${UI.esc(m.skuPai || 'sem SKU pai')}</span></td><td>${UI.esc(m.itemId || '—')}</td><td>${m.variacoes.length}</td><td>${/CONFIRMADO|NOVO/.test(m.vinculo) ? `<span class="st pos plain">${UI.esc(m.vinculo)}</span>` : `<span class="st warn plain">${UI.esc(m.vinculo)}</span>`}</td></tr>`).join('')}
+          </tbody></table></div>
+          <div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary sm" id="cadApply">Aplicar importação</button>
+            <button class="btn sm ghost" onclick="UI.closeModal()">cancelar</button></div>
+        </div>`;
+      UI.$('#cadApply').onclick = () => {
+        const r = V8CAT.cadastroApply(CAT.eng(), st, { papel: pp, usuario: D.meta.usuario });
+        if (r.blocked) return UI.toast(r.reason, 'err');
+        UI.toast(`Cadastro aplicado — ${r.impacto.mastersCriados} master, ${r.impacto.listingsVinculados} anúncio, ${r.impacto.variacoesCriadas} variação. Nada enviado à Shopee.`, 'ok');
+        UI.closeModal(); CAT.sub = 'Importar Cadastro'; render(CAT.sub);
+      };
+    }
   }
 
   /* ---------------- Campos de Cadastro Recebidos (10.E.2.2) ----------------
@@ -514,8 +660,23 @@
     const batchIds = eng ? eng.batches.filter(b => ['catalogo', 'performance'].includes(b.det.destino)).map(b => b.id) : [];
     const cat = eng ? V8IMP.fieldCatalog(eng).filter(c => c.batchIds.some(id => batchIds.includes(id))) : [];
     const destinoDe = c => c.entidade === 'Produto Master' ? 'Product Master' : c.entidade === 'Variação' ? 'Variação' : c.entidade === 'Anúncio' ? 'Anúncio Shopee' : (c.entidade || '—');
+    /* 10.E.2.4 — campos do cadastro Shopee (mass upload), com entidade e status */
+    const cadCampos = V8CAT.cadCamposRecebidos(CAT.eng());
+    const cadBloco = cadCampos.length ? `
+      <div class="sect-h" style="margin-top:14px"><span class="h2">Campos do cadastro Shopee importado</span><span class="src">${cadCampos.length} coluna(s) · ${cadCampos.filter(c => c.status === 'Utilizado').length} utilizada(s)</span></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr>
+        <th class="nosort">Coluna original</th><th class="nosort">Exemplo</th><th class="nosort">Tipo</th><th class="nosort">Destino normalizado</th><th class="nosort">Entidade</th><th class="nosort">Status</th><th class="nosort">Uso</th></tr></thead><tbody>
+      ${cadCampos.map(c => `<tr><td class="tmain">${UI.esc(c.coluna)}</td>
+        <td><span class="src">${UI.esc(String(c.exemplo ?? '—').slice(0, 22))}</span></td>
+        <td><span class="kbd">${UI.esc(c.tipo)}</span></td>
+        <td><span class="src">${UI.esc(c.campoNormalizado || '—')}</span></td>
+        <td>${UI.esc(c.entidade)}</td>
+        <td>${c.status === 'Utilizado' ? '<span class="st pos plain">UTILIZADO</span>' : c.status === 'Mapeado manualmente' ? '<span class="st info plain">MAPEADO MANUAL</span>' : '<span class="st warn plain">AGUARDANDO MAPEAMENTO</span>'}</td>
+        <td>${c.aba ? `<span class="src">editor: ${UI.esc(c.aba)}</span>` : c.status === 'Aguardando mapeamento' ? `<button class="btn sm ghost" data-act="cadmap" data-col="${UI.esc(c.coluna)}">mapear campo</button>` : '<span class="src">—</span>'}</td></tr>`).join('')}
+      </tbody></table></div>` : '';
     return `
       <div class="callout" style="margin-top:0">Campos recebidos no cadastro, separados por destino: <b>Product Master</b> (verdade interna) · <b>Anúncio Shopee</b> (específico do canal) · <b>Variação</b> (SKU, preço, estoque). Nada some — campo sem tela padrão fica preservado e mapeável.</div>
+      ${cadBloco}
       ${cat.length ? `<div class="tblwrap" style="margin-top:10px"><table class="tbl"><thead><tr>
         <th class="nosort">Campo original</th><th class="nosort">Exemplo</th><th class="nosort">Destino</th><th class="nosort">Campo interno</th><th class="nosort">Status</th><th class="nosort">Ação</th></tr></thead><tbody>
       ${cat.map(c => `<tr>
@@ -585,8 +746,20 @@
     const cat = CAT.eng();
     const filas = V8CAT.health(cat);
     const pend = prods().filter(p => p.pendencias.length);
+    const cadFilas = V8CAT.saudeCadastro(cat).filter(f => f.itens.length);
+    const cadBloco = cadFilas.length ? `
+      <div class="sect-h"><span class="h2">Pendências do cadastro Shopee importado</span><span class="src">cada fila abre a aba certa do anúncio importado</span></div>
+      <div class="agentes-grid">
+        ${cadFilas.map(f => `<div class="agente"><div class="ag-h"><b>${UI.esc(f.label)}</b><span class="st ${f.itens.length > 5 ? 'warn' : ''} plain">${f.itens.length}</span></div>
+          <p class="src" style="margin:6px 0 0">abre em: ${UI.esc(f.aba)}</p>
+          <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px">
+            ${f.itens.slice(0, 3).map(id => `<button class="fchip" data-act="cadaba-fila" data-id="${id}" data-aba="${UI.esc(f.aba)}">${UI.esc(id)}</button>`).join('')}
+            ${f.itens.length > 3 ? `<span class="src">+${f.itens.length - 3}</span>` : ''}
+          </div></div>`).join('')}
+      </div>` : '';
     return `
       <div class="callout" style="margin-top:0">Cada fila abre o anúncio <b>direto no campo certo</b> do editor. Pendência tem dono e destino — nunca morre como alerta.</div>
+      ${cadBloco}
       <div class="agentes-grid" style="margin-top:12px">
         ${filas.map(f => `<div class="agente"><div class="ag-h"><b>${UI.esc(f.label)}</b><span class="st ${f.itens.length > 5 ? 'warn' : ''} plain">${f.itens.length}</span></div>
           <p class="src" style="margin:6px 0 0">abre em: ${UI.esc(f.aba)}</p>
@@ -1155,6 +1328,43 @@
     else if (act === 'f-clear') { CAT.filters = {}; body(); }
     else if (act === 'adv') openAdvanced();
     else if (act === 'upcat') IMPORTAR.uploadModal({ titulo: 'Carregar cadastro de produtos Shopee', dica: 'Referência: Shopee_mass_upload basic_template / mass_update_parent_sku (XLSX). Vínculo por ID → SKU variação → SKU pai; conflito de SKU bloqueia; nenhum produto é duplicado automaticamente.', onDone: () => render(CAT.sub) });
+    /* 10.E.2.4 — cadastro Shopee (dentro do Catálogo) */
+    else if (act === 'upcatshopee') cadUpload(false);
+    else if (act === 'upcatdemo') cadUpload(true);
+    else if (act === 'vercad') openCadastro(b.dataset.id);
+    else if (act === 'cadaba') { CAT.cadAba = b.dataset.aba; openCadastro(b.dataset.id, b.dataset.aba); }
+    else if (act === 'cadaba-fila') {
+      const cat = CAT.eng();
+      const l = V8CAT.cadListings(cat).find(x => x.id === b.dataset.id) ||
+        (V8CAT.cadVariacoesDe && (function () { const v = cat.cadastro.variacoes.find(x => x.id === b.dataset.id); return v ? V8CAT.cadListings(cat).find(x => x.key === v.listingKey) : null; })());
+      if (l) openCadastro(l.id, b.dataset.aba); else UI.toast('registro do cadastro não encontrado', 'err');
+    }
+    else if (act === 'cadmidia') {
+      const nome = prompt('Nome do arquivo de mídia (foto/vídeo) do computador:', 'foto-produto.jpg');
+      if (!nome) return;
+      const r = V8CAT.cadAddMediaManual(CAT.eng(), b.dataset.id, { arquivo: nome, principal: false }, { papel: papel(), usuario: D.meta.usuario });
+      if (r.blocked) return UI.toast(r.reason, 'err');
+      UI.toast('Mídia carregada manualmente — registrada como CARREGADA MANUALMENTE (validada por arquivo real).', 'ok');
+      openCadastro(b.dataset.id, 'Fotos e Vídeos');
+    }
+    else if (act === 'cadcorr') {
+      const v = prompt('Novo valor para ' + b.dataset.campo + ':');
+      if (v == null) return;
+      const motivo = prompt('Motivo da correção (obrigatório):'); if (!motivo) return UI.toast('correção exige motivo', 'err');
+      const parsed = b.dataset.campo === 'preco' || b.dataset.campo === 'estoque' ? Number(String(v).replace(',', '.')) : v;
+      const r = V8CAT.cadCorrigirCampo(CAT.eng(), b.dataset.tipo, b.dataset.id, b.dataset.campo, parsed, { papel: papel(), usuario: D.meta.usuario, motivo });
+      if (r.blocked) return UI.toast(r.reason, 'err');
+      UI.toast('Campo corrigido — valor importado original preservado; a Shopee não foi alterada.', 'ok');
+      const cat = CAT.eng(); const vr = cat.cadastro.variacoes.find(x => x.id === b.dataset.id);
+      openCadastro(vr ? V8CAT.cadListings(cat).find(x => x.key === vr.listingKey).id : b.dataset.id, 'Lista de Variações');
+    }
+    else if (act === 'cadmap') {
+      const campo = prompt('Mapear "' + b.dataset.col + '" para qual campo interno?', 'listing_custom_field');
+      if (!campo) return;
+      const r = V8CAT.cadMapearCampo(CAT.eng(), b.dataset.col, campo, 'LISTING', { papel: papel(), usuario: D.meta.usuario });
+      if (r.blocked) return UI.toast(r.reason, 'err');
+      UI.toast('Coluna mapeada manualmente — auditado; a camada bruta continua preservada.', 'ok'); render(CAT.sub);
+    }
     else if (act === 'cols') openCols();
     else if (act === 'saveview') openSaveView();
     else if (act === 'loadview') {

@@ -695,11 +695,419 @@
       impacto: 'impacto observado só quando houver dado — nunca afirmamos causalidade sem evidência' }));
   }
 
+  /* =============================================================
+     10.E.2.4 — IMPORTAÇÃO REAL DE CADASTRO SHOPEE (dentro do Catálogo)
+     Product Master × Anúncio Shopee × Variação, todos os campos, camada
+     bruta preservada, identidade por item_id/SKU (nunca só por nome),
+     mídia REFERENCIADA (não validada), status REPORTADO por planilha,
+     saúde e pendências, relação com pedidos/métricas, edição auditada.
+     Nada é publicado ou alterado na Shopee.
+     ============================================================= */
+  const brNum = v => {
+    if (v == null || v === '') return null;
+    if (typeof v === 'number') return v;
+    let s = String(v).trim().replace(/%/g, '').replace(/R\$\s*/i, '').replace(/\s+/g, '');
+    if (s === '' || s === '-' || s === '—') return null;
+    if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+    else if (/^-?\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');
+    const n = Number(s); return isNaN(n) ? null : n;
+  };
+  /* dicionário de campos do template de cadastro (coluna → campo, entidade, tipo) */
+  const ENTIDADE_NOME = { MASTER: 'Produto Master', LISTING: 'Anúncio Shopee', VARIACAO: 'Variação',
+    LOGISTICA: 'Logística', FISCAL: 'Fiscal', MIDIA: 'Mídia', AUXILIAR: 'Campo auxiliar' };
+  const CADASTRO_SCHEMA = {
+    'Categoria': { campo: 'listing_category', ent: 'LISTING', tipo: 'Categoria', aba: 'Categoria' },
+    'Nome do produto': { campo: 'listing_title', ent: 'LISTING', tipo: 'Texto', aba: 'Informação Básica' },
+    'Descrição do produto': { campo: 'listing_description', ent: 'LISTING', tipo: 'Texto', aba: 'Descrição' },
+    'Número de referência do SKU pai': { campo: 'sku_parent', ent: 'MASTER', tipo: 'SKU', aba: 'Especificações' },
+    'ID do Item': { campo: 'item_external_id', ent: 'LISTING', tipo: 'ID externo', aba: 'Informação Básica' },
+    'Marca': { campo: 'brand', ent: 'MASTER', tipo: 'Texto', aba: 'Informação Básica' },
+    'Modelo': { campo: 'model', ent: 'MASTER', tipo: 'Texto', aba: 'Especificações' },
+    'Material': { campo: 'material', ent: 'MASTER', tipo: 'Texto', aba: 'Especificações' },
+    'Nome da variação': { campo: 'variation_attr_name', ent: 'VARIACAO', tipo: 'Texto', aba: 'Lista de Variações' },
+    'Opção da variação': { campo: 'variation_attr_value', ent: 'VARIACAO', tipo: 'Texto', aba: 'Lista de Variações' },
+    'SKU': { campo: 'variation_sku', ent: 'VARIACAO', tipo: 'SKU', aba: 'Lista de Variações' },
+    'Preço': { campo: 'price', ent: 'VARIACAO', tipo: 'Moeda', aba: 'Informações de Vendas' },
+    'Preço promocional': { campo: 'price_promo', ent: 'VARIACAO', tipo: 'Moeda', aba: 'Informações de Vendas' },
+    'Estoque': { campo: 'stock', ent: 'VARIACAO', tipo: 'Número', aba: 'Informações de Vendas' },
+    'Código de barras': { campo: 'ean_gtin', ent: 'VARIACAO', tipo: 'Código de barras', aba: 'Especificações' },
+    'Peso': { campo: 'weight_kg', ent: 'VARIACAO', tipo: 'Número', aba: 'Envio e Logística' },
+    'Peso embalado': { campo: 'packed_weight_kg', ent: 'LOGISTICA', tipo: 'Número', aba: 'Envio e Logística' },
+    'Largura': { campo: 'width_cm', ent: 'LOGISTICA', tipo: 'Número', aba: 'Envio e Logística' },
+    'Altura': { campo: 'height_cm', ent: 'LOGISTICA', tipo: 'Número', aba: 'Envio e Logística' },
+    'Comprimento': { campo: 'length_cm', ent: 'LOGISTICA', tipo: 'Número', aba: 'Envio e Logística' },
+    'Prazo de manuseio': { campo: 'handling_time', ent: 'LOGISTICA', tipo: 'Texto', aba: 'Envio e Logística' },
+    'Tipo de envio': { campo: 'shipping_type', ent: 'LOGISTICA', tipo: 'Texto', aba: 'Envio e Logística' },
+    'NCM': { campo: 'ncm', ent: 'FISCAL', tipo: 'Identificador', aba: 'Especificações' },
+    'Origem fiscal': { campo: 'fiscal_origin', ent: 'FISCAL', tipo: 'Texto', aba: 'Especificações' },
+    'CEST': { campo: 'cest', ent: 'FISCAL', tipo: 'Identificador', aba: 'Especificações' },
+    'Imagem principal': { campo: 'image_main', ent: 'MIDIA', tipo: 'Mídia', aba: 'Fotos e Vídeos' },
+    'Imagem 2': { campo: 'image_2', ent: 'MIDIA', tipo: 'Mídia', aba: 'Fotos e Vídeos' },
+    'Imagem 3': { campo: 'image_3', ent: 'MIDIA', tipo: 'Mídia', aba: 'Fotos e Vídeos' },
+    'Vídeo': { campo: 'video', ent: 'MIDIA', tipo: 'Mídia', aba: 'Fotos e Vídeos' },
+    'Status': { campo: 'listing_status', ent: 'LISTING', tipo: 'Status', aba: 'Informação Básica' },
+    'Condição': { campo: 'condition', ent: 'LISTING', tipo: 'Texto', aba: 'Informação Básica' },
+  };
+  const CAD_IDENT = ['Categoria', 'Nome do produto', 'Número de referência do SKU pai'];
+  const STATUS_MAP = {
+    'ativo': 'Ativo reportado', 'active': 'Ativo reportado', 'normal': 'Ativo reportado', 'live': 'Ativo reportado',
+    'pausado': 'Pausado reportado', 'paused': 'Pausado reportado',
+    'não publicado': 'Não publicado reportado', 'nao publicado': 'Não publicado reportado', 'unlisted': 'Não publicado reportado',
+    'em revisão': 'Em revisão reportado', 'em revisao': 'Em revisão reportado', 'pending': 'Em revisão reportado',
+    'com erro': 'Com erro reportado', 'erro': 'Com erro reportado', 'banned': 'Com erro reportado', 'bloqueado': 'Com erro reportado',
+  };
+  const statusReportado = s => STATUS_MAP[String(s || '').trim().toLowerCase()] || 'Desconhecido';
+
+  function cadastroDetect(file) {
+    const abas = file.abas || [];
+    const evid = new Set();
+    for (const a of abas) for (const h of (a.headers || [])) if (CADASTRO_SCHEMA[h]) evid.add(h);
+    const ident = CAD_IDENT.filter(c => abas.some(a => (a.headers || []).includes(c)));
+    const ehCadastro = ident.length >= 2 && evid.size >= 4;
+    return { ehCadastro, confianca: ehCadastro ? (ident.length === 3 ? 'alta' : 'média') : 'nenhuma',
+      identificadores: ident, evidencias: [...evid], perfil: 'SHOPEE_MASS_UPLOAD_CADASTRO', nomePerfil: 'Cadastro Shopee (mass upload)',
+      abas: abas.map(a => a.nome) };
+  }
+
+  /* staging: agrupa linhas em Produto Master → Anúncio → Variações, com identidade e vínculo */
+  function cadastroStage(cat, file, escopo, opts) {
+    opts = opts || {};
+    for (const k of ['companyId', 'contaId', 'marketplace'])
+      if (!escopo[k]) return { blocked: true, reason: 'escopo incompleto: falta ' + k + ' — cadastro exige Empresa → Canal → Conta Shopee' };
+    const det = cadastroDetect(file);
+    if (!det.ehCadastro) return { blocked: true, reason: 'arquivo não reconhecido como cadastro Shopee (mass upload) — verifique o template', det };
+    /* camada bruta: todas as abas/linhas/colunas + todos os blocos reconhecidos */
+    const rawRows = [], colunas = new Set();
+    for (const a of file.abas) {
+      const blocos = (a.blocos && a.blocos.length) ? a.blocos : [{ headers: a.headers, rows: a.rows }];
+      for (const b of blocos) {
+        const ehCad = (b.headers || []).some(h => CADASTRO_SCHEMA[h]);
+        (b.headers || []).forEach(h => h && colunas.add(h));
+        if (!ehCad) continue;
+        for (const r of (b.rows || [])) rawRows.push({ aba: a.nome, raw: r });
+      }
+    }
+    const val = (r, col) => { const v = r[col]; return v == null || v === '' ? null : v; };
+    const mastersMap = {}, conflitos = [], invalidas = [], pendentes = [];
+    const skuSeen = {};
+    rawRows.forEach((rr, i) => {
+      const r = rr.raw;
+      const skuPai = val(r, 'Número de referência do SKU pai');
+      const itemId = val(r, 'ID do Item');
+      const skuVar = val(r, 'SKU');
+      const nome = val(r, 'Nome do produto');
+      if (!skuPai && !itemId && !skuVar && !nome) { invalidas.push({ linha: i + 1, motivo: 'linha sem SKU, item_id ou nome — não é cadastro', raw: r }); return; }
+      const mkey = skuPai || itemId || ('nome:' + nome);
+      const m = mastersMap[mkey] || (mastersMap[mkey] = { chave: mkey, skuPai: skuPai, nome, marca: val(r, 'Marca'),
+        modelo: val(r, 'Modelo'), material: val(r, 'Material'), categoria: val(r, 'Categoria'),
+        descricao: val(r, 'Descrição do produto'), itemId, statusReportado: statusReportado(val(r, 'Status')),
+        statusBruto: val(r, 'Status'), aba: rr.aba, variacoes: [], midias: [], soNome: !skuPai && !itemId });
+      /* mídia referenciada (URL/nome) — nunca baixada, nunca validada */
+      for (const col of ['Imagem principal', 'Imagem 2', 'Imagem 3', 'Vídeo']) {
+        const u = val(r, col);
+        if (u && !m.midias.some(x => x.url === u)) m.midias.push({ url: u, tipo: col === 'Vídeo' ? 'video' : 'foto',
+          principal: col === 'Imagem principal', origem: 'importação Shopee', status: 'MÍDIA REFERENCIADA', pendenteValidacao: true });
+      }
+      if (skuVar || val(r, 'Preço') != null || val(r, 'Opção da variação')) {
+        const dupKey = escopo.marketplace + '|' + escopo.contaId + '|' + (skuVar || '');
+        if (skuVar && skuSeen[dupKey]) conflitos.push({ tipo: 'SKU duplicado', sku: skuVar, linha: i + 1,
+          motivo: `SKU ${skuVar} aparece em mais de uma linha no mesmo marketplace/conta — duplicidade exige revisão humana`, estado: 'AGUARDANDO REVISÃO' });
+        if (skuVar) skuSeen[dupKey] = true;
+        m.variacoes.push({ sku: skuVar, nome: val(r, 'Opção da variação') || val(r, 'Nome da variação') || 'única',
+          atributoNome: val(r, 'Nome da variação'), atributoValor: val(r, 'Opção da variação'),
+          preco: brNum(val(r, 'Preço')), precoPromo: brNum(val(r, 'Preço promocional')), estoque: brNum(val(r, 'Estoque')),
+          ean: val(r, 'Código de barras'), pesoKg: brNum(val(r, 'Peso')),
+          logistica: { pesoEmbaladoKg: brNum(val(r, 'Peso embalado')), larguraCm: brNum(val(r, 'Largura')),
+            alturaCm: brNum(val(r, 'Altura')), comprimentoCm: brNum(val(r, 'Comprimento')),
+            prazoManuseio: val(r, 'Prazo de manuseio'), tipoEnvio: val(r, 'Tipo de envio') },
+          fiscal: { ncm: val(r, 'NCM'), origem: val(r, 'Origem fiscal'), cest: val(r, 'CEST') },
+          statusReportado: statusReportado(val(r, 'Status')), raw: r, linha: i + 1 });
+      }
+    });
+    /* vínculo com Product Master existente: SKU pai → EAN → (nome nunca vincula sozinho) */
+    const masters = Object.values(mastersMap).map(m => {
+      let vinculo, produtoId = null;
+      const porSku = m.skuPai && cat.products.find(p => p.master && (p.master.sku === m.skuPai || p.sku === m.skuPai));
+      const eans = m.variacoes.map(v => v.ean).filter(Boolean);
+      const porEan = !porSku && eans.length && cat.products.find(p => p.master && eans.includes(p.master.ean));
+      if (porSku) { vinculo = 'VÍNCULO CONFIRMADO POR SKU'; produtoId = porSku.id; }
+      else if (porEan) { vinculo = 'VÍNCULO SUGERIDO POR EAN'; produtoId = porEan.id; pendentes.push({ chave: m.chave, motivo: 'EAN coincide, mas SKU pai difere — confirmar vínculo' }); }
+      else if (m.skuPai || m.itemId) vinculo = 'NOVO PRODUTO MASTER';
+      else { vinculo = 'AGUARDANDO REVISÃO'; pendentes.push({ chave: m.chave, motivo: 'sem SKU pai e sem item_id — só nome não cria vínculo definitivo' }); }
+      return Object.assign(m, { vinculo, produtoId });
+    });
+    const campos = [...colunas].map(col => {
+      const sc = CADASTRO_SCHEMA[col];
+      return { coluna: col, exemplo: (rawRows.find(rr => rr.raw[col] != null && rr.raw[col] !== '') || { raw: {} }).raw[col] || null,
+        tipo: sc ? sc.tipo : 'Texto', campoNormalizado: sc ? sc.campo : null, entidade: sc ? ENTIDADE_NOME[sc.ent] : 'Não mapeado',
+        entKey: sc ? sc.ent : null, status: sc ? 'Utilizado' : 'Aguardando mapeamento', aba: sc ? sc.aba : null };
+    });
+    const variacoesTotal = masters.reduce((a, m) => a + m.variacoes.length, 0);
+    return {
+      ehCadastro: true, arquivo: file.nome, escopo, det, rawRows, campos, camposPreservados: colunas.size,
+      abas: file.abas.map(a => a.nome), blocos: rawRows.length ? ['Cadastro de produtos'] : [],
+      masters, conflitos, invalidas, pendentes,
+      resumo: { produtosNovos: masters.filter(m => m.vinculo === 'NOVO PRODUTO MASTER').length,
+        anunciosExistentes: masters.filter(m => /CONFIRMADO/.test(m.vinculo)).length,
+        variacoesNovas: variacoesTotal, duplicidades: conflitos.length, conflitos: conflitos.length,
+        camposPendentes: campos.filter(c => c.status === 'Aguardando mapeamento').length, linhasInvalidas: invalidas.length,
+        aguardandoRevisao: masters.filter(m => /AGUARDANDO|SUGERIDO/.test(m.vinculo)).length },
+    };
+  }
+
+  function cadStore(cat) {
+    return cat.cadastro || (cat.cadastro = { masters: [], listings: [], variacoes: [], media: [], imports: [], audit: [], seq: 0 });
+  }
+  const cadAudit = (cat, acao, detalhe, extra) => { const c = cadStore(cat); c.audit.push(Object.assign({ id: 'cad' + (++c.seq), acao, detalhe, em: HOJE }, extra || {})); };
+
+  function cadastroApply(cat, stage, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_IMPORT_APPLY')) return negar(opts.papel, 'CATALOG_IMPORT_APPLY');
+    if (!stage || !stage.ehCadastro) return { blocked: true, reason: 'nada a aplicar — prévia inválida' };
+    const st = cadStore(cat);
+    const esc = stage.escopo;
+    let mastersCriados = 0, mastersAtualizados = 0, listingsVinc = 0, variacoesCriadas = 0, variacoesAtualizadas = 0, midiasRef = 0, conflitosPulados = 0;
+    for (const m of stage.masters) {
+      const mkey = 'M|' + esc.contaId + '|' + (m.skuPai || m.itemId || m.nome);
+      let master = st.masters.find(x => x.key === mkey);
+      if (!master) {
+        master = { key: mkey, id: 'PM' + (++st.seq), skuPai: m.skuPai, nome: m.nome, marca: m.marca, modelo: m.modelo,
+          material: m.material, categoria: m.categoria, descricao: m.descricao, vinculo: m.vinculo, produtoId: m.produtoId,
+          escopo: { companyId: esc.companyId, contaId: esc.contaId, marketplace: esc.marketplace },
+          fonte: 'PLANILHA_SHOPEE', origem: 'DADO IMPORTADO VIA PLANILHA', arquivo: stage.arquivo, aba: m.aba,
+          importadoEm: HOJE, atualizadoEm: HOJE, correcoes: [], versoes: [] };
+        st.masters.push(master); mastersCriados++;
+      } else { mastersAtualizados += mesclaVersionado(master, m, ['nome', 'marca', 'modelo', 'material', 'categoria', 'descricao'], opts) ? 1 : 0; }
+      /* anúncio Shopee: chave marketplace + conta + item_id */
+      const lkey = 'L|' + esc.marketplace + '|' + esc.contaId + '|' + (m.itemId || m.skuPai || m.nome);
+      let listing = st.listings.find(x => x.key === lkey);
+      const dados = { titulo: m.nome, categoria: m.categoria, descricao: m.descricao, itemIdExterno: m.itemId,
+        statusReportado: m.statusReportado, statusBruto: m.statusBruto };
+      if (!listing) {
+        listing = Object.assign({ key: lkey, id: 'LS' + (++st.seq), masterKey: mkey, marketplace: esc.marketplace,
+          mktNome: MKT_NOME[esc.marketplace] || esc.marketplace, contaId: esc.contaId, companyId: esc.companyId,
+          fonte: 'PLANILHA_SHOPEE', origem: 'DADO IMPORTADO VIA PLANILHA', situacao: 'STATUS REPORTADO POR PLANILHA',
+          arquivo: stage.arquivo, aba: m.aba, importadoEm: HOJE, atualizadoEm: HOJE, midias: [], correcoes: [], versoes: [], arquivado: null }, dados);
+        st.listings.push(listing); listingsVinc++;
+      } else { mesclaVersionado(listing, dados, ['titulo', 'categoria', 'descricao', 'itemIdExterno', 'statusReportado'], opts); }
+      /* mídia referenciada (nunca baixada/validada) */
+      for (const md of m.midias) {
+        if (!listing.midias.some(x => x.url === md.url)) { listing.midias.push(Object.assign({ id: 'MDR' + (++st.seq) }, md)); midiasRef++; }
+      }
+      /* variações: chave marketplace + conta + SKU var */
+      for (const v of m.variacoes) {
+        const vkey = 'V|' + esc.marketplace + '|' + esc.contaId + '|' + (v.sku || (listing.id + ':' + v.nome));
+        const conflito = stage.conflitos.find(c => c.sku && c.sku === v.sku);
+        if (conflito) { conflitosPulados++; }
+        let variacao = st.variacoes.find(x => x.key === vkey);
+        const vdados = { nome: v.nome, atributoNome: v.atributoNome, atributoValor: v.atributoValor, sku: v.sku,
+          ean: v.ean, preco: v.preco, precoPromo: v.precoPromo, estoque: v.estoque, pesoKg: v.pesoKg,
+          logistica: v.logistica, fiscal: v.fiscal, statusReportado: v.statusReportado };
+        if (!variacao) {
+          variacao = Object.assign({ key: vkey, id: 'VR' + (++st.seq), listingKey: lkey, masterKey: mkey,
+            marketplace: esc.marketplace, contaId: esc.contaId, fonte: 'PLANILHA_SHOPEE', origem: 'DADO IMPORTADO VIA PLANILHA',
+            conflitoSku: !!conflito, importadoEm: HOJE, atualizadoEm: HOJE, correcoes: [], versoes: [], arquivada: null }, vdados);
+          st.variacoes.push(variacao); variacoesCriadas++;
+        } else { mesclaVersionado(variacao, vdados, ['nome', 'sku', 'ean', 'preco', 'precoPromo', 'estoque', 'pesoKg', 'statusReportado'], opts) && variacoesAtualizadas++; }
+      }
+    }
+    const imp = { id: 'IMPCAD' + (++st.seq), arquivo: stage.arquivo, escopo: esc, em: HOJE, batchId: opts.batchId || null,
+      rawRows: stage.rawRows, campos: stage.campos, camposPreservados: stage.camposPreservados, abas: stage.abas,
+      contagens: { mastersCriados, mastersAtualizados, listingsVinc, variacoesCriadas, variacoesAtualizadas, midiasRef, conflitos: conflitosPulados },
+      usuario: opts.usuario || 'Marcos' };
+    st.imports.push(imp);
+    cadAudit(cat, 'cadastro_shopee_aplicado', `${stage.arquivo}: ${mastersCriados} master(s), ${listingsVinc} anúncio(s), ${variacoesCriadas} variação(ões)`, { escopo: esc });
+    return { ok: true, impacto: {
+      mastersCriados, mastersAtualizados, listingsVinculados: listingsVinc, variacoesCriadas, variacoesAtualizadas,
+      camposPreservados: stage.camposPreservados, camposNormalizados: stage.campos.filter(c => c.campoNormalizado).length,
+      conflitos: conflitosPulados, aguardandoRevisao: stage.resumo.aguardandoRevisao, midiasReferenciadas: midiasRef,
+      pendencias: saudeCadastro(cat).reduce((a, f) => a + f.itens.length, 0), arquivo: stage.arquivo, escopo: esc } };
+  }
+  function mesclaVersionado(alvo, novo, campos, opts) {
+    let mudou = false;
+    for (const c of campos) {
+      if (novo[c] === undefined) continue;
+      const antes = alvo[c];
+      if (String(antes ?? '') !== String(novo[c] ?? '') && novo[c] != null) {
+        alvo.versoes.push({ campo: c, antes, depois: novo[c], em: HOJE, origem: 'REIMPORTAÇÃO', usuario: opts.usuario || 'Marcos' });
+        alvo[c] = novo[c]; alvo.atualizadoEm = HOJE; mudou = true;
+      }
+    }
+    return mudou;
+  }
+
+  /* Saúde e Pendências do cadastro — cada fila abre a aba certa do editor */
+  const CAD_FILAS = [
+    ['sem_sku', 'Variações sem SKU', 'Lista de Variações'],
+    ['sem_item_id', 'Anúncios sem item_id', 'Informação Básica'],
+    ['sem_peso', 'Variações sem peso', 'Envio e Logística'],
+    ['sem_dimensao', 'Anúncios sem dimensão', 'Envio e Logística'],
+    ['sem_marca', 'Anúncios sem marca', 'Informação Básica'],
+    ['sem_ean', 'Variações sem EAN/GTIN', 'Especificações'],
+    ['sem_categoria', 'Anúncios sem categoria', 'Categoria'],
+    ['variacao_incompleta', 'Variações incompletas', 'Lista de Variações'],
+    ['sem_foto', 'Anúncios sem foto principal', 'Fotos e Vídeos'],
+    ['midia_referenciada', 'Anúncios com mídia apenas referenciada', 'Fotos e Vídeos'],
+    ['sem_estoque', 'Variações sem estoque informado', 'Informações de Vendas'],
+    ['status_desconhecido', 'Anúncios sem status reconhecido', 'Informação Básica'],
+    ['sku_duplicado', 'SKU duplicado', 'Lista de Variações'],
+    ['sem_master', 'Anúncios sem Product Master', 'Comparar Marketplaces'],
+    ['variacao_sem_vinculo', 'Variações sem vínculo confirmado', 'Lista de Variações'],
+  ];
+  function saudeCadastro(cat) {
+    const st = cadStore(cat);
+    const lst = st.listings.filter(l => !l.arquivado), vr = st.variacoes.filter(v => !v.arquivada);
+    const temFoto = l => l.midias.some(m => m.principal);
+    const masterConfirmado = l => { const m = st.masters.find(x => x.key === l.masterKey); return m && /CONFIRMADO/.test(m.vinculo || ''); };
+    const filaMap = {
+      sem_sku: vr.filter(v => !v.sku).map(v => v.id),
+      sem_item_id: lst.filter(l => !l.itemIdExterno).map(l => l.id),
+      sem_peso: vr.filter(v => v.pesoKg == null).map(v => v.id),
+      sem_dimensao: lst.filter(l => vr.filter(v => v.listingKey === l.key).every(v => !v.logistica || v.logistica.larguraCm == null)).map(l => l.id),
+      sem_marca: lst.filter(l => { const m = st.masters.find(x => x.key === l.masterKey); return !m || !m.marca; }).map(l => l.id),
+      sem_ean: vr.filter(v => !v.ean).map(v => v.id),
+      sem_categoria: lst.filter(l => !l.categoria).map(l => l.id),
+      variacao_incompleta: vr.filter(v => v.preco == null || v.estoque == null).map(v => v.id),
+      sem_foto: lst.filter(l => !temFoto(l)).map(l => l.id),
+      midia_referenciada: lst.filter(l => l.midias.length && l.midias.every(m => m.status === 'MÍDIA REFERENCIADA')).map(l => l.id),
+      sem_estoque: vr.filter(v => v.estoque == null).map(v => v.id),
+      status_desconhecido: lst.filter(l => l.statusReportado === 'Desconhecido').map(l => l.id),
+      sku_duplicado: vr.filter(v => v.conflitoSku).map(v => v.id),
+      sem_master: lst.filter(l => !masterConfirmado(l)).map(l => l.id),
+      variacao_sem_vinculo: vr.filter(v => { const l = st.listings.find(x => x.key === v.listingKey); return !l || !masterConfirmado(l); }).map(v => v.id),
+    };
+    return CAD_FILAS.map(([key, label, aba]) => ({ key, label, aba, itens: filaMap[key] || [] }));
+  }
+
+  /* relação com pedidos/métricas: por item_id ou SKU — incerto vai para revisão */
+  function cadastroRelacoes(cat, eng) {
+    const st = cadStore(cat);
+    const contrib = (eng && typeof eng === 'object' && eng.snapshots) ? eng.snapshots.filter(s => s.metric_type === 'contrib_produto') : [];
+    const out = [];
+    for (const l of st.listings.filter(x => !x.arquivado)) {
+      const porItem = l.itemIdExterno && contrib.find(s => String(s.item_id) === String(l.itemIdExterno));
+      out.push({ listingId: l.id, titulo: l.titulo, item_id: l.itemIdExterno,
+        vinculoPerf: porItem ? 'CONFIRMADO POR ITEM_ID' : 'SEM PERFORMANCE VINCULADA',
+        vendas: porItem && porItem.metricas ? porItem.metricas.sales : null,
+        pedidos: porItem && porItem.metricas ? porItem.metricas.orders : null,
+        confianca: porItem ? 'alta — item_id igual' : 'sem correspondência de item_id/SKU no período importado' });
+    }
+    return { relacoes: out, comPerformance: out.filter(r => r.vinculoPerf !== 'SEM PERFORMANCE VINCULADA').length, semPerformance: out.filter(r => r.vinculoPerf === 'SEM PERFORMANCE VINCULADA').length };
+  }
+
+  function cadastroOverview(cat) {
+    const st = cadStore(cat);
+    return { masters: st.masters.length, listings: st.listings.filter(l => !l.arquivado).length,
+      variacoes: st.variacoes.filter(v => !v.arquivada).length, imports: st.imports.length,
+      midiasReferenciadas: st.listings.reduce((a, l) => a + l.midias.filter(m => m.status === 'MÍDIA REFERENCIADA').length, 0),
+      aguardandoRevisao: st.masters.filter(m => /AGUARDANDO|SUGERIDO/.test(m.vinculo || '')).length };
+  }
+  const cadListings = cat => cadStore(cat).listings.filter(l => !l.arquivado);
+  const cadVariacoesDe = (cat, listingKey) => cadStore(cat).variacoes.filter(v => v.listingKey === listingKey && !v.arquivada);
+  const cadMasterDe = (cat, masterKey) => cadStore(cat).masters.find(m => m.key === masterKey);
+  const cadCamposRecebidos = cat => {
+    const st = cadStore(cat);
+    const campos = st.imports.length ? st.imports[st.imports.length - 1].campos.map(c => Object.assign({}, c)) : [];
+    for (const c of campos) {
+      const mm = (st.manualMappings || []).filter(m => m.coluna === c.coluna).pop();
+      if (mm) { c.campoNormalizado = mm.campo; c.entidade = ENTIDADE_NOME[mm.ent] || mm.ent; c.entKey = mm.ent; c.status = 'Mapeado manualmente'; }
+    }
+    return campos;
+  };
+  const cadImports = cat => cadStore(cat).imports;
+  function cadMapearCampo(cat, coluna, campoDestino, entidade, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_EDIT')) return negar(opts.papel, 'CATALOG_EDIT');
+    if (!coluna || !campoDestino) return { blocked: true, reason: 'coluna e campo de destino são obrigatórios' };
+    const st = cadStore(cat);
+    st.manualMappings = st.manualMappings || [];
+    st.manualMappings.push({ coluna, campo: campoDestino, ent: entidade || 'AUXILIAR', usuario: opts.usuario || 'Marcos', em: HOJE });
+    cadAudit(cat, 'cadastro_campo_mapeado', `${coluna} → ${campoDestino} (${entidade || 'AUXILIAR'})`);
+    return { ok: true, nota: 'mapeamento manual registrado e auditado — a coluna original continua preservada na camada bruta' };
+  }
+
+  /* edição auditada — nunca altera a Shopee */
+  function cadCorrigirCampo(cat, tipo, id, campo, valor, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_EDIT')) return negar(opts.papel, 'CATALOG_EDIT');
+    const bloq = exigeMotivo(opts.motivo); if (bloq) return bloq;
+    const st = cadStore(cat);
+    const alvo = (tipo === 'variacao' ? st.variacoes : tipo === 'master' ? st.masters : st.listings).find(x => x.id === id);
+    if (!alvo) return { blocked: true, reason: 'registro não encontrado' };
+    const antes = alvo[campo];
+    alvo.correcoes.push({ campo, importadoOriginal: antes, depois: valor, usuario: opts.usuario || 'Marcos', em: HOJE,
+      motivo: opts.motivo, origem: 'MANUAL_CORRECTION', vigencia: 'a partir de ' + HOJE });
+    alvo[campo] = valor; alvo.atualizadoEm = HOJE;
+    cadAudit(cat, 'cadastro_campo_corrigido', `${tipo} ${id} · ${campo}: "${antes ?? ''}" → "${valor}"`, { motivo: opts.motivo });
+    return { ok: true, nota: 'valor importado original preservado — correção é camada MANUAL_CORRECTION; a Shopee não é alterada' };
+  }
+  function cadDecidirVinculo(cat, masterId, decisao, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_EDIT')) return negar(opts.papel, 'CATALOG_EDIT');
+    const st = cadStore(cat);
+    const m = st.masters.find(x => x.id === masterId);
+    if (!m) return { blocked: true, reason: 'master não encontrado' };
+    const D = { confirmar: 'VÍNCULO CONFIRMADO MANUALMENTE', rejeitar: 'VÍNCULO REJEITADO', novo: 'NOVO PRODUTO MASTER (humano)', isolar: 'ANÚNCIO ISOLADO' };
+    if (!D[decisao]) return { blocked: true, reason: 'decisão inválida' };
+    m.vinculo = D[decisao]; if (decisao === 'rejeitar' || decisao === 'novo' || decisao === 'isolar') m.produtoId = null;
+    cadAudit(cat, 'cadastro_vinculo_decidido', `master ${masterId} → ${D[decisao]}`);
+    return { ok: true, vinculo: m.vinculo };
+  }
+  function cadAddMediaManual(cat, listingId, meta, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_MEDIA_UPLOAD')) return negar(opts.papel, 'CATALOG_MEDIA_UPLOAD');
+    const st = cadStore(cat);
+    const l = st.listings.find(x => x.id === listingId);
+    if (!l) return { blocked: true, reason: 'anúncio não encontrado' };
+    const ext = String(meta.arquivo || '').split('.').pop().toLowerCase();
+    if (!['jpg', 'jpeg', 'png', 'webp', 'mp4', 'mov'].includes(ext)) return { blocked: true, reason: `formato .${ext} não aceito para mídia` };
+    const md = { id: 'MDM' + (++st.seq), arquivo: meta.arquivo, tipo: ['mp4', 'mov'].includes(ext) ? 'video' : 'foto',
+      principal: !!meta.principal, origem: 'UPLOAD MANUAL', status: 'CARREGADA MANUALMENTE', pendenteValidacao: false,
+      pesoKb: meta.pesoKb || null, em: HOJE, usuario: opts.usuario || 'Marcos' };
+    l.midias.push(md);
+    cadAudit(cat, 'cadastro_midia_manual', `anúncio ${listingId} · ${meta.arquivo}`);
+    return { ok: true, media: md };
+  }
+  function cadArquivar(cat, tipo, id, opts) {
+    opts = opts || {};
+    if (!canCat(opts.papel || 'OWNER', 'CATALOG_ARCHIVE')) return negar(opts.papel, 'CATALOG_ARCHIVE');
+    const bloq = exigeMotivo(opts.motivo); if (bloq) return bloq;
+    const st = cadStore(cat);
+    const alvo = (tipo === 'variacao' ? st.variacoes : st.listings).find(x => x.id === id);
+    if (!alvo) return { blocked: true, reason: 'registro não encontrado' };
+    alvo[tipo === 'variacao' ? 'arquivada' : 'arquivado'] = { em: HOJE, motivo: opts.motivo, usuario: opts.usuario || 'Marcos' };
+    cadAudit(cat, 'cadastro_arquivado', `${tipo} ${id}`, { motivo: opts.motivo });
+    return { ok: true, nota: 'arquivado internamente — histórico preservado; nada alterado na Shopee' };
+  }
+
+  /* fixture de cadastro (schema do template Shopee, rotulada) */
+  function cadastroFixture() {
+    const H = ['Categoria', 'Nome do produto', 'Descrição do produto', 'Número de referência do SKU pai', 'ID do Item',
+      'Marca', 'Modelo', 'Material', 'Nome da variação', 'Opção da variação', 'SKU', 'Preço', 'Preço promocional',
+      'Estoque', 'Código de barras', 'Peso', 'Peso embalado', 'Largura', 'Altura', 'Comprimento', 'Prazo de manuseio',
+      'Tipo de envio', 'NCM', 'Origem fiscal', 'CEST', 'Imagem principal', 'Imagem 2', 'Imagem 3', 'Vídeo', 'Status', 'Condição'];
+    const row = a => { const o = {}; H.forEach((h, i) => o[h] = a[i] ?? ''); return o; };
+    return {
+      nome: 'Shopee_mass_upload_2026-07-05_basic_template.xlsx', sourceType: 'PLANILHA_SHOPEE', periodo: null,
+      abas: [{ nome: 'Basic Template', headers: H, rows: [
+        row(['Decoração > Quadros', 'Quadro Paisagem 60x90 Premium', 'Quadro decorativo em canvas', 'QP-6090', '900101', 'Líder Molduras', 'QP-PRE', 'Canvas', 'Tamanho', '60x90', 'QP-6090', '124,90', '112,41', '12', '7890001112223', '1,2', '1,5', '10', '65', '95', '2 dias', 'Shopee Xpress', '4911.91.00', '0 - Nacional', '2801100', 'https://cf.shopee.com.br/9001/main.jpg', 'https://cf.shopee.com.br/9001/2.jpg', '', '', 'Ativo', 'Novo']),
+        row(['Decoração > Quadros', 'Quadro Paisagem 60x90 Premium', '', 'QP-6090', '900101', 'Líder Molduras', 'QP-PRE', 'Canvas', 'Tamanho', '80x120', 'QP-80120', '189,90', '', '9', '', '1,8', '2,1', '12', '85', '125', '2 dias', 'Shopee Xpress', '4911.91.00', '0 - Nacional', '', '', '', '', '', 'Ativo', 'Novo']),
+        row(['Decoração > Kits', 'Kit 3 Quadros Sala Moderna', 'Kit com 3 quadros', 'KIT3-SALA', '900202', 'Líder Molduras', 'K3-SALA', 'MDF', 'Modelo', 'Sala Moderna', 'KIT3-SALA', '244,90', '', '3', '7890004445556', '2,5', '3,0', '50', '40', '8', '3 dias', 'Correios', '4911.91.00', '0 - Nacional', '', 'https://cf.shopee.com.br/9002/main.jpg', '', '', 'https://cf.shopee.com.br/9002/video.mp4', 'Pausado', 'Novo']),
+        row(['Decoração', 'Espelho Adnet Orgânico', 'Espelho decorativo', 'ESP-ADN', '', 'Reflexo', '', 'Vidro', 'Tamanho', '50cm', 'ESP-ADN-50', '159,90', '', '', '', '2,0', '', '', '', '', '', '', '', '', '', '', '', '', '', 'Desconhecido', 'Novo']),
+        row(['', 'Produto sem SKU nem item_id', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']),
+      ] }],
+    };
+  }
+
   return { FONTES, MKTS: MKTS.map(([key, nome]) => ({ key, nome })), CATALOG_PERMS, CATALOG_PERMS_ALL, canCat,
     createCatalog, byId, prodOf, ativos, valorDe, fotosDe, salesInfo, perfComercial, convExp,
     assertRanking, rankingDe, listingTags, searchListings, quickFilter, overview, health, FILAS,
     masterVsListings, compareMkts, editListing, correctListingField, editMasterSafe,
     addVariation, editVariation, archiveVariation, addMedia, setPrincipal, removeFromListing, mediaUsage,
     ADAPT_RULES, duplicateListing, adaptListing, cancelDraft,
-    bulkPreview, bulkCommit, bulkRollback, archiveListing, restoreListing, timelineDe, versionsCompare };
+    bulkPreview, bulkCommit, bulkRollback, archiveListing, restoreListing, timelineDe, versionsCompare,
+    /* 10.E.2.4 — importação real de cadastro Shopee */
+    CADASTRO_SCHEMA, ENTIDADE_NOME, CAD_FILAS, statusReportado, cadastroDetect, cadastroStage, cadastroApply,
+    saudeCadastro, cadastroRelacoes, cadastroOverview, cadListings, cadVariacoesDe, cadMasterDe, cadCamposRecebidos,
+    cadImports, cadCorrigirCampo, cadDecidirVinculo, cadAddMediaManual, cadArquivar, cadMapearCampo, cadastroFixture };
 }));

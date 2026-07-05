@@ -612,3 +612,64 @@ pedidos vaziam e vendas ficavam R$ 0,00. Agora:
   aceite + contrato de UI); suíte completa **548 verdes**; validação headless
   com **XLSX real multiabas** subido pela tela mostrando os valores exatos na
   interface, com console limpo.
+
+## Sprint 10.E.2.4 — Importação real de CADASTRO SHOPEE no Catálogo
+
+Traz o cadastro real da Shopee (`Shopee_mass_upload_2026-07-05_basic_template.xlsx`)
+para **dentro do Catálogo** — não numa importação genérica — e organiza
+Produto Master × Anúncio Shopee × Variação, com todos os campos, sem alterar
+nada externamente. Módulo autossuficiente em `catalog-engine.js` (V8CAT).
+
+- **Identidade separada**: Product Master (verdade interna, chave SKU pai/
+  vínculo humano), Anúncio Shopee (chave `marketplace + conta + item_id`),
+  Variação (chave `marketplace + conta + SKU`). Nome sozinho **nunca** cria
+  vínculo definitivo → `AGUARDANDO REVISÃO` com ações Confirmar/Rejeitar/
+  Criar Master/Manter isolado. Conflito de SKU no mesmo escopo abre revisão.
+- **Fluxo de 6 etapas** (Arquivo → Leitura → Escopo → Mapeamento → Prévia →
+  Aplicação) no subárea *Importar Cadastro*: upload local real (XLSX/CSV/ZIP),
+  leitura de todas as abas/blocos (reusa `segmentBlocks`), prévia com
+  produtos novos, anúncios, variações, duplicidades, conflitos, pendentes e
+  linhas inválidas; aplica só após confirmação humana.
+- **Três camadas**: bruta (todas as abas/linhas/colunas preservadas em
+  `cat.cadastro.imports`), normalizada (campos do Catálogo por entidade),
+  derivada (saúde/pendência/status/vínculo). *Campos de Cadastro* lista toda
+  coluna com coluna original, exemplo, tipo, destino normalizado, entidade,
+  status e ação; coluna desconhecida fica *Aguardando mapeamento* e pode ser
+  **mapeada manualmente** (auditado, bruto preservado).
+- **Entidades e campos**: `CADASTRO_SCHEMA` distribui cada coluna entre
+  Product Master / Anúncio / Variação / Logística / Fiscal / Mídia. Números
+  brasileiros (preço/estoque/peso/dimensão) convertidos; NCM/origem/CEST no
+  fiscal; peso embalado + L×A×C + prazo + tipo de envio na logística.
+- **Mídia REFERENCIADA**: imagem/vídeo por URL vira `MÍDIA REFERENCIADA`
+  (origem: importação Shopee, `pendenteValidacao: true`) — nunca baixada,
+  nunca marcada como validada. Upload manual real registra `CARREGADA
+  MANUALMENTE`. A aba Fotos e Vídeos separa referenciada × carregada.
+- **Status REPORTADO por planilha**: `statusReportado()` mapeia Ativo/Pausado/
+  Não publicado/Em revisão/Com erro/Desconhecido para "…reportado"; o anúncio
+  carrega `situacao: 'STATUS REPORTADO POR PLANILHA'` — nunca "ao vivo".
+- **Anúncios importados** aparecem na lista do Catálogo (foto ref., produto·
+  SKU, item_id, variações, preço, estoque, status, vendidos reais, saúde) com
+  detalhe por entidade (Informação Básica/Categoria/Descrição/Especificações/
+  Vendas/Variações/Logística/Fotos e Vídeos/Histórico). **Saúde e Pendências**
+  ganha 15 filas do cadastro (sem SKU/item_id/peso/dimensão/marca/EAN/
+  categoria/foto/estoque/status, mídia só referenciada, SKU duplicado, sem
+  master, variação sem vínculo) — cada uma aponta a aba certa do editor.
+- **Relação com pedidos/métricas** (`cadastroRelacoes`): casa por `item_id`
+  com a performance real (10.E.2.3); sem correspondência → *SEM PERFORMANCE
+  VINCULADA* (nunca inventa). *Centro de Custos* recebe o preço como base de
+  margem quando a cobertura permitir.
+- **Reimportação concilia**: mesmas chaves → atualiza e versiona (nunca
+  duplica nem soma); valor alterado registra `versoes` com antes/depois.
+  Edição manual é `MANUAL_CORRECTION` (motivo obrigatório) e preserva o valor
+  importado original. **Nenhuma escrita externa é disparada** — a Shopee não
+  é alterada em nenhum ponto.
+- **Mesa/Catálogo**: painel *O QUE MUDOU COM O CADASTRO SHOPEE* (masters,
+  anúncios, variações, aguardando revisão, mídias referenciadas, pendências).
+- **Permissões**: `CATALOG_IMPORT` (importar), `CATALOG_IMPORT_APPLY`
+  (aplicar), `CATALOG_EDIT` (corrigir/mapear/decidir vínculo),
+  `CATALOG_MEDIA_UPLOAD` (mídia manual), `CATALOG_ARCHIVE` — enforcement no
+  motor, não no botão.
+- **Testes**: `ui-v8-catalog-import.test.js` (34 itens = 34 testes
+  obrigatórios do sprint); suíte completa **578 verdes**; validação headless
+  com XLSX real do template mostrando a jornada completa dentro do Catálogo,
+  console limpo.
