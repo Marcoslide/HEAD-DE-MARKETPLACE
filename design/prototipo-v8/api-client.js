@@ -63,5 +63,14 @@
     orders: ctx => req('GET', '/intelligence/orders' + qs(ctx)),
     traffic: ctx => req('GET', '/intelligence/traffic' + qs(ctx)),
     summary: ctx => req('GET', '/intelligence/summary' + qs(ctx)),
+
+    /* 10.F.1 — Conciliação Financeira: fonte oficial (Postgres via API). O
+       status de conciliação é decidido no backend; a tela só consome. */
+    reconSummary: ctx => req('GET', '/financial-reconciliation/summary' + qs(ctx)),
+    reconCases: (ctx, filtro) => req('GET', '/financial-reconciliation/cases' + qs(Object.assign({}, ctx, filtro))),
+    reconCase: id => req('GET', '/financial-reconciliation/cases/' + id),
+    reconMovements: (ctx, filtro) => req('GET', '/financial-reconciliation/movements' + qs(Object.assign({}, ctx, filtro))),
+    reconProjection: ctx => req('GET', '/financial-reconciliation/projection' + qs(ctx)),
+    reconDivergences: ctx => req('GET', '/financial-reconciliation/divergences' + qs(ctx)),
   };
 }));

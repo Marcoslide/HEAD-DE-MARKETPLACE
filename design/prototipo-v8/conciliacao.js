@@ -44,14 +44,14 @@
     { external_order_id: '2606AGU', marketplace: 'shopee', marketplace_account_id: 'acc-shopee', internal_order_id: 'PED-1005', gross_order_value: 140, expected_net_value: 115, paid_at: '2026-07-01', delivered_at: '2026-07-02', shipping_mode: 'proprio', itens: [{ sku: 'GAR-1L', valorBruto: 140 }] },
   ];
 
-  /* fonte real quando o relatório da carteira já foi importado; senão, demo rotulado */
+  /* Fonte OFICIAL = API + Postgres (V8CONC.reconcile roda no backend). Quando há
+     backend configurado, a tela consome /financial-reconciliation/*; num Artifact
+     estático (sem backend) mostra um conjunto DEMONSTRATIVO rotulado — nunca
+     fingindo que o demo é a base oficial. */
+  function fonteOficialDisponivel() { return window.V8API && V8API.online && V8API.online(); }
   function fonte() {
-    const real = window.V8IMP && window.IMPORTAR && typeof V8IMP.walletTx === 'function' ? V8IMP.walletTx(IMPORTAR.eng) : null;
-    if (real && real.transacoes && real.transacoes.length) {
-      return { txns: real.transacoes, orders: real.orders || [], origem: 'DADO IMPORTADO', rotulo: real.arquivo || 'carteira importada' };
-    }
     const txns = V8CONC.normalizeShopeeWallet(demoWallet(), { marketplace: 'shopee', contaId: 'acc-shopee', empresaId: 'e1', arquivo: 'demo-carteira.xlsx' });
-    return { txns, orders: demoOrders(), origem: 'DADO SIMULADO', rotulo: 'demonstração rotulada' };
+    return { txns, orders: demoOrders(), origem: 'DADO SIMULADO', rotulo: fonteOficialDisponivel() ? 'preview — a base oficial é a API/Postgres' : 'demonstração rotulada (sem backend: preview)' };
   }
   function resultado() {
     const f = fonte();

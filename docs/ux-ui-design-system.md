@@ -1326,3 +1326,58 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   Empresa→Canal→Marketplace→Conta→Período→Fonte). Validação headless de 12
   checagens (21 itens, 4 grupos, áreas estratégicas visíveis, 1 clique, item ativo,
   topo novo, console limpo). `npm test` **747 verdes**.
+
+## SPRINT 10.F.1 — Conciliação Financeira · Incremento 2 (Postgres oficial)
+
+> A tela deixou de decidir status: a **fonte oficial** agora é o **Postgres via
+> API**. Upload real → parser → normalização → Postgres → conciliação com
+> pedidos → Lucratividade/Ponto de Equilíbrio. "Shopee Acelera" nunca é tratado
+> genericamente como ajuste.
+
+- **Classificação corrigida (natureza original preservada)** (`conciliacao-engine.js`):
+  cada movimento guarda tipo/descrição/direção/status/valor/saldo/valor-a-ajustar/
+  data/ID/arquivo/aba/linha RAW. O **Shopee Acelera** é classificado por natureza —
+  `RESGATE_ANTECIPACAO` (entra na carteira, tesouraria), `TAXA_ANTECIPACAO`
+  (custo da antecipação por pedido, débito), `AJUSTE_DE_ANTECIPACAO`, `ANTECIPACAO`
+  ou `UNKNOWN_REVIEW` — **nunca** "ajuste de venda". Débitos de reembolso ("Débito
+  referente ao pedido X devido à… reembolso") viram `REFUND` com o **ID do pedido
+  extraído do texto** (a coluna vem vazia); "objeto perdido/danificado" vira
+  `DAMAGED_ITEM_COMPENSATION`. **Bug corrigido**: o número da "ID da transação" do
+  resgate não pode ser confundido com ID de pedido.
+- **Contagem real do extrato enviado (1.142 linhas)** — explicação objetiva:
+  - **859 IDs de pedido únicos** (todos vindos da coluna; 0 falsos por descrição
+    após a correção). "859" são **agrupamentos financeiros por pedido**, não 859 vendas.
+  - **212 pedidos com Renda do pedido** (venda efetivamente liberada, R$ 25.079,12).
+  - **715 pedidos só com reembolso/ajuste/antecipação** (sem Renda no período — a
+    venda caiu em janela anterior): 493 TAXA_ANTECIPACAO, 180 REFUND, 80 compensação, 2 crédito, 2 débito.
+  - **76 pedidos com múltiplos movimentos**; **173 movimentos de tesouraria**
+    (67 saques Pix + 38 pagamentos de carteira + 68 resgates de antecipação).
+  - Sem a planilha de pedidos, os 859 casos ficam **RECEBIDO_SEM_CONFERENCIA** — honesto.
+  - **0 UNKNOWN_REVIEW** (tudo classificado); o arquivo é dado financeiro real e **não foi commitado**.
+- **Postgres oficial** (`core.js` migração `005-financial-reconciliation`):
+  4 tabelas — `financial_transaction`, `financial_reconciliation_case`,
+  `financial_reconciliation_event`, `financial_reconciliation_rule` — com índices
+  em company/marketplace/account/order/type/occurred_at/status.
+- **Serviço** (`mos/src/production/reconciliation.js`, `createReconciliation(db)`):
+  `parseWalletReport` localiza o cabeçalho mesmo com preâmbulo; `importWallet`
+  deduplica por **identidade estável** (marketplace+conta+pedido+subtipo+data+
+  direção+hash da descrição — **sem valor/status**, que atualizam a linha em vez de
+  duplicar) e preserva RAW; `importOrders` semeia a expectativa; `run` roda o motor
+  V8CONC sobre o banco, faz upsert dos casos e grava eventos de mudança de status;
+  leituras `summary/cases/caseById/movements/projection/divergences`.
+- **API** (`apps/api/server.js`): `GET /financial-reconciliation/{summary,cases,
+  cases/:id,movements,projection,divergences}` com `assertScope`. A tela consome
+  estes endpoints (V8API); num Artifact estático fica em **preview rotulado** — o
+  status de conciliação é sempre decidido no backend.
+- **Prova real contra Postgres** (`mos/test/reconciliation-pg.test.js`, roda com
+  `HEAD_TEST_PG=postgres://…`): cabeçalho localizado apesar do preâmbulo; carteira
+  importada e persistida; **CONCILIADO / COM_AJUSTE_POSTERIOR / REEMBOLSADO /
+  AGUARDANDO_LIBERACAO / RECEBIDO_SEM_CONFERENCIA** calculados; Shopee Acelera com
+  natureza preservada; tesouraria e movimento sem pedido à parte; **reimportação
+  não duplica**; período sobreposto **atualiza só a linha alterada**; eventos
+  gravados; **instância NOVA do backend vê os mesmos casos, movimentos e eventos**.
+  **2/2 verdes**; com os testes de Performance, **7/7 no Postgres real**.
+- **Ligação financeira** (três visões distintas, sem misturar): VENDAS REALIZADAS
+  (o que foi vendido), RECEBIMENTOS LIBERADOS (Renda do pedido real + previsto por
+  ciclo), LUCRATIVIDADE (o que sobra após custos/taxas/Ads/afiliado/devolução).
+- `npm test` **747 verdes** (2 Postgres pulados sem banco).

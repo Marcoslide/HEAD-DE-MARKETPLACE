@@ -27,10 +27,14 @@ test('01-05 · normaliza o relatório REAL da carteira Shopee e classifica os ti
   assert.equal(txns.length, 5, 'todas as linhas com tipo entram');
   const byDesc = t => txns.find(x => (x.descricao || '').includes(t));
   assert.equal(byDesc('Renda do pedido 2606ABC').transaction_type, 'SALE_RELEASE');
-  assert.equal(byDesc('Resgate do Shopee Acelera').transaction_type, 'ANTICIPATION_RELEASE');
-  assert.equal(byDesc('Ajuste do Shopee Acelera').transaction_type, 'ANTICIPATION_FEE');
+  assert.equal(byDesc('Resgate do Shopee Acelera').transaction_type, 'RESGATE_ANTECIPACAO');
+  assert.equal(byDesc('Ajuste do Shopee Acelera').transaction_type, 'TAXA_ANTECIPACAO');
+  /* natureza original NUNCA apagada: tipo, direção, status e saldo preservados */
+  assert.equal(byDesc('Ajuste do Shopee Acelera').transaction_subtype, 'Shopee Acelera');
+  assert.equal(byDesc('Ajuste do Shopee Acelera').direction, 'OUT');
+  assert.equal(byDesc('Resgate do Shopee Acelera').saldo_apos, 7341.64);
   assert.equal(byDesc('PIX Transfer Send').transaction_type, 'WITHDRAWAL');
-  assert.equal(byDesc('Indenização').transaction_type, 'ADJUSTMENT_CREDIT');
+  assert.equal(byDesc('Indenização').transaction_type, 'DAMAGED_ITEM_COMPENSATION');
   /* sinal e vínculo preservados */
   assert.equal(byDesc('PIX Transfer Send').amount, -10136);
   assert.equal(byDesc('Renda do pedido 2606ABC').external_order_id, '2606ABC');
@@ -47,7 +51,7 @@ test('06 · agrupa por marketplace + conta + ID do pedido; nome nunca é chave',
   assert.equal(r.tesouraria.length, 2, 'Pix e Resgate Acelera são tesouraria');
   /* indenização sem pedido não some (seção 22) */
   assert.equal(r.movimentosSemPedido.length, 1);
-  assert.equal(r.movimentosSemPedido[0].transaction_type, 'ADJUSTMENT_CREDIT');
+  assert.equal(r.movimentosSemPedido[0].transaction_type, 'DAMAGED_ITEM_COMPENSATION');
 });
 
 test('11 · pedido CONCILIADO quando recebido explica o esperado (dentro da tolerância)', () => {

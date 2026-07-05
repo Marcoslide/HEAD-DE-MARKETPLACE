@@ -11,6 +11,7 @@ const { envConfig, openDb, migrate, createLogger, createAudit, uid } = require('
 const { createSecurity } = require('../../mos/src/production/security.js');
 const { createStorage } = require('../../mos/src/production/storage.js');
 const { createQueue, createImportService, createIntelligence, createHealth } = require('../../mos/src/production/jobs.js');
+const { createReconciliation } = require('../../mos/src/production/reconciliation.js');
 
 function createApi(opts) {
   const cfg = envConfig(opts && opts.env, opts && opts.baseDir);
@@ -23,6 +24,7 @@ function createApi(opts) {
   const queue = createQueue(db, audit);
   const imports = createImportService(db, audit);
   const intel = createIntelligence(db);
+  const recon = createReconciliation(db);
   const health = createHealth(db, cfg, queue);
 
   const json = (res, code, body) => { res.writeHead(code, { 'content-type': 'application/json' }); res.end(JSON.stringify(body)); };
@@ -153,6 +155,20 @@ function createApi(opts) {
             orders: intel.orders, traffic: intel.traffic, summary: intel.summary }[area];
           if (!fn) return done(404, { erro: 'área de inteligência desconhecida: ' + area });
           return done(200, fn(c));
+        }
+        /* 10.F.1 — CONCILIAÇÃO FINANCEIRA oficial (leitura). O status de conciliação
+           é decidido no backend/Postgres; a tela só consome estes endpoints. */
+        if (p.startsWith('/financial-reconciliation/') && req.method === 'GET') {
+          const c = ctxDe(); assertRead(c);
+          const esc = { company_id: c.company_id, marketplace: c.marketplace, marketplace_account_id: c.account_id };
+          const seg = p.split('/')[2];
+          if (seg === 'summary') return done(200, recon.summary(esc));
+          if (seg === 'cases' && p.split('/')[3]) return recon.caseById(p.split('/')[3]) ? done(200, recon.caseById(p.split('/')[3])) : done(404, { erro: 'caso não encontrado' });
+          if (seg === 'cases') return done(200, { cases: recon.cases(esc, { status: url.searchParams.get('status'), order: url.searchParams.get('order') }) });
+          if (seg === 'movements') return done(200, { movements: recon.movements(esc, { type: url.searchParams.get('type'), order: url.searchParams.get('order'), semPedido: url.searchParams.get('sem_pedido') === '1' }) });
+          if (seg === 'projection') return done(200, recon.projection(esc, url.searchParams.get('now')));
+          if (seg === 'divergences') return done(200, { cases: recon.divergences(esc) });
+          return done(404, { erro: 'recurso de conciliação desconhecido: ' + seg });
         }
         if (p === '/external-write' && req.method === 'POST') { sec.assertNoExternalWrite(body.action || 'publicar_externo'); }
         return done(404, { erro: 'rota não encontrada' });

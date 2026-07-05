@@ -163,6 +163,61 @@ const MIGRATIONS = [
     },
     validate(db) { try { db.prepare('SELECT metric_type FROM metric_snapshots LIMIT 1').all(); return true; } catch (e) { return false; } },
   },
+  {
+    /* 10.F.1 (Increment 2) — CONCILIAÇÃO FINANCEIRA oficial no Postgres.
+       Carteira = verdade; pedido + regra = expectativa. A natureza original de
+       cada movimento (tipo/descrição/direção/status/saldo) é preservada em
+       financial_transaction; a conciliação consolidada vive em
+       financial_reconciliation_case; mudanças de status em ..._event; ciclos
+       de recebimento em ..._rule. */
+    id: '005-financial-reconciliation',
+    up(db) {
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS financial_transaction(
+          financial_transaction_id TEXT PRIMARY KEY, reconciliation_id TEXT,
+          company_id TEXT, marketplace TEXT, marketplace_account_id TEXT,
+          external_order_id TEXT, external_transaction_id TEXT,
+          transaction_type TEXT, transaction_subtype TEXT, direction TEXT,
+          amount REAL, currency TEXT, occurred_at TEXT, available_at TEXT, imported_at TEXT,
+          source_file TEXT, source_sheet TEXT, source_row INTEGER,
+          raw_payload TEXT, normalized_payload TEXT, status TEXT, confidence TEXT,
+          dedup_key TEXT, created_at TEXT, updated_at TEXT);
+        CREATE TABLE IF NOT EXISTS financial_reconciliation_case(
+          reconciliation_id TEXT PRIMARY KEY, company_id TEXT, operation_id TEXT,
+          marketplace TEXT, marketplace_account_id TEXT, internal_order_id TEXT, external_order_id TEXT,
+          order_created_at TEXT, paid_at TEXT, shipped_at TEXT, delivered_at TEXT,
+          expected_release_at TEXT, first_wallet_movement_at TEXT, last_wallet_movement_at TEXT,
+          reconciliation_status TEXT, gross_order_value REAL, expected_net_value REAL, received_net_value REAL,
+          pending_net_value REAL, difference_value REAL, total_refund_value REAL, total_adjustment_value REAL,
+          total_commission_value REAL, total_service_fee_value REAL, total_shipping_fee_value REAL,
+          total_affiliate_fee_value REAL, total_discount_value REAL, total_anticipation_value REAL,
+          confidence TEXT, source_coverage TEXT, created_at TEXT, updated_at TEXT, reconciled_at TEXT, audit_version INTEGER);
+        CREATE TABLE IF NOT EXISTS financial_reconciliation_event(
+          event_id TEXT PRIMARY KEY, reconciliation_id TEXT, event_type TEXT,
+          old_status TEXT, new_status TEXT, description TEXT, actor_type TEXT, actor_id TEXT,
+          source TEXT, occurred_at TEXT, metadata TEXT);
+        CREATE TABLE IF NOT EXISTS financial_reconciliation_rule(
+          rule_id TEXT PRIMARY KEY, company_id TEXT, operation_id TEXT, marketplace TEXT,
+          marketplace_account_id TEXT, shipping_mode TEXT, payment_method TEXT, fulfillment_mode TEXT,
+          rule_name TEXT, expected_release_days_min INTEGER, expected_release_days_max INTEGER, grace_days INTEGER,
+          effective_start_at TEXT, effective_end_at TEXT, priority INTEGER, status TEXT, origin TEXT,
+          created_at TEXT, updated_at TEXT);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ft_dedup ON financial_transaction(dedup_key);
+        CREATE INDEX IF NOT EXISTS idx_ft_scope ON financial_transaction(company_id, marketplace, marketplace_account_id, transaction_type);
+        CREATE INDEX IF NOT EXISTS idx_ft_order ON financial_transaction(external_order_id);
+        CREATE INDEX IF NOT EXISTS idx_ft_time ON financial_transaction(occurred_at, available_at);
+        CREATE INDEX IF NOT EXISTS idx_frc_scope ON financial_reconciliation_case(company_id, marketplace, marketplace_account_id, reconciliation_status);
+        CREATE INDEX IF NOT EXISTS idx_frc_order ON financial_reconciliation_case(external_order_id);
+        CREATE INDEX IF NOT EXISTS idx_fre_case ON financial_reconciliation_event(reconciliation_id);`);
+    },
+    down(db) {
+      db.exec(`DROP TABLE IF EXISTS financial_reconciliation_event;
+        DROP TABLE IF EXISTS financial_reconciliation_rule;
+        DROP TABLE IF EXISTS financial_reconciliation_case;
+        DROP TABLE IF EXISTS financial_transaction;`);
+    },
+    validate(db) { try { db.prepare('SELECT reconciliation_status FROM financial_reconciliation_case LIMIT 1').all(); return true; } catch (e) { return false; } },
+  },
 ];
 
 function openDb(cfg) {

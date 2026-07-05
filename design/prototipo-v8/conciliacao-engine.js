@@ -26,13 +26,19 @@
   const SHOPEE_TX_HEADER = ['Data', 'Tipo de transação', 'Descrição', 'ID do pedido',
     'Direção do dinheiro', 'Valor', 'Status', 'Balança após as transações', 'Valor a Ser Ajustado'];
 
-  /* tipos canônicos de movimento financeiro (seção 8.2 do contrato) */
+  /* tipos canônicos de movimento financeiro (seção 8.2 do contrato).
+     A CLASSIFICAÇÃO normaliza, mas NUNCA apaga a natureza original: tipo,
+     descrição, direção, status, valor, saldo, valor a ajustar, data e RAW
+     ficam preservados em cada transação (transaction_subtype guarda o tipo real). */
   const TX_TYPES = ['SALE_RELEASE', 'COMMISSION', 'SERVICE_FEE', 'ITEM_SOLD_FEE', 'TRANSACTION_FEE',
     'AFFILIATE_FEE', 'SHIPPING_FEE', 'SHIPPING_SUBSIDY', 'BUYER_SHIPPING_PAYMENT', 'COUPON', 'VOUCHER',
     'PIX_DISCOUNT', 'SELLER_DISCOUNT', 'REFUND', 'PARTIAL_REFUND', 'RETURN_SHIPPING_COST',
     'ADJUSTMENT_CREDIT', 'ADJUSTMENT_DEBIT', 'LOST_PACKAGE_COMPENSATION', 'DAMAGED_ITEM_COMPENSATION',
-    'POST_REFUND_ADJUSTMENT', 'SHIPPING_DISCREPANCY', 'ANTICIPATION_FEE', 'ANTICIPATION_RELEASE',
-    'WITHDRAWAL', 'WALLET_PAYMENT', 'TAX', 'UNKNOWN'];
+    'POST_REFUND_ADJUSTMENT', 'SHIPPING_DISCREPANCY',
+    /* antecipação (Shopee Acelera) — jamais tratada genericamente como "ajuste" */
+    'ANTECIPACAO', 'RESGATE_ANTECIPACAO', 'TAXA_ANTECIPACAO', 'AJUSTE_DE_ANTECIPACAO',
+    'MOVIMENTO_DE_TESOURARIA', 'WITHDRAWAL', 'WALLET_PAYMENT', 'TAX',
+    'UNKNOWN', 'UNKNOWN_REVIEW'];
 
   /* status de conciliação (seção 10) */
   const STATUS = {
@@ -62,30 +68,50 @@
 
   const tsOf = d => { const t = Date.parse(String(d || '').replace(' ', 'T')); return isNaN(t) ? null : t; };
   const idPedido = v => (v == null || v === '' || v === '-') ? null : String(v).trim();
+  /* extrai o ID do pedido do TEXTO da descrição quando a coluna vem vazia
+     (ex.: "Débito referente ao pedido 260624V52KN6X6 devido a reembolso"). */
+  function orderIdFromDesc(descricao) {
+    const d = String(descricao || '');
+    /* SÓ quando o texto diz explicitamente "pedido <ID>". "ID da transação"
+       (ex.: resgate de antecipação) NÃO é pedido — não pode virar chave. */
+    if (/transaç|transaction/i.test(d) && !/pedido/i.test(d)) return null;
+    const m = d.match(/pedido\s+([0-9]{6}[0-9A-Z]{4,})/i);
+    return m ? m[1] : null;
+  }
 
   /* Shopee "Tipo de transação" (+descrição+direção) → tipo canônico.
-     Só mapeia o que é reconhecível; o resto é UNKNOWN e é preservado. */
+     "Shopee Acelera" NUNCA é jogado como "ajuste": preserva a natureza de
+     antecipação (resgate/taxa/ajuste/tesouraria). O que não for reconhecível
+     vira UNKNOWN_REVIEW (fila de revisão), com a linha original intacta. */
   function classifyShopee(tipo, descricao, direcao) {
     const t = String(tipo || '').toLowerCase();
     const d = String(descricao || '').toLowerCase();
     const entrada = String(direcao || '').toLowerCase().startsWith('entr');
     if (/renda do pedido/.test(t)) return 'SALE_RELEASE';
-    if (/reembolso|refund/.test(t) || /reembolso|estorno/.test(d)) return entrada ? 'ADJUSTMENT_CREDIT' : 'REFUND';
     if (/shopee acelera|acelera/.test(t)) {
-      if (/resgate/.test(d)) return 'ANTICIPATION_RELEASE'; /* dinheiro antecipado entra na carteira */
-      return 'ANTICIPATION_FEE'; /* ajuste/custo da antecipação (geralmente por pedido) */
+      if (/resgate/.test(d)) return 'RESGATE_ANTECIPACAO';      /* dinheiro antecipado entra na carteira (tesouraria) */
+      if (/ajuste/.test(d) && /pedido/.test(d)) return 'TAXA_ANTECIPACAO'; /* custo da antecipação por pedido (débito) */
+      if (/ajuste/.test(d)) return 'AJUSTE_DE_ANTECIPACAO';
+      if (/taxa|tarifa|fee/.test(d)) return 'TAXA_ANTECIPACAO';
+      return 'ANTECIPACAO';
     }
+    /* reembolso / devolução (inclui os "Ajuste" que são débito por reembolso, com pedido no texto) */
+    if (/reembolso|devolu|refund|estorno/.test(d)) {
+      if (/objeto perdido|item perdido|danificad|compensation|indeniza/.test(d)) return entrada ? 'DAMAGED_ITEM_COMPENSATION' : 'REFUND';
+      return entrada ? 'ADJUSTMENT_CREDIT' : 'REFUND';
+    }
+    if (/objeto perdido|item perdido|danificad|compensation|indeniza/.test(d)) return 'DAMAGED_ITEM_COMPENSATION';
     if (/saques?|saque/.test(t) || /pix/.test(t)) return 'WITHDRAWAL'; /* saída de caixa (tesouraria) */
     if (/saldo da carteira/.test(t) || /pagamento/.test(t)) return 'WALLET_PAYMENT';
-    if (/ajuste|adjustment/.test(t)) return entrada ? 'ADJUSTMENT_CREDIT' : 'ADJUSTMENT_DEBIT';
     if (/comiss/.test(t)) return 'COMMISSION';
     if (/servi[çc]o|service fee/.test(t)) return 'SERVICE_FEE';
     if (/frete|shipping/.test(t)) return 'SHIPPING_FEE';
-    return 'UNKNOWN';
+    if (/ajuste|adjustment/.test(t)) return entrada ? 'ADJUSTMENT_CREDIT' : 'ADJUSTMENT_DEBIT';
+    return 'UNKNOWN_REVIEW';
   }
 
   /* movimento de tesouraria (caixa) — não é conciliação de venda, não vira "sem pedido" */
-  const TESOURARIA = new Set(['WITHDRAWAL', 'WALLET_PAYMENT', 'ANTICIPATION_RELEASE']);
+  const TESOURARIA = new Set(['WITHDRAWAL', 'WALLET_PAYMENT', 'RESGATE_ANTECIPACAO', 'ANTECIPACAO', 'MOVIMENTO_DE_TESOURARIA']);
 
   /* ---------- normalização do relatório da carteira Shopee ----------
      linhas: array de arrays (na ordem de SHOPEE_TX_HEADER) OU array de objetos
@@ -100,14 +126,17 @@
       const direcao = cell('Direção do dinheiro');
       const descricao = cell('Descrição');
       const tt = classifyShopee(tipoOriginal, descricao, direcao);
+      /* ID do pedido: coluna primeiro; se vazia, tenta extrair do texto da descrição */
+      const oid = idPedido(cell('ID do pedido')) || orderIdFromDesc(descricao);
       out.push({
         source_row: (ctx.baseRow || 0) + i + 1,
         source_file: ctx.arquivo || null, source_sheet: ctx.aba || 'Transaction Report',
         marketplace: ctx.marketplace || 'shopee', marketplace_account_id: ctx.contaId || null,
         company_id: ctx.empresaId || null,
         occurred_at: cell('Data') || null, occurred_ts: tsOf(cell('Data')),
-        external_order_id: idPedido(cell('ID do pedido')),
-        transaction_type: tt, transaction_subtype: String(tipoOriginal),
+        external_order_id: oid,
+        order_id_origem: idPedido(cell('ID do pedido')) ? 'coluna' : (oid ? 'descrição' : null),
+        transaction_type: tt, transaction_subtype: String(tipoOriginal), /* NATUREZA ORIGINAL preservada */
         direction: String(direcao || '').toLowerCase().startsWith('entr') ? 'IN' : 'OUT',
         amount: round2(parseValor(cell('Valor'))),
         status: cell('Status') || null,
@@ -115,7 +144,8 @@
         valor_ajustar: parseValor(cell('Valor a Ser Ajustado')),
         descricao: descricao || null,
         raw_payload: raw,
-        confidence: tt === 'UNKNOWN' ? 'baixa' : 'alta',
+        confidence: (tt === 'UNKNOWN' || tt === 'UNKNOWN_REVIEW') ? 'baixa' : 'alta',
+        precisa_revisao: tt === 'UNKNOWN_REVIEW',
       });
     });
     return out;
@@ -214,7 +244,7 @@
     const ajusteCred = soma('ADJUSTMENT_CREDIT') + soma('LOST_PACKAGE_COMPENSATION') + soma('DAMAGED_ITEM_COMPENSATION');
     const ajusteDeb = soma('ADJUSTMENT_DEBIT');
     const reembolso = soma('REFUND') + soma('PARTIAL_REFUND');
-    const antecip = soma('ANTICIPATION_FEE');
+    const antecip = round2(soma('TAXA_ANTECIPACAO') + soma('AJUSTE_DE_ANTECIPACAO'));
     const recebidoLiquido = round2(movs.reduce((a, m) => a + m.amount, 0)); /* soma real de tudo do pedido na carteira */
     const temMovimento = movs.length > 0;
     const expected = order && order.expected_net_value != null ? round2(order.expected_net_value) : null;
