@@ -110,7 +110,17 @@
             ${(window.IMPORTAR && V8IMP.coverage(IMPORTAR.eng).length)
               ? V8IMP.coverage(IMPORTAR.eng).map(c => `<div class="ctxitem"><span>última importação · ${UI.esc((D.scope.lojas.find(s => s.id === c.lojaId) || {}).nome)}</span><span class="src">${c.ultima} · ${c.fontes.length} fonte(s) · ${c.conflitos ? c.conflitos + ' conflito(s)!' : 'sem conflito'}</span></div>`).join('')
               : '<div class="ctxitem"><span class="src">nenhuma importação aplicada — sem última importação a mostrar</span></div>'}
-            <div class="ctxitem"><span class="src">demais lojas: ${UI.esc(D.STATUS.DADO_SIMULADO)}</span><button class="linklike" data-act="open" data-ref="importar:">importar →</button></div>
+            ${(() => { /* 10.E.2.2 — base real ativa: dado importado substitui indicador demo equivalente */
+              if (!window.IMPORTAR || !window.V8IMP.coberturaReal) return '';
+              const cr = V8IMP.coberturaReal(IMPORTAR.eng);
+              if (!cr.algum) return '';
+              const st = V8IMP.orderStats(IMPORTAR.eng, {});
+              const imp = V8IMP.lastImpact(IMPORTAR.eng);
+              return `<div class="ctxitem"><span><span class="st pos plain">BASE REAL ATIVA</span> ${st.semDados ? '' : UI.brl(st.kpis.faturamentoAprovado) + ' · ' + st.kpis.pedidos + ' pedido(s) importado(s)'}</span>
+                <span class="src">indicadores demo equivalentes desativados</span></div>
+                ${imp ? `<div class="ctxitem"><span>o que mudou: ${imp.insightsNovos.length} insight(s) novo(s)</span><button class="linklike" data-act="open" data-ref="crescimento:">ver na Mesa →</button></div>` : ''}`;
+            })()}
+            <div class="ctxitem"><span class="src">sem fonte real: ${UI.esc(D.STATUS.DADO_SIMULADO)} rotulado</span><button class="linklike" data-act="open" data-ref="importar:">importar →</button></div>
           </div>
           <div class="ctxcard"><div class="h"><b>Próximos passos</b></div>
             ${H.proximosPassos.map(p => `<div class="ctxitem"><span>${UI.esc(p.txt)}</span><button class="linklike" data-act="open" data-ref="${p.ref}">→</button></div>`).join('')}

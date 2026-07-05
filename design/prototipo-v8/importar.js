@@ -12,7 +12,10 @@
     eng: V8IMP.createEngine(), sub: 'Fontes e Histórico',
     fluxo: { origem: 'Planilha', destino: 'Performance', lojaId: 's1', arquivo: null, batch: null },
   };
-  const SUBS = ['Fontes e Histórico', 'Nova importação', 'Lotes e jobs', 'Vínculos SKU', 'Anúncio Master', 'Perfis de importação'];
+  const SUBS = ['Fontes e Histórico', 'Base de Dados e Mapeamento', 'Nova importação', 'Lotes e jobs', 'Vínculos SKU', 'Anúncio Master', 'Perfis de importação'];
+  const BD_SUBS = ['Arquivos Importados', 'Campos Recebidos', 'Mapeamentos', 'Dados Brutos', 'Dados Normalizados',
+    'Campos Aguardando Uso', 'Conflitos', 'Relacionamentos', 'Cobertura', 'Atualizações Recentes'];
+  IM.bd = 'Campos Recebidos';
   /* arquivos de exemplo (fixtures rotuladas) — sem upload real neste modo */
   const ARQS = [
     ['productTraffic', 'producttraffic_Product_Card.xlsx · performance por anúncio'],
@@ -49,6 +52,7 @@
   function body() {
     const el = UI.$('#impBody');
     if (IM.sub === 'Fontes e Histórico') el.innerHTML = fontes();
+    else if (IM.sub === 'Base de Dados e Mapeamento') el.innerHTML = baseDados();
     else if (IM.sub === 'Nova importação') el.innerHTML = nova();
     else if (IM.sub === 'Lotes e jobs') el.innerHTML = lotes();
     else if (IM.sub === 'Vínculos SKU') el.innerHTML = vinculos();
@@ -232,6 +236,98 @@
       </tbody></table><div class="tfoot"><span>REFERENCE_ONLY nunca finge importar — o sistema declara o que ainda não entende</span></div></div>`;
   }
 
+  /* ---------------- BASE DE DADOS E MAPEAMENTO (10.E.2.2) ----------------
+     Toda coluna recebida, visível, com destino, status e mapeamento manual.
+     Nada some em silêncio; inteligência só usa campo que o usuário vê. */
+  function baseDados() {
+    const chips = `<div class="fbar" style="margin-top:0;flex-wrap:wrap">${BD_SUBS.map(s => `<button class="fchip ${s === IM.bd ? 'on' : ''}" data-act="bd" data-bd="${s}">${s}</button>`).join('')}</div>`;
+    const eng = IM.eng;
+    const catall = V8IMP.fieldCatalog(eng);
+    const stTag = st => st === 'utilizado' ? '<span class="st pos plain">UTILIZADO</span>'
+      : st === 'preservado e disponível' ? '<span class="st info plain">PRESERVADO E DISPONÍVEL</span>'
+      : st === 'aguardando mapeamento' ? '<span class="st warn plain">AGUARDANDO MAPEAMENTO</span>'
+      : st === 'excluído da análise' ? '<span class="st plain">EXCLUÍDO DA ANÁLISE</span>'
+      : `<span class="st neg plain">${UI.esc(st.toUpperCase().slice(0, 24))}</span>`;
+
+    if (IM.bd === 'Campos Recebidos' || IM.bd === 'Campos Aguardando Uso') {
+      const rows = IM.bd === 'Campos Aguardando Uso' ? catall.filter(c => c.status === 'aguardando mapeamento' || c.status === 'preservado e disponível') : catall;
+      return chips + (rows.length ? `
+      <div class="callout" style="margin-top:10px"><b>Três níveis de campo:</b> bruto (toda coluna original, preservada) → normalizado (mapeado para uso) → derivado (cálculo com fórmula). Nenhuma coluna é descartada silenciosamente.</div>
+      <div class="tblwrap" style="margin-top:10px"><table class="tbl"><thead><tr>
+        <th class="nosort">Coluna original</th><th class="nosort">Exemplo</th><th class="nosort">Tipo</th>
+        <th class="nosort">Campo normalizado</th><th class="nosort">Área que utiliza</th><th class="nosort">Status</th><th class="nosort">Ação</th></tr></thead><tbody>
+      ${rows.map(c => `<tr>
+        <td><span class="tmain">${UI.esc(c.coluna)}</span><span class="tsub">${c.arquivos.length} arquivo(s)${c.sensivel ? ' · <span class="st neg plain" style="font-size:9px">SENSÍVEL</span>' : ''}</span></td>
+        <td><span class="src">${c.sensivel && !V8IMP.canData((UI.account && UI.account.user.papel) || 'ADMIN', 'RAW_DATA_VIEW') ? 'OCULTO — exige RAW_DATA_VIEW' : UI.esc(String(c.exemplo ?? '—').slice(0, 22))}</span></td>
+        <td><span class="src">${UI.esc(c.tipo)}</span></td>
+        <td>${c.campoNormalizado ? `<span class="kbd">${UI.esc(c.campoNormalizado)}</span><span class="tsub">${UI.esc(c.origemMapeamento || '')}</span>` : '<span class="src">—</span>'}</td>
+        <td><span class="src">${c.areas.length ? UI.esc(c.areas.join(' / ')) : 'nenhuma área ainda'}</span></td>
+        <td>${stTag(c.status)}</td>
+        <td><span class="rowact">
+          <button class="btn sm ghost" data-act="verval" data-col="${UI.esc(c.coluna)}">ver valores</button>
+          ${c.status === 'aguardando mapeamento' ? `<button class="btn sm" data-act="mapear" data-col="${UI.esc(c.coluna)}">criar mapeamento</button>`
+            : c.status === 'excluído da análise' ? `<button class="btn sm" data-act="restcampo" data-col="${UI.esc(c.coluna)}">restaurar uso</button>`
+            : `<button class="btn sm ghost" data-act="mapear" data-col="${UI.esc(c.coluna)}">mapear uso</button>
+               <button class="btn sm ghost" data-act="exccampo" data-col="${UI.esc(c.coluna)}">excluir da análise</button>`}
+        </span></td></tr>`).join('')}
+      </tbody></table><div class="tfoot"><span>${catall.filter(c => c.status === 'utilizado').length} utilizadas · ${catall.filter(c => c.status === 'preservado e disponível').length} preservadas · ${catall.filter(c => c.status === 'aguardando mapeamento').length} aguardando mapeamento — todas acessíveis</span></div></div>`
+      : '<div class="panel" style="margin-top:12px"><div class="empty"><b>Nenhum campo recebido ainda</b>Importe um arquivo — toda coluna aparece aqui com destino e status.</div></div>');
+    }
+    if (IM.bd === 'Mapeamentos') {
+      const maps = eng.customMappings;
+      return chips + `<div class="callout" style="margin-top:10px">Mapeamento manual nunca sobrescreve o anterior — cada mudança cria <b>nova versão</b> auditada. Depois de mapear, use <b>Reprocessar</b> no lote.</div>
+      ${maps.length ? maps.slice().reverse().map(m => `<div class="metric-row"><span class="lbl"><b>${UI.esc(m.coluna)}</b> → <span class="kbd">${UI.esc(m.campo)}</span> <span class="src">· ${UI.esc(m.tipo)} · ${UI.esc(m.entidade)} · v${m.versao}${m.fimVigencia ? ' (substituída)' : ''}</span></span>
+        <span class="val"><span class="src">${UI.esc(m.autor)} · ${m.em}</span></span></div>`).join('') : '<p class="src" style="margin-top:8px">nenhum mapeamento manual — o dicionário canônico cobre os campos conhecidos.</p>'}
+      ${eng.batches.filter(b => b.aplicado).length ? `<div style="margin-top:10px"><button class="btn sm" data-act="reproc" data-id="${eng.batches.filter(b => b.aplicado).slice(-1)[0].id}">Reprocessar última importação com o mapeamento atual</button></div>` : ''}`;
+    }
+    if (IM.bd === 'Relacionamentos') {
+      const rel = V8IMP.relacoesReport(eng, UI.state.products);
+      return chips + `
+      <div class="mesa-grid" style="margin-top:10px">
+        <div class="mesa-kpi"><span class="k">Pedidos ↔ Devoluções</span><span class="v">${rel.pedidosDevolucoes.vinculados}</span><span class="f">${UI.esc(rel.pedidosDevolucoes.chave)} · ${rel.pedidosDevolucoes.orfaos} órfão(s)</span></div>
+        <div class="mesa-kpi"><span class="k">Pedidos ↔ Produtos</span><span class="v">${rel.pedidosProdutos.vinculados}</span><span class="f">${UI.esc(rel.pedidosProdutos.chave)}</span></div>
+        <div class="mesa-kpi"><span class="k">Produtos ↔ Anúncios</span><span class="v">${rel.produtosAnuncios.confirmados}</span><span class="f">${rel.produtosAnuncios.sugeridos} sugestão(ões) — nunca automático</span></div>
+        <div class="mesa-kpi ${rel.fila.length ? 'nodata' : ''}"><span class="k">Fila de revisão</span><span class="v">${rel.fila.length}</span><span class="f">relação incerta NUNCA vincula sozinha</span></div>
+      </div>
+      ${rel.fila.map(f => `<div class="insight" style="margin-top:8px"><div class="in-h"><span class="st warn">REVISÃO</span><b>${UI.esc(f.tipo)}</b><span class="src">${UI.esc(f.alvo)}</span></div>
+        <p class="in-fato">${UI.esc(f.evidencia)}</p>
+        <div class="in-acts">${f.acoes.map(a => `<button class="btn sm ghost" data-act="decrel" data-id="${UI.esc(f.id)}" data-d="${a}">${a}</button>`).join('')}</div></div>`).join('') || '<p class="src" style="margin-top:10px">nenhuma relação pendente de revisão.</p>'}`;
+    }
+    if (IM.bd === 'Cobertura') {
+      const cr = V8IMP.coberturaReal(eng);
+      return chips + `<div class="callout" style="margin-top:10px">${UI.esc(cr.nota)}.</div>
+      <div class="mesa-grid" style="margin-top:10px">${Object.entries(cr).filter(([k, v]) => typeof v === 'boolean' && k !== 'algum').map(([k, v]) => `
+        <div class="mesa-kpi ${v ? '' : 'nodata'}"><span class="k">${k}</span><span class="v">${v ? 'DADO REAL' : 'SEM DADOS'}</span><span class="f">${v ? 'fixture equivalente desativada' : 'fixture demo rotulada em uso'}</span></div>`).join('')}
+      </div>`;
+    }
+    if (IM.bd === 'Atualizações Recentes') {
+      return chips + (eng.impactos.length ? eng.impactos.slice().reverse().map(im => `
+        <div class="ctxcard" style="margin-top:10px"><div class="h"><b>${UI.esc(im.arquivo)}</b><span class="src">${im.em}</span></div>
+        <div class="ctxitem"><span>Fonte · período</span><span class="src">${UI.esc(im.fonte)} · ${im.periodo ? im.periodo.ini + ' a ' + im.periodo.fim : '—'}</span></div>
+        <div class="ctxitem"><span>Entidades</span><span class="src">${im.entidadesAtualizadas.criados} criada(s) · ${im.entidadesAtualizadas.atualizados} atualizada(s) · ${im.entidadesAtualizadas.duplicadosEvitados} dup. evitada(s)</span></div>
+        <div class="ctxitem"><span>Insights novos · fila de revisão</span><span class="src">${im.insightsNovos.length} · ${im.filaRevisao}</span></div>
+        </div>`).join('') : '<p class="src" style="margin-top:10px">nenhuma importação aplicada ainda.</p>');
+    }
+    if (IM.bd === 'Arquivos Importados') {
+      return chips + (eng.rawFiles.length ? `<div class="tblwrap" style="margin-top:10px"><table class="tbl"><thead><tr>
+        <th class="nosort">Arquivo</th><th class="nosort">Abas</th><th class="nosort">Colunas</th><th class="nosort">Linhas</th><th class="nosort">Lote</th><th class="nosort"></th></tr></thead><tbody>
+        ${eng.rawFiles.map(rf => `<tr><td class="tmain">${UI.esc(rf.nome)}</td><td>${rf.abas.length}</td><td>${rf.abas[0] ? rf.abas[0].headers.length : 0}</td>
+          <td>${rf.abas.reduce((a, x) => a + x.rows.length, 0)}</td><td><span class="kbd">${rf.batchId}</span></td>
+          <td><span class="rowact"><button class="btn sm ghost" data-act="verbrutos" data-id="${rf.batchId}">brutos</button><button class="btn sm ghost" data-act="vermapa" data-id="${rf.batchId}">mapeamento</button></span></td></tr>`).join('')}
+        </tbody></table></div>` : '<p class="src" style="margin-top:10px">nenhum arquivo ainda.</p>');
+    }
+    if (IM.bd === 'Dados Brutos') return chips + `<p class="src" style="margin-top:10px">selecione um arquivo em Arquivos Importados → <b>brutos</b> para ver TODAS as abas, colunas e linhas originais.</p>`;
+    if (IM.bd === 'Dados Normalizados') {
+      const ov = V8IMP.ordersView(eng, {});
+      return chips + `<div class="metric-row" style="margin-top:10px"><span class="lbl">Pedidos normalizados</span><span class="val">${ov.orders.length}</span></div>
+        <div class="metric-row"><span class="lbl">Snapshots de métrica</span><span class="val">${eng.snapshots.filter(s => s.entidade === 'metric_snapshot').length}</span></div>
+        <div class="metric-row"><span class="lbl">Eventos de devolução</span><span class="val">${eng.snapshots.filter(s => s.entidade === 'order_event').length}</span></div>
+        <p class="src" style="margin-top:8px">normalizado nunca substitui o bruto — as duas camadas coexistem, com o mapeamento entre elas visível em Campos Recebidos.</p>`;
+    }
+    /* Conflitos */
+    return chips + (eng.conflicts.length ? eng.conflicts.map(c => `<div class="exec-li"><span class="sig neg"></span><div class="t"><b>item ${UI.esc(c.item_id)}</b><span>${UI.esc(c.motivo)} · ${UI.esc(c.estado)}</span></div></div>`).join('') : '<p class="src" style="margin-top:10px">nenhum conflito aberto.</p>');
+  }
+
   /* ---------------- UPLOAD LOCAL REAL (10.E.2) — compartilhado com todas as áreas ---------------- */
   const escopoDe = lojaId => {
     const loja = D.scope.lojas.find(s => s.id === lojaId);
@@ -311,11 +407,17 @@
                 <button class="btn sm ghost" data-upcancel="${bt.id}">Cancelar este lote</button>
               </div></div>`).join('')}`;
         UI.$$('#upPrev [data-upapply]').forEach(btn => btn.onclick = () => {
-          const r = V8IMP.apply(IM.eng, btn.dataset.upapply, { papel, usuario: D.meta.usuario });
+          /* 10.E.2.2: cadeia explícita — nunca só "importação concluída" */
+          const r = V8IMP.applyImportChain(IM.eng, btn.dataset.upapply, { papel, usuario: D.meta.usuario, products: UI.state.products });
           if (r.blocked) return UI.toast(r.reason, 'err');
-          UI.toast(`Lote ${r.job.id} ${r.job.estado}: ${r.job.aplicado.criados} criado(s), ${r.job.aplicado.atualizados} atualizado(s), ${r.job.aplicado.duplicadosEvitados} duplicado(s) evitado(s).`, 'ok');
-          btn.closest('.panel').querySelector('.sect-h').insertAdjacentHTML('beforeend', '<span class="st pos">APLICADO</span>');
+          const painel = btn.closest('.panel');
+          painel.querySelector('.sect-h').insertAdjacentHTML('beforeend', '<span class="st pos">APLICADO</span>');
           btn.disabled = true; btn.title = 'lote já aplicado';
+          painel.insertAdjacentHTML('beforeend', `
+            <div class="sect-h"><span class="h2" style="font-size:12.5px">Progresso real da cadeia pós-importação</span></div>
+            ${r.passos.map(p => `<div class="exec-li"><span class="sig pos"></span><div class="t"><b>${p.n} · ${UI.esc(p.nome)}</b><span>${UI.esc(p.resultado)}</span></div></div>`).join('')}
+            ${r.impacto.insightsNovos.length ? `<div class="callout" style="margin-top:8px"><b>${r.impacto.insightsNovos.length} insight(s) novo(s) na Mesa de Inteligência</b> — abra a Central para ver "O que mudou com esta importação".</div>` : ''}`);
+          UI.toast(`Lote ${r.job.id} aplicado — 15 passos executados, sistema inteiro atualizado.`, 'ok');
           if (opts.onDone) opts.onDone(r.job);
         });
         UI.$$('#upPrev [data-upcancel]').forEach(btn => btn.onclick = () => {
@@ -375,6 +477,64 @@
     const act = b.dataset.act;
     if (act === 'sub') { IM.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Fontes e Dados · ' + IM.sub; render(IM.sub); }
     else if (act === 'upreal') IM.uploadModal({ titulo: 'Upload local — Fontes e Histórico de Dados', onDone: () => { IM.sub = 'Fontes e Histórico'; body(); } });
+    /* ---------- 10.E.2.2: base de dados e mapeamento ---------- */
+    else if (act === 'bd') { IM.bd = b.dataset.bd; body(); }
+    else if (act === 'verval') {
+      const col = b.dataset.col;
+      const vals = [];
+      for (const rf of IM.eng.rawFiles) for (const aba of rf.abas) for (const r of aba.rows)
+        if (r[col] != null && r[col] !== '' && vals.length < 12) vals.push({ v: r[col], arq: rf.nome });
+      UI.openModal(`<h3 class="h2">Valores · ${UI.esc(col)}</h3>
+        <p class="sub" style="margin-top:4px">Amostra da camada bruta (${vals.length} de todas as linhas preservadas).</p>
+        ${vals.map(x => `<div class="metric-row"><span class="lbl"><span class="src">${UI.esc(String(x.v).slice(0, 60))}</span></span><span class="val"><span class="tsub">${UI.esc(x.arq)}</span></span></div>`).join('') || '<p class="src">sem valores.</p>'}
+        <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="UI.closeModal()">fechar</button></div>`);
+    }
+    else if (act === 'mapear') {
+      const col = b.dataset.col;
+      UI.openModal(`<h3 class="h2">Mapear campo · ${UI.esc(col)}</h3>
+        <p class="sub" style="margin-top:4px">Sem alterar código: escolha tipo, entidade e campo interno. Cada mudança cria nova versão auditada.</p>
+        <label style="display:block;margin-top:8px"><span class="eyebrow">Tipo</span><br>
+          <select class="select" id="mpTipo" style="width:100%;margin-top:3px">${V8IMP.TIPOS_CAMPO.map(t => `<option>${t}</option>`).join('')}</select></label>
+        <label style="display:block;margin-top:8px"><span class="eyebrow">Entidade</span><br>
+          <select class="select" id="mpEnt" style="width:100%;margin-top:3px">${V8IMP.ENTIDADES_CAMPO.map(t => `<option>${t}</option>`).join('')}</select></label>
+        <label style="display:block;margin-top:8px"><span class="eyebrow">Campo interno</span><br>
+          <input class="input" id="mpCampo" style="width:100%;margin-top:3px" placeholder="ex.: order_custom_flag"></label>
+        <label style="display:flex;gap:8px;align-items:center;margin-top:10px"><input type="checkbox" id="mpAnalise" checked> pode alimentar análise</label>
+        <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+          <button class="btn ghost" onclick="UI.closeModal()">cancelar</button>
+          <button class="btn primary" id="mpOk">Salvar mapeamento (versionado)</button></div>`);
+      UI.$('#mpOk').onclick = () => {
+        const r = V8IMP.mapField(IM.eng, { coluna: col, tipo: UI.$('#mpTipo').value, entidade: UI.$('#mpEnt').value,
+          campo: UI.$('#mpCampo').value.trim() || col.toLowerCase().replace(/\W+/g, '_'), alimentaAnalise: UI.$('#mpAnalise').checked },
+          { usuario: D.meta.usuario, papel: (UI.account && UI.account.user.papel) || 'ADMIN' });
+        if (r.blocked) return UI.toast(r.reason, 'err');
+        UI.closeModal(); UI.toast(`"${col}" mapeado (v${r.mapeamento.versao}) — reprocessar atualiza os dados normalizados.`, 'ok'); body();
+      };
+    }
+    else if (act === 'exccampo') {
+      const col = b.dataset.col;
+      UI.openModal(`<h3 class="h2">Excluir campo da análise</h3>
+        <p class="sub" style="margin-top:4px">A coluna permanece na camada bruta — sai apenas das análises. Motivo obrigatório.</p>
+        <input class="input" id="ecMotivo" style="width:100%;margin-top:10px" placeholder="motivo">
+        <div style="display:flex;gap:8px;margin-top:14px;justify-content:flex-end">
+          <button class="btn ghost" onclick="UI.closeModal()">cancelar</button><button class="btn danger" id="ecOk2">Excluir da análise</button></div>`);
+      UI.$('#ecOk2').onclick = () => {
+        const r = V8IMP.excluirCampoDaAnalise(IM.eng, col, { motivo: UI.$('#ecMotivo').value.trim(), usuario: D.meta.usuario });
+        if (r.blocked) return UI.toast(r.reason, 'err');
+        UI.closeModal(); UI.toast('Campo excluído da análise — bruto preservado.', 'ok'); body();
+      };
+    }
+    else if (act === 'restcampo') { V8IMP.restaurarCampo(IM.eng, b.dataset.col, { usuario: D.meta.usuario }); UI.toast('Campo restaurado.', 'ok'); body(); }
+    else if (act === 'reproc') {
+      const r = V8IMP.reprocess(IM.eng, b.dataset.id, { usuario: D.meta.usuario });
+      if (r.blocked) return UI.toast(r.reason, 'err');
+      UI.toast(`Reprocessado (${r.mappingVersion}): ${r.utilizados} campo(s) utilizados · ${r.aguardando} aguardando.`, 'ok'); body();
+    }
+    else if (act === 'decrel') {
+      const r = V8IMP.decidirRelacao(IM.eng, b.dataset.id, b.dataset.d, { usuario: D.meta.usuario });
+      if (r.blocked) return UI.toast(r.reason, 'err');
+      UI.toast('Decisão registrada e auditada: ' + b.dataset.d + '.', 'ok'); body();
+    }
     else if (act === 'verbrutos') IM.verBrutos(b.dataset.id);
     else if (act === 'vermapa') IM.verMapeamento(b.dataset.id);
     else if (act === 'vererros') IM.verErros(b.dataset.id);

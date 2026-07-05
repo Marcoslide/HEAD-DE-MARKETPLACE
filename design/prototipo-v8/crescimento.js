@@ -86,8 +86,21 @@
     }
     const vivos = [...m.insights, ...fin.map((f, fi) => Object.assign({}, f, { id: 'fin-' + (fi + 1), fonte: f.fontes, periodo: f.periodo, cobertura: f.cobertura || 'regras do Centro de Custos', confianca: f.confianca }))]
       .filter(i => !CR.silenciados[i.titulo]);
+    const imp = V8IMP.lastImpact(eng());
     return `
       <div class="callout" style="margin-top:0"><b>${UI.esc(m.honestidade)}</b> Filtros globais (grupo → conta, período, marketplace) valem aqui.</div>
+
+      ${imp ? `<div class="panel" style="margin-top:12px;border-left:3px solid var(--accent)">
+        <div class="sect-h" style="margin-top:0"><span class="h2">O que mudou com esta importação</span><span class="src">${imp.em} · lote ${imp.batchId}</span></div>
+        <dl class="kv">
+          <dt>Fonte · período</dt><dd>${UI.esc(imp.fonte)} (${UI.esc(imp.arquivo)}) · ${imp.periodo ? imp.periodo.ini + ' a ' + imp.periodo.fim : 'não declarado'}</dd>
+          <dt>Escopo</dt><dd>${UI.esc(imp.escopo.lojaId)} · conta ${UI.esc(imp.escopo.contaId)} · ${UI.esc(imp.escopo.marketplace)}</dd>
+          <dt>Entidades atualizadas</dt><dd>${imp.entidadesAtualizadas.criados} criada(s) · ${imp.entidadesAtualizadas.atualizados} atualizada(s) · ${imp.entidadesAtualizadas.duplicadosEvitados} duplicada(s) evitada(s)</dd>
+          <dt>Indicadores recalculados</dt><dd>${imp.indicadoresRecalculados.map(UI.esc).join(' · ')}</dd>
+          <dt>Insights novos</dt><dd>${imp.insightsNovos.length ? imp.insightsNovos.map(i => `<span class="st ${stIns(i.nivel)} plain">${i.nivel}</span> ${UI.esc(i.titulo)}`).join('<br>') : 'nenhum — dados dentro dos limiares'}</dd>
+          <dt>Conflitos · fila de revisão · faltantes</dt><dd>${imp.conflitos} · ${imp.filaRevisao} · ${imp.dadosFaltantes.length}</dd>
+          <dt>Ações sugeridas</dt><dd>${imp.acoesSugeridas.map(UI.esc).join(' · ')}</dd>
+        </dl></div>` : ''}
 
       <div class="sect-h"><span class="h2">Visão geral da operação</span><span class="src">cada número com fonte e última atualização — sem fonte, SEM DADOS</span></div>
       <div class="mesa-grid">

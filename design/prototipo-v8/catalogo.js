@@ -12,7 +12,7 @@
   const L = V8LOGIC, D = V8DATA;
   const SUBS = ['Visão Geral', 'Produtos Master', 'Anúncios', 'Rascunhos', 'Ativos', 'Pausados', 'Não Publicados',
     'Em Revisão', 'Com Erro ou Bloqueio', 'Variações', 'Fotos e Vídeos', 'Atributos e Especificações',
-    'SKU e Vínculos', 'Anúncio Master', 'Importar Cadastro', 'Edição em Massa', 'Duplicar e Adaptar',
+    'SKU e Vínculos', 'Anúncio Master', 'Importar Cadastro', 'Campos de Cadastro', 'Edição em Massa', 'Duplicar e Adaptar',
     'Saúde e Pendências', 'Comparar Marketplaces', 'Histórico e Versões', 'Fontes e Arquivos'];
 
   const CAT = window.CATALOGO = {
@@ -74,6 +74,7 @@
     else if (CAT.sub === 'SKU e Vínculos') el.innerHTML = skuVinculos();
     else if (CAT.sub === 'Anúncio Master') el.innerHTML = anuncioMaster();
     else if (CAT.sub === 'Importar Cadastro') el.innerHTML = importarCadastro();
+    else if (CAT.sub === 'Campos de Cadastro') el.innerHTML = camposCadastro();
     else if (CAT.sub === 'Edição em Massa') el.innerHTML = edicaoMassa();
     else if (CAT.sub === 'Duplicar e Adaptar') el.innerHTML = duplicarAdaptar();
     else if (CAT.sub === 'Saúde e Pendências') el.innerHTML = saude();
@@ -480,6 +481,31 @@
         <button class="linklike" data-act="verbrutos" data-id="${r.batchId}" style="margin-left:8px">brutos</button>
         <button class="linklike" data-act="vermapa" data-id="${r.batchId}">mapeamento</button></span></div>`).join('')
       : '<p class="src">nenhuma importação de cadastro ainda — o upload nasce aqui dentro, com XLSX, XLS, CSV ou ZIP reais.</p>'}`;
+  }
+
+  /* ---------------- Campos de Cadastro Recebidos (10.E.2.2) ----------------
+     Todo campo da planilha de cadastro fica acessível AQUI, mesmo que ainda
+     não exista na interface padrão — com destino Product Master / Anúncio /
+     Variação e status. Exige CATALOG_RAW_FIELDS_VIEW. */
+  function camposCadastro() {
+    if (!V8IMP.canData(papel(), 'CATALOG_RAW_FIELDS_VIEW'))
+      return `<div class="panel"><div class="empty"><b>Sem permissão</b>Ver campos brutos de cadastro exige CATALOG_RAW_FIELDS_VIEW.</div></div>`;
+    const eng = window.IMPORTAR ? IMPORTAR.eng : null;
+    const batchIds = eng ? eng.batches.filter(b => ['catalogo', 'performance'].includes(b.det.destino)).map(b => b.id) : [];
+    const cat = eng ? V8IMP.fieldCatalog(eng).filter(c => c.batchIds.some(id => batchIds.includes(id))) : [];
+    const destinoDe = c => c.entidade === 'Produto Master' ? 'Product Master' : c.entidade === 'Variação' ? 'Variação' : c.entidade === 'Anúncio' ? 'Anúncio Shopee' : (c.entidade || '—');
+    return `
+      <div class="callout" style="margin-top:0">Campos recebidos no cadastro, separados por destino: <b>Product Master</b> (verdade interna) · <b>Anúncio Shopee</b> (específico do canal) · <b>Variação</b> (SKU, preço, estoque). Nada some — campo sem tela padrão fica preservado e mapeável.</div>
+      ${cat.length ? `<div class="tblwrap" style="margin-top:10px"><table class="tbl"><thead><tr>
+        <th class="nosort">Campo original</th><th class="nosort">Exemplo</th><th class="nosort">Destino</th><th class="nosort">Campo interno</th><th class="nosort">Status</th><th class="nosort">Ação</th></tr></thead><tbody>
+      ${cat.map(c => `<tr>
+        <td class="tmain">${UI.esc(c.coluna)}</td>
+        <td><span class="src">${UI.esc(String(c.exemplo ?? '—').slice(0, 24))}</span></td>
+        <td>${c.entidade ? `<span class="kbd">${UI.esc(destinoDe(c))}</span>` : '<span class="src">—</span>'}</td>
+        <td><span class="src">${UI.esc(c.campoNormalizado || '—')}</span></td>
+        <td>${c.status === 'utilizado' ? '<span class="st pos plain">UTILIZADO</span>' : c.status === 'aguardando mapeamento' ? '<span class="st warn plain">PENDENTE</span>' : `<span class="st info plain">${UI.esc(c.status.toUpperCase().slice(0, 22))}</span>`}</td>
+        <td><span class="rowact"><button class="btn sm ghost" data-act="gocampos">gerenciar em Base de Dados →</button></span></td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="panel" style="margin-top:12px"><div class="empty"><b>Nenhum cadastro importado ainda</b>Importe em Importar Cadastro — todos os campos aparecem aqui com destino.</div></div>'}`;
   }
 
   /* ---------------- Edição em Massa ---------------- */
@@ -1234,6 +1260,7 @@
         <div style="display:flex;justify-content:flex-end;margin-top:12px"><button class="btn" onclick="UI.closeModal()">fechar</button></div>`);
     }
     else if (act === 'gofontes') UI.go('importar');
+    else if (act === 'gocampos') { IMPORTAR.sub = 'Base de Dados e Mapeamento'; IMPORTAR.bd = 'Campos Recebidos'; UI.go('importar', 'Base de Dados e Mapeamento'); }
     else if (act === 'verbrutos') IMPORTAR.verBrutos(b.dataset.id);
     else if (act === 'vermapa') IMPORTAR.verMapeamento(b.dataset.id);
   }

@@ -56,6 +56,13 @@
       <div class="ctxitem"><span>Período coberto</span><span class="src">${f.periodo ? f.periodo.ini + ' a ' + f.periodo.fim : 'não declarado no arquivo'}</span></div>
       <div class="ctxitem"><span>Escopo</span><span class="src">${UI.esc(lojaNome(f.escopo.lojaId))} · conta ${UI.esc(f.escopo.contaId)} · cobertura: ${st.cobertura.contas.length} conta(s)</span></div>
       <div class="ctxitem"><span>Última importação · qualidade</span><span class="src">${f.ultima} · ${f.qualidade.duplicadosEvitados} dup. evitada(s) · ${f.qualidade.linhasComErro} linha(s) com erro · ${f.qualidade.conflitos} conflito(s)</span></div>
+      ${(() => { /* 10.E.2.2 — campos usados + preservados, visíveis no dashboard */
+        const cat = V8IMP.fieldCatalog(eng());
+        if (!cat.length) return '';
+        const usados = cat.filter(c => c.status === 'utilizado' && c.areas.includes('Pedidos'));
+        const outros = cat.filter(c => c.status !== 'utilizado').length;
+        return `<div class="ctxitem"><span>Campos usados (${usados.length})</span><span class="src">${UI.esc(usados.slice(0, 7).map(c => c.coluna).join(', '))}${usados.length > 7 ? ' +' + (usados.length - 7) : ''}${outros ? ' · ' + outros + ' preservado(s)/aguardando' : ''} <button class="linklike" data-act="gocampos">ver todos →</button></span></div>`;
+      })()}
     </div>`;
   }
 
@@ -265,6 +272,7 @@
     });
     else if (act === 'abrir') abrir(b.dataset.key);
     else if (act === 'gofontes') UI.go('importar');
+    else if (act === 'gocampos') { IMPORTAR.sub = 'Base de Dados e Mapeamento'; IMPORTAR.bd = 'Campos Recebidos'; UI.go('importar', 'Base de Dados e Mapeamento'); }
     else if (act === 'verbrutos') IMPORTAR.verBrutos(b.dataset.id);
     else if (act === 'vererros') IMPORTAR.verErros(b.dataset.id);
   }

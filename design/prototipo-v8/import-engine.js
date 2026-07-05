@@ -189,7 +189,10 @@
     return { batches: [], staging: [], snapshots: [], observations: [], masterLinks: [], conflicts: [], audit: [],
       fileHashes: new Map(), seq: 0,
       /* 10.E.2 — camada bruta preservada + linhas com erro (nenhuma coluna descartada silenciosamente) */
-      rawFiles: [], rawErrors: [] };
+      rawFiles: [], rawErrors: [],
+      /* 10.E.2.2 — base de dados e mapeamento: mapeamentos manuais versionados,
+         campos excluídos da análise, impactos por importação e fila de revisão de relações */
+      customMappings: [], camposExcluidos: {}, impactos: [], revisoesRelacao: [] };
   }
   const audit = (eng, acao, detalhe, extra) => eng.audit.push(Object.assign({ id: 'ia' + (++eng.seq), acao, detalhe, em: HOJE }, extra || {}));
 
@@ -606,16 +609,20 @@
   /* ---------- permissões de dados (enforcement no motor, nunca só botão) ---------- */
   const DATA_PERMS_ALL = ['DATA_SOURCE_VIEW', 'DATA_SOURCE_UPLOAD', 'DATA_SOURCE_EDIT_SCOPE', 'DATA_SOURCE_ARCHIVE',
     'DATA_SOURCE_ROLLBACK', 'RAW_DATA_VIEW', 'RAW_DATA_EXPORT', 'ORDER_EDIT_CORRECTION', 'ORDER_ARCHIVE',
-    'PRODUCT_EDIT', 'MASTER_LINK_EDIT', 'METRIC_CORRECTION', 'INTELLIGENCE_VIEW'];
+    'PRODUCT_EDIT', 'MASTER_LINK_EDIT', 'METRIC_CORRECTION', 'INTELLIGENCE_VIEW',
+    /* 10.E.2.2 — base de dados e mapeamento */
+    'FIELD_MAPPING_EDIT', 'IMPORT_REPROCESS', 'INTELLIGENCE_SOURCE_VIEW', 'INTELLIGENCE_RULE_EDIT',
+    'PRODUCT_IMPORT_APPLY', 'CATALOG_RAW_FIELDS_VIEW'];
   const DATA_PERMS = {
     OWNER: DATA_PERMS_ALL.slice(),
     ADMIN: DATA_PERMS_ALL.slice(),
     HEAD_MARKETPLACE: ['DATA_SOURCE_VIEW', 'DATA_SOURCE_UPLOAD', 'DATA_SOURCE_EDIT_SCOPE', 'RAW_DATA_VIEW', 'RAW_DATA_EXPORT',
-      'ORDER_EDIT_CORRECTION', 'PRODUCT_EDIT', 'MASTER_LINK_EDIT', 'METRIC_CORRECTION', 'INTELLIGENCE_VIEW'],
-    GESTOR_COMERCIAL: ['DATA_SOURCE_VIEW', 'RAW_DATA_VIEW', 'INTELLIGENCE_VIEW'],
-    GESTOR_OPERACIONAL: ['DATA_SOURCE_VIEW', 'DATA_SOURCE_UPLOAD', 'RAW_DATA_VIEW', 'ORDER_EDIT_CORRECTION', 'INTELLIGENCE_VIEW'],
-    CATALOGO: ['DATA_SOURCE_VIEW', 'DATA_SOURCE_UPLOAD', 'RAW_DATA_VIEW', 'PRODUCT_EDIT', 'INTELLIGENCE_VIEW'],
-    FINANCEIRO: ['DATA_SOURCE_VIEW', 'RAW_DATA_VIEW', 'RAW_DATA_EXPORT', 'INTELLIGENCE_VIEW'],
+      'ORDER_EDIT_CORRECTION', 'PRODUCT_EDIT', 'MASTER_LINK_EDIT', 'METRIC_CORRECTION', 'INTELLIGENCE_VIEW',
+      'FIELD_MAPPING_EDIT', 'IMPORT_REPROCESS', 'INTELLIGENCE_SOURCE_VIEW', 'INTELLIGENCE_RULE_EDIT', 'PRODUCT_IMPORT_APPLY', 'CATALOG_RAW_FIELDS_VIEW'],
+    GESTOR_COMERCIAL: ['DATA_SOURCE_VIEW', 'RAW_DATA_VIEW', 'INTELLIGENCE_VIEW', 'INTELLIGENCE_SOURCE_VIEW'],
+    GESTOR_OPERACIONAL: ['DATA_SOURCE_VIEW', 'DATA_SOURCE_UPLOAD', 'RAW_DATA_VIEW', 'ORDER_EDIT_CORRECTION', 'INTELLIGENCE_VIEW', 'INTELLIGENCE_SOURCE_VIEW', 'CATALOG_RAW_FIELDS_VIEW'],
+    CATALOGO: ['DATA_SOURCE_VIEW', 'DATA_SOURCE_UPLOAD', 'RAW_DATA_VIEW', 'PRODUCT_EDIT', 'INTELLIGENCE_VIEW', 'PRODUCT_IMPORT_APPLY', 'CATALOG_RAW_FIELDS_VIEW'],
+    FINANCEIRO: ['DATA_SOURCE_VIEW', 'RAW_DATA_VIEW', 'RAW_DATA_EXPORT', 'INTELLIGENCE_VIEW', 'INTELLIGENCE_SOURCE_VIEW'],
     EXPEDICAO: ['DATA_SOURCE_VIEW', 'INTELLIGENCE_VIEW'],
     DESIGNER: [],
     CONSULTOR: ['DATA_SOURCE_VIEW', 'INTELLIGENCE_VIEW'],
@@ -923,15 +930,22 @@
     const agente = (nome, destinos, analisar) => {
       const bs = fontesDe(destinos);
       if (!bs.length) {
-        agentes.push({ nome, status: 'AGUARDANDO DADOS', fontes: [], ultimaAnalise: null,
-          dadosFaltantes: 'nenhuma fonte aplicada para ' + destinos.join('/'),
-          acao: { tipo: 'Solicitar dado', destino: destinos[0], label: 'Atualizar dados desta área' }, insights: 0 });
+        agentes.push({ nome, status: 'AGUARDANDO DADOS', fontes: [], campos: [], escopo: null, cobertura: 'nenhuma',
+          ultimaAnalise: null, dadosFaltantes: 'nenhuma fonte aplicada para ' + destinos.join('/'),
+          acao: { tipo: 'Solicitar dado', destino: destinos[0], label: 'Atualizar dados desta área' }, insights: 0,
+          confianca: 'n/a — agente declara a limitação, nunca inventa' });
         return;
       }
       const antes = insights.length;
       const st = analisar(bs) || 'ANALISADO';
-      agentes.push({ nome, status: st, fontes: bs.map(b => b.arquivo), ultimaAnalise: bs[bs.length - 1].aplicado.em,
-        periodo: perStr(bs), insights: insights.length - antes, dadosFaltantes: null });
+      /* cada agente declara fontes, CAMPOS usados, período, escopo e cobertura */
+      const campos = [...new Set(bs.flatMap(b => (b.preview && b.preview.evidencias) || []))];
+      agentes.push({ nome, status: st, fontes: bs.map(b => b.arquivo), campos,
+        escopo: bs.map(b => b.escopo.lojaId + '/' + b.escopo.contaId).filter((v, i, a) => a.indexOf(v) === i).join(' · '),
+        cobertura: bs.length + ' fonte(s) · ' + perStr(bs),
+        ultimaAnalise: bs[bs.length - 1].aplicado.em,
+        periodo: perStr(bs), insights: insights.length - antes, dadosFaltantes: null,
+        confianca: st === 'ANALISADO' ? 'alta — dado importado' : 'parcial — ver status' });
     };
 
     /* 1 · Pedidos */
@@ -944,7 +958,9 @@
           { hipotese: 'frete/cupom/checkout — hipótese, nunca causa afirmada sem evidência do canal' });
       if (k.taxaCancelamento.taxa != null && k.taxaCancelamento.taxa > 15)
         push('Analista de Pedidos', 'ATENÇÃO', 'Cancelamento elevado',
-          `${k.cancelados} cancelamento(s) em ${k.pedidos} pedidos (${k.taxaCancelamento.taxa}%)`, bs);
+          `${k.cancelados} cancelamento(s) em ${k.pedidos} pedidos (${k.taxaCancelamento.taxa}%)`, bs,
+          { hipotese: 'motivos variados no campo "Cancelar Motivo" — hipótese a investigar por pedido; nunca causa confirmada',
+            recomendacao: 'revisar os motivos de cancelamento antes de mexer em preço ou anúncio' });
       const geo = geoStats(eng, filtro, 'estado');
       if (geo.length)
         push('Analista de Pedidos', 'APRENDIZADO', 'Concentração geográfica',
@@ -1123,6 +1139,363 @@
       honestidade: 'Os agentes não fingem trabalho: sem dado real aplicado, o status é AGUARDANDO DADOS — nunca análise inventada.' };
   }
 
+  /* =============================================================
+     10.E.2.2 — DATA FOUNDATION: três níveis de campo (bruto,
+     normalizado, derivado), catálogo de campos visível, mapeamento
+     manual versionado, relacionamentos com fila de revisão, cadeia
+     explícita pós-importação e ativação da inteligência sobre a
+     base real. Nenhuma coluna some; nenhum número sem origem.
+     ============================================================= */
+
+  const TIPOS_CAMPO = ['Texto', 'Número', 'Moeda', 'Percentual', 'Data', 'Data e hora', 'Status', 'Identificador', 'SKU',
+    'ID externo', 'Código de barras', 'Cidade', 'Estado', 'Produto', 'Variação', 'Marketplace', 'Canal', 'Conta',
+    'Categoria', 'Taxa', 'Custo', 'Frete', 'Cupom', 'Desconto', 'Comissão', 'Observação', 'Campo auxiliar', 'Outro'];
+  const ENTIDADES_CAMPO = ['Pedido', 'Item do pedido', 'Produto Master', 'Variação', 'Anúncio', 'Estoque', 'Devolução',
+    'Reembolso', 'Cancelamento', 'Falha de entrega', 'Métrica diária', 'Métrica agregada', 'Tráfego', 'Afiliado',
+    'Chat', 'Promoção', 'Cupom', 'Ads', 'Custo', 'Taxa', 'Conta marketplace', 'Outro'];
+
+  /* dicionário canônico: coluna original → campo normalizado, tipo, entidade e áreas que usam */
+  const FM = (campo, tipo, entidade, areas, extra) => Object.assign({ campo, tipo, entidade, areas }, extra || {});
+  const FIELD_MAP = {
+    'ID do pedido': FM('order_id', 'Identificador', 'Pedido', ['Pedidos', 'Devoluções', 'Central']),
+    'Status do pedido': FM('order_status', 'Status', 'Pedido', ['Pedidos', 'Central']),
+    'Data de criação do pedido': FM('order_created_at', 'Data e hora', 'Pedido', ['Pedidos', 'Central']),
+    'Data de pagamento': FM('order_paid_at', 'Data e hora', 'Pedido', ['Pedidos']),
+    'Hora do pagamento do pedido': FM('order_paid_at', 'Data e hora', 'Pedido', ['Pedidos']),
+    'Data de envio': FM('order_shipped_at', 'Data', 'Pedido', ['Pedidos']),
+    'Data prevista de envio': FM('order_ship_by', 'Data', 'Pedido', ['Pedidos']),
+    'Data de entrega': FM('order_delivered_at', 'Data', 'Pedido', ['Pedidos', 'Central']),
+    'Domestic Delivered Date': FM('order_delivered_at', 'Data', 'Pedido', ['Pedidos', 'Central']),
+    'Data da Finalização do Cancelamento': FM('order_cancelled_at', 'Data', 'Cancelamento', ['Pedidos']),
+    'Nome do Produto': FM('product_name', 'Produto', 'Item do pedido', ['Pedidos', 'Catálogo', 'Central']),
+    'Número de referência SKU': FM('sku_ref', 'SKU', 'Item do pedido', ['Pedidos', 'Catálogo']),
+    'SKU de referência': FM('sku_ref', 'SKU', 'Item do pedido', ['Pedidos', 'Catálogo']),
+    'Nome da variação': FM('variation_name', 'Variação', 'Variação', ['Pedidos', 'Catálogo']),
+    'Quantidade': FM('qty', 'Número', 'Item do pedido', ['Pedidos', 'Central']),
+    'Preço original': FM('price_original', 'Moeda', 'Item do pedido', ['Pedidos', 'Centro de Custos']),
+    'Preço acordado': FM('price_deal', 'Moeda', 'Item do pedido', ['Pedidos', 'Centro de Custos']),
+    'Subtotal do produto': FM('item_subtotal', 'Moeda', 'Item do pedido', ['Pedidos', 'Centro de Custos']),
+    'Descontos': FM('order_discount', 'Desconto', 'Pedido', ['Pedidos', 'Centro de Custos']),
+    'Cupom': FM('order_voucher', 'Cupom', 'Pedido', ['Pedidos', 'Centro de Custos']),
+    'Peso': FM('item_weight', 'Número', 'Item do pedido', ['Pedidos', 'Catálogo']),
+    'Valor Total': FM('order_total', 'Moeda', 'Pedido', ['Pedidos', 'Central', 'Centro de Custos']),
+    'Taxa de envio paga pelo comprador': FM('shipping_paid_buyer', 'Frete', 'Pedido', ['Pedidos', 'Centro de Custos']),
+    'Frete pago pelo comprador': FM('shipping_paid_buyer', 'Frete', 'Pedido', ['Pedidos', 'Centro de Custos']),
+    'Taxa de envio reversa': FM('shipping_reverse_fee', 'Frete', 'Pedido', ['Centro de Custos']),
+    'Taxa de transação': FM('fee_transaction', 'Taxa', 'Pedido', ['Centro de Custos']),
+    'Taxa de comissão': FM('fee_commission', 'Comissão', 'Pedido', ['Centro de Custos']),
+    'Taxa de serviço': FM('fee_service', 'Taxa', 'Pedido', ['Centro de Custos']),
+    'Total global': FM('order_total_global', 'Moeda', 'Pedido', ['Centro de Custos']),
+    'Valor estimado do frete': FM('shipping_estimated', 'Frete', 'Pedido', ['Centro de Custos']),
+    'Cidade': FM('buyer_city', 'Cidade', 'Pedido', ['Pedidos', 'Central']),
+    'UF': FM('buyer_state', 'Estado', 'Pedido', ['Pedidos', 'Central']),
+    'País': FM('buyer_country', 'Texto', 'Pedido', ['Pedidos']),
+    'CEP': FM('buyer_zip_protected', 'Texto', 'Pedido', ['Pedidos'], { sensivel: true }),
+    'Comprador': FM('buyer_name', 'Texto', 'Pedido', ['Pedidos'], { sensivel: true }),
+    'Observação do comprador': FM('buyer_note', 'Observação', 'Pedido', ['Pedidos'], { sensivel: true }),
+    'Nota': FM('order_note', 'Observação', 'Pedido', ['Pedidos']),
+    'Hot Listing': FM('order_hot_listing_flag', 'Campo auxiliar', 'Pedido', ['Pedidos', 'Inteligência'], { auxiliar: true }),
+    'Cancelar Motivo': FM('order_cancel_reason', 'Texto', 'Cancelamento', ['Pedidos', 'Central']),
+    'Status da Devolução / Reembolso': FM('order_return_status', 'Status', 'Devolução', ['Pedidos', 'Devoluções']),
+    'Número de rastreamento': FM('order_tracking', 'ID externo', 'Pedido', ['Pedidos']),
+    'Opção de envio': FM('shipping_option', 'Texto', 'Pedido', ['Pedidos']),
+    'Método de envio': FM('shipping_method', 'Texto', 'Pedido', ['Pedidos']),
+    'Tipo de evento': FM('event_type', 'Status', 'Devolução', ['Devoluções', 'Pedidos']),
+    'ID do evento': FM('event_id', 'Identificador', 'Devolução', ['Devoluções']),
+    'Motivo': FM('event_reason', 'Texto', 'Devolução', ['Devoluções', 'Central']),
+    'Valor reembolsado': FM('refund_amount', 'Moeda', 'Reembolso', ['Devoluções', 'Centro de Custos']),
+    'Status da solicitação': FM('event_status', 'Status', 'Devolução', ['Devoluções']),
+    'Data': FM('metric_date', 'Data', 'Métrica diária', ['Central']),
+    'ID do Item': FM('item_external_id', 'ID externo', 'Anúncio', ['Catálogo', 'Central']),
+    'SKU Pai': FM('sku_parent', 'SKU', 'Produto Master', ['Catálogo']),
+    'SKU da variação': FM('sku_variation', 'SKU', 'Variação', ['Catálogo']),
+    'Preço': FM('listing_price', 'Moeda', 'Variação', ['Catálogo']),
+    'Estoque': FM('listing_stock', 'Número', 'Variação', ['Catálogo']),
+    'Descrição': FM('product_description', 'Texto', 'Produto Master', ['Catálogo']),
+    'Status Atual do Item': FM('listing_status', 'Status', 'Anúncio', ['Catálogo']),
+    'SKU': FM('stock_sku', 'SKU', 'Estoque', ['Central', 'Catálogo']),
+    'Armazém': FM('warehouse', 'Texto', 'Estoque', ['Central']),
+    'Disponível': FM('stock_available', 'Número', 'Estoque', ['Central', 'Catálogo']),
+    'Reservado': FM('stock_reserved', 'Número', 'Estoque', ['Central']),
+    'Em trânsito': FM('stock_in_transit', 'Número', 'Estoque', ['Central']),
+    'Momento da leitura': FM('stock_read_at', 'Data e hora', 'Estoque', ['Central']),
+    'Impressões de Produto': FM('impressions', 'Número', 'Métrica agregada', ['Central']),
+    'Cliques por Produto': FM('clicks', 'Número', 'Métrica agregada', ['Central']),
+    'Taxa de Conversão de Pedidos': FM('conversion_rate', 'Percentual', 'Métrica agregada', ['Central']),
+    'CTR': FM('ctr', 'Percentual', 'Métrica agregada', ['Central']),
+    'Visitantes': FM('visitors', 'Número', 'Tráfego', ['Central']),
+    'Visualizações da Página': FM('page_views', 'Número', 'Tráfego', ['Central']),
+    'Taxa de Rejeição': FM('bounce_rate', 'Percentual', 'Tráfego', ['Central']),
+    'Novos Seguidores': FM('new_followers', 'Número', 'Tráfego', ['Central']),
+    'Período': FM('metric_period', 'Texto', 'Métrica agregada', ['Central']),
+    'Afiliado': FM('affiliate_id', 'Identificador', 'Afiliado', ['Central', 'Centro de Custos']),
+    'Vendas do Afiliado': FM('affiliate_sales', 'Moeda', 'Afiliado', ['Central', 'Centro de Custos']),
+    'Comissão': FM('affiliate_commission', 'Comissão', 'Afiliado', ['Centro de Custos']),
+    'Cliques': FM('affiliate_clicks', 'Número', 'Afiliado', ['Central']),
+    'Pedidos': FM('metric_orders', 'Número', 'Métrica agregada', ['Central']),
+    'Pedidos Pagos': FM('paid_orders', 'Número', 'Métrica diária', ['Central']),
+    'Pedidos Feitos': FM('created_orders', 'Número', 'Métrica diária', ['Central']),
+    'Vendas de Pedidos Pagos': FM('paid_sales', 'Moeda', 'Métrica diária', ['Central']),
+    'Perguntas recebidas': FM('chat_received', 'Número', 'Chat', ['Central']),
+    'Perguntas respondidas': FM('chat_answered', 'Número', 'Chat', ['Central']),
+    'Taxa de resposta': FM('chat_response_rate', 'Percentual', 'Chat', ['Central']),
+    'Tempo médio de resposta': FM('chat_avg_time', 'Texto', 'Chat', ['Central']),
+    'Nome da promoção': FM('promo_name', 'Texto', 'Promoção', ['Central']),
+    'Nome do Cupom': FM('voucher_name', 'Texto', 'Cupom', ['Central', 'Centro de Custos']),
+    'Código': FM('voucher_code', 'Identificador', 'Cupom', ['Central']),
+    'Produto': FM('product_name', 'Produto', 'Anúncio', ['Catálogo', 'Central']),
+    'Unidades': FM('units', 'Número', 'Métrica agregada', ['Central']),
+    'Vendas': FM('sales', 'Moeda', 'Métrica agregada', ['Central']),
+  };
+
+  function inferType(valor, coluna) {
+    const c = String(coluna || '').toLowerCase();
+    if (/id|código|codigo/.test(c)) return 'Identificador';
+    if (/data|date|hora/.test(c)) return 'Data';
+    if (/taxa|%|percent/.test(c)) return 'Percentual';
+    if (/valor|preço|preco|r\$|total|custo/.test(c)) return 'Moeda';
+    if (/status/.test(c)) return 'Status';
+    if (valor == null || valor === '') return 'Outro';
+    if (typeof valor === 'number') return 'Número';
+    if (/^\d{4}-\d{2}-\d{2}/.test(String(valor))) return 'Data';
+    if (!isNaN(valor)) return 'Número';
+    return 'Texto';
+  }
+
+  const mappingAtivo = (eng, coluna) => {
+    const versoes = eng.customMappings.filter(m => m.coluna === coluna && !m.fimVigencia);
+    return versoes[versoes.length - 1] || null;
+  };
+
+  /* ---------- CATÁLOGO DE CAMPOS: toda coluna recebida, com destino e status ---------- */
+  function fieldCatalog(eng, batchId) {
+    const files = batchId ? eng.rawFiles.filter(f => f.batchId === batchId) : eng.rawFiles;
+    const porColuna = {};
+    for (const rf of files) {
+      const batch = eng.batches.find(b => b.id === rf.batchId) || {};
+      for (const aba of rf.abas) {
+        for (const h of aba.headers) {
+          if (!h) continue;
+          const row = porColuna[h] = porColuna[h] || { coluna: h, arquivos: [], batchIds: [], exemplo: null };
+          if (!row.arquivos.includes(rf.nome)) row.arquivos.push(rf.nome);
+          if (!row.batchIds.includes(rf.batchId)) row.batchIds.push(rf.batchId);
+          if (row.exemplo == null) { const r0 = aba.rows.find(r => r[h] != null && r[h] !== ''); if (r0) row.exemplo = r0[h]; }
+          row.arquivado = row.arquivado && !!batch.arquivado;
+        }
+      }
+    }
+    return Object.values(porColuna).map(row => {
+      const manual = mappingAtivo(eng, row.coluna);
+      const canon = FIELD_MAP[row.coluna];
+      const m = manual || canon;
+      const excluido = eng.camposExcluidos[row.coluna];
+      const status = excluido ? 'excluído da análise'
+        : m ? (m.auxiliar ? 'preservado e disponível' : 'utilizado')
+        : row.exemplo == null ? 'inválido (sem valor em nenhuma linha)'
+        : 'aguardando mapeamento';
+      return Object.assign(row, {
+        tipo: m ? m.tipo : inferType(row.exemplo, row.coluna),
+        campoNormalizado: m ? m.campo : null,
+        entidade: m ? m.entidade : null,
+        areas: m ? (m.areas || [m.entidade]) : [],
+        sensivel: !!(canon && canon.sensivel),
+        origemMapeamento: manual ? 'MANUAL (v' + manual.versao + ')' : canon ? 'DICIONÁRIO CANÔNICO' : null,
+        status, excluido: excluido || null,
+      });
+    }).sort((a, b) => a.status === 'aguardando mapeamento' ? -1 : a.coluna.localeCompare(b.coluna));
+  }
+
+  /* ---------- MAPEAMENTO MANUAL ASSISTIDO (versionado, auditado) ---------- */
+  function mapField(eng, def, opts) {
+    opts = opts || {};
+    if (!canData(opts.papel || 'OWNER', 'FIELD_MAPPING_EDIT')) return negar(opts.papel, 'FIELD_MAPPING_EDIT');
+    if (!def.coluna || !def.tipo || !def.entidade || !def.campo)
+      return { blocked: true, reason: 'mapeamento exige coluna, tipo, entidade e campo interno' };
+    if (!TIPOS_CAMPO.includes(def.tipo)) return { blocked: true, reason: 'tipo inválido: ' + def.tipo };
+    if (!ENTIDADES_CAMPO.includes(def.entidade)) return { blocked: true, reason: 'entidade inválida: ' + def.entidade };
+    const anterior = mappingAtivo(eng, def.coluna);
+    if (anterior) anterior.fimVigencia = HOJE; /* nunca sobrescreve sem versão */
+    const novo = Object.assign({ escopo: 'global', alimentaAnalise: true, auxiliar: def.tipo === 'Campo auxiliar' }, def,
+      { id: 'fm' + (++eng.seq), versao: (anterior ? anterior.versao : 0) + 1, autor: opts.usuario || 'Marcos',
+        em: HOJE, fimVigencia: null, anteriorId: anterior ? anterior.id : null, areas: def.areas || [def.entidade] });
+    eng.customMappings.push(novo);
+    delete eng.camposExcluidos[def.coluna];
+    audit(eng, 'campo_mapeado', `"${def.coluna}" → ${def.campo} (${def.tipo} · ${def.entidade}) v${novo.versao}${anterior ? ' — versão anterior preservada' : ''}`, { usuario: opts.usuario });
+    return { ok: true, mapeamento: novo, anterior };
+  }
+  function excluirCampoDaAnalise(eng, coluna, opts) {
+    opts = opts || {};
+    if (!canData(opts.papel || 'OWNER', 'FIELD_MAPPING_EDIT')) return negar(opts.papel, 'FIELD_MAPPING_EDIT');
+    if (!opts.motivo) return { blocked: true, reason: 'excluir campo da análise exige motivo' };
+    eng.camposExcluidos[coluna] = { motivo: opts.motivo, por: opts.usuario || 'Marcos', em: HOJE,
+      nota: 'coluna permanece na camada bruta — sai apenas das análises' };
+    audit(eng, 'campo_excluido_analise', coluna + ' · ' + opts.motivo, { usuario: opts.usuario });
+    return { ok: true };
+  }
+  function restaurarCampo(eng, coluna, opts) {
+    opts = opts || {};
+    if (!canData(opts.papel || 'OWNER', 'FIELD_MAPPING_EDIT')) return negar(opts.papel, 'FIELD_MAPPING_EDIT');
+    delete eng.camposExcluidos[coluna];
+    audit(eng, 'campo_restaurado', coluna, { usuario: opts.usuario });
+    return { ok: true };
+  }
+
+  /* reprocessar importação após novo mapeamento */
+  function reprocess(eng, batchId, opts) {
+    opts = opts || {};
+    if (!canData(opts.papel || 'OWNER', 'IMPORT_REPROCESS')) return negar(opts.papel, 'IMPORT_REPROCESS');
+    const batch = eng.batches.find(b => b.id === batchId);
+    if (!batch) return { blocked: true, reason: 'lote não encontrado' };
+    const v = 'v' + ((+String(batch.mappingVersion).replace(/\D/g, '') || 1) + 1);
+    batch.mappingVersion = v;
+    const cat = fieldCatalog(eng, batchId);
+    audit(eng, 'importacao_reprocessada', `${batchId} → mapeamento ${v}: ${cat.filter(c => c.status === 'utilizado').length} utilizados, ${cat.filter(c => c.status === 'aguardando mapeamento').length} aguardando`, { batchId, usuario: opts.usuario });
+    return { ok: true, mappingVersion: v,
+      utilizados: cat.filter(c => c.status === 'utilizado').length,
+      aguardando: cat.filter(c => c.status === 'aguardando mapeamento').length };
+  }
+
+  /* ---------- RELACIONAMENTOS AUTOMÁTICOS + FILA DE REVISÃO ---------- */
+  function relacoesReport(eng, products) {
+    products = products || [];
+    const ov = ordersView(eng, { incluirExcluidos: true });
+    const comEvento = ov.todos.filter(o => o.eventos.length).length;
+    const skuProduto = { vinculados: 0, semProduto: [] };
+    const skusProdutos = new Set(products.flatMap(p => [p.sku, ...((p.variacoes || []).map(v => v.sku))]).filter(Boolean));
+    for (const o of ov.todos) {
+      if (!o.sku) continue;
+      if (skusProdutos.has(o.sku)) skuProduto.vinculados++;
+      else if (!skuProduto.semProduto.includes(o.sku)) skuProduto.semProduto.push(o.sku);
+    }
+    /* fila de revisão: relação incerta NUNCA vincula sozinha */
+    const fila = [];
+    for (const o of eng.observations.filter(x => x.vinculo === 'VÍNCULO SUGERIDO POR NOME'))
+      fila.push({ id: 'rev-obs-' + o.id, tipo: 'Anúncio ↔ Produto (sugestão por nome)', alvo: o.item_id,
+        evidencia: `nome similar a produto interno — confiança baixa; nunca vinculado automaticamente`, acoes: ['confirmar', 'rejeitar', 'ignorar'] });
+    for (const e of ov.eventosOrfaos)
+      fila.push({ id: 'rev-evt-' + (e.eventId || e.orderId), tipo: 'Devolução sem pedido', alvo: e.orderId,
+        evidencia: `evento ${e.tipo} cita pedido ${e.orderId} não importado (${e.arquivo})`, acoes: ['ignorar', 'solicitar dado'] });
+    for (const sku of skuProduto.semProduto)
+      fila.push({ id: 'rev-sku-' + sku, tipo: 'SKU de pedido sem produto interno', alvo: sku,
+        evidencia: `pedidos usam o SKU ${sku}, sem correspondência no catálogo — importar cadastro ou mapear`, acoes: ['confirmar', 'ignorar'] });
+    const decididos = new Set(eng.revisoesRelacao.map(r => r.id));
+    return {
+      pedidosDevolucoes: { vinculados: comEvento, orfaos: ov.eventosOrfaos.length, chave: 'marketplace + conta + ID do pedido' },
+      pedidosProdutos: Object.assign(skuProduto, { chave: 'marketplace + conta + SKU' }),
+      produtosAnuncios: { confirmados: eng.observations.filter(o => /CONFIRMADO/.test(o.vinculo)).length,
+        sugeridos: eng.observations.filter(o => /SUGERIDO/.test(o.vinculo)).length, chave: 'ID externo → SKU → nome (só sugestão)' },
+      fila: fila.filter(f => !decididos.has(f.id)),
+      decididas: eng.revisoesRelacao.length,
+    };
+  }
+  function decidirRelacao(eng, filaId, decisao, opts) {
+    opts = opts || {};
+    if (!canData(opts.papel || 'OWNER', 'DATA_SOURCE_EDIT_SCOPE')) return negar(opts.papel, 'DATA_SOURCE_EDIT_SCOPE');
+    if (!['confirmar', 'rejeitar', 'ignorar', 'solicitar dado'].includes(decisao)) return { blocked: true, reason: 'decisão inválida' };
+    eng.revisoesRelacao.push({ id: filaId, decisao, por: opts.usuario || 'Marcos', em: HOJE });
+    audit(eng, 'relacao_decidida', filaId + ' → ' + decisao, { usuario: opts.usuario });
+    return { ok: true };
+  }
+
+  /* ---------- COBERTURA REAL: dado importado desativa fixture equivalente ---------- */
+  function coberturaReal(eng) {
+    const tem = destinos => eng.batches.some(b => b.aplicado && !b.arquivado && destinos.includes(b.det.destino));
+    return { pedidos: tem(['pedidos']), devolucoes: tem(['devolucoes']), catalogo: tem(['catalogo']),
+      performance: tem(['performance']), estoque: tem(['estoque']), afiliados: tem(['afiliados', 'atribuicao']),
+      atendimento: tem(['atendimento']), trafego: tem(['trafego_visao', 'trafego', 'funil']),
+      algum: eng.batches.some(b => b.aplicado && !b.arquivado),
+      nota: 'quando o dado real existe, o indicador demo equivalente é desativado e a análise recalculada' };
+  }
+
+  /* ---------- CADEIA EXPLÍCITA PÓS-IMPORTAÇÃO (15 passos com progresso real) ---------- */
+  function applyImportChain(eng, batchId, opts) {
+    opts = opts || {};
+    const antesIns = mesaInsights(eng, {}).insights.map(i => i.titulo);
+    const antesOrders = ordersView(eng, {}).orders.length;
+    const r = apply(eng, batchId, opts);
+    if (r.blocked) return r;
+    const batch = r.job;
+    const rf = eng.rawFiles.find(x => x.batchId === batchId) || { abas: [{ headers: [], rows: [] }] };
+    const cat = fieldCatalog(eng, batchId);
+    const depois = mesaInsights(eng, {});
+    const novos = depois.insights.filter(i => !antesIns.includes(i.titulo));
+    const ov = ordersView(eng, {});
+    const rel = relacoesReport(eng, opts.products || []);
+    const destino = batch.det.destino;
+    const areasAfetadas = ['Fontes e Dados', 'Central de Inteligência', 'Home', 'Silêncio', 'Conhecimento']
+      .concat(destino === 'pedidos' || destino === 'devolucoes' ? ['Pedidos', 'Centro de Custos'] : [])
+      .concat(['catalogo', 'performance', 'estoque'].includes(destino) ? ['Catálogo'] : []);
+    const passos = [
+      ['Arquivo bruto persistido', `${rf.abas.length} aba(s) · ${rf.abas[0].headers.length} coluna(s) · ${rf.abas.reduce((a, x) => a + x.rows.length, 0)} linha(s) — nada descartado`],
+      ['Colunas e linhas preservadas', `${cat.length} coluna(s) no catálogo de campos`],
+      ['Mapeamento aplicado', `${cat.filter(c => c.status === 'utilizado').length} utilizadas · ${cat.filter(c => c.status === 'preservado e disponível').length} auxiliares · ${cat.filter(c => c.status === 'aguardando mapeamento').length} aguardando mapeamento`],
+      ['Dados normalizados', `${batch.aplicado.criados} criado(s) · ${batch.aplicado.atualizados} atualizado(s)`],
+      ['Entidades relacionadas', `pedidos↔devoluções: ${rel.pedidosDevolucoes.vinculados} · pedidos↔produtos: ${rel.pedidosProdutos.vinculados} por SKU`],
+      ['Duplicidades reconciliadas', `${batch.aplicado.duplicadosEvitados} duplicado(s) evitado(s) — nunca somados`],
+      ['Cobertura atualizada', batch.periodo ? batch.periodo.ini + ' a ' + batch.periodo.fim : 'período do arquivo'],
+      ['Dashboards recalculados', areasAfetadas.join(' · ')],
+      ['Agentes reprocessados', depois.agentes.filter(a => a.status === 'ANALISADO' || a.status === 'DADO CONFLITANTE' || a.status === 'COBERTURA PARCIAL').map(a => a.nome).join(' · ') || 'nenhum com dado suficiente'],
+      ['Home atualizada', coberturaReal(eng).algum ? 'base real ativa no cockpit' : '—'],
+      ['Mesa de Inteligência atualizada', novos.length + ' insight(s) novo(s)'],
+      ['Silêncio atualizado', sinaisSilencio(eng).length + ' sinal(is) avaliado(s) sem ação necessária'],
+      ['Conhecimento atualizado', fatosConhecimento(eng).length + ' fato(s) com fonte registrados'],
+      ['Pedidos/Catálogo/Custos', areasAfetadas.filter(a => ['Pedidos', 'Catálogo', 'Centro de Custos'].includes(a)).join(' · ') || 'não aplicável a esta fonte'],
+      ['Histórico registrado', 'lote ' + batchId + ' · trilha completa em Fontes e Histórico'],
+    ].map(([nome, resultado], i) => ({ n: i + 1, nome, resultado }));
+    const impacto = {
+      batchId, em: HOJE, fonte: (batch.preview && batch.preview.perfilNome) || batch.det.perfil,
+      arquivo: batch.arquivo, periodo: batch.periodo, escopo: batch.escopo,
+      entidadesAtualizadas: { criados: batch.aplicado.criados, atualizados: batch.aplicado.atualizados,
+        duplicadosEvitados: batch.aplicado.duplicadosEvitados, pedidosTotais: ov.orders.length, antes: antesOrders },
+      indicadoresRecalculados: areasAfetadas,
+      insightsNovos: novos.map(i => ({ nivel: i.nivel, titulo: i.titulo, fato: i.fato, fonte: i.fonte, confianca: i.confianca })),
+      insightsTotais: depois.insights.length,
+      conflitos: batch.aplicado.conflitos, filaRevisao: rel.fila.length,
+      dadosFaltantes: depois.agentes.filter(a => a.status === 'AGUARDANDO DADOS').map(a => a.dadosFaltantes),
+      acoesSugeridas: novos.length ? ['Abrir análise dos insights novos', 'Revisar fila de relacionamentos'] : ['Revisar fila de relacionamentos'],
+    };
+    eng.impactos.push(impacto);
+    audit(eng, 'cadeia_pos_importacao', batchId + ': 15 passos executados · ' + novos.length + ' insight(s) novo(s)', { batchId });
+    return { job: r.job, passos, impacto };
+  }
+  const lastImpact = eng => eng.impactos[eng.impactos.length - 1] || null;
+
+  /* ---------- SILÊNCIO: sinais avaliados que NÃO exigem ação (com motivo e fonte) ---------- */
+  function sinaisSilencio(eng) {
+    if (!eng.batches.some(b => b.aplicado)) return [];
+    const m = mesaInsights(eng, {});
+    const out = m.cruzamentos.filter(c => c.estado === 'ANALISADO' && /nenhum caso/.test(c.resultado || ''))
+      .map(c => ({ sinal: c.nome, fonte: 'cruzamento sobre dados importados', motivo: 'avaliado — nenhum caso encontrado no recorte; abaixo do limiar de alerta', periodo: 'dados importados', estado: 'ok' }));
+    const st = orderStats(eng, {});
+    if (!st.semDados) {
+      const per = st.fontes[0] && st.fontes[0].periodo ? st.fontes[0].periodo.ini + ' a ' + st.fontes[0].periodo.fim : '—';
+      const arqs = st.fontes.map(f => f.arquivo).join(', ');
+      if (st.kpis.taxaCancelamento.taxa != null && st.kpis.taxaCancelamento.taxa <= 15)
+        out.push({ sinal: 'Taxa de cancelamento ' + st.kpis.taxaCancelamento.taxa + '%', fonte: arqs,
+          motivo: 'dentro do limiar (<=15%) — não exige ação', periodo: per, estado: 'ok' });
+      if (st.kpis.falhasEntrega === 0)
+        out.push({ sinal: 'Falhas de entrega: 0', fonte: arqs, motivo: 'nenhuma falha registrada no período — abaixo do limiar de alerta', periodo: per, estado: 'ok' });
+      if (st.kpis.devolucoes === 0)
+        out.push({ sinal: 'Devoluções: 0', fonte: arqs, motivo: 'nenhum evento de devolução no período importado — não exige ação', periodo: per, estado: 'ok' });
+    }
+    return out;
+  }
+
+  /* ---------- CONHECIMENTO: fatos com prova (fonte, campos, versão de dados) ---------- */
+  function fatosConhecimento(eng) {
+    const out = [];
+    for (const b of eng.batches.filter(x => x.aplicado && !x.arquivado)) {
+      out.push({ fato: `${b.aplicado.criados + b.aplicado.atualizados} registro(s) de ${(b.preview && b.preview.perfilNome) || b.det.destino} incorporados de "${b.arquivo}"`,
+        fontes: b.arquivo, campos: (b.preview && b.preview.evidencias || []).slice(0, 6).join(', '),
+        periodo: b.periodo ? b.periodo.ini + ' a ' + b.periodo.fim : 'não declarado',
+        versaoDados: b.id + ' · mapeamento ' + b.mappingVersion, confianca: 'alta — dado importado', tipo: 'FATO' });
+    }
+    const m = eng.batches.some(b => b.aplicado) ? mesaInsights(eng, {}) : { insights: [] };
+    for (const i of m.insights.filter(x => x.nivel === 'APRENDIZADO'))
+      out.push({ fato: i.fato, fontes: i.fonte, campos: '—', periodo: i.periodo, versaoDados: 'insights da Mesa', confianca: i.confianca, tipo: 'FATO' });
+    return out;
+  }
+
   /* ---------------- fixtures (referência de schema — rotuladas, nunca dados padrão) ---------------- */
   const FIXTURES = {
     productTraffic: periodo => ({
@@ -1291,6 +1664,10 @@
     suggestMaster, approveMaster, coverage, canImp, naturalKey, KEYS, FIXTURES, assertNoDemoMix,
     /* 10.E.3.1 — classificador corrigido */
     reclassify, NOME_PERFIL, DETECT_RULES, SINONIMOS,
+    /* 10.E.2.2 — data foundation + intelligence activation */
+    FIELD_MAP, TIPOS_CAMPO, ENTIDADES_CAMPO, inferType, fieldCatalog, mapField, excluirCampoDaAnalise,
+    restaurarCampo, reprocess, relacoesReport, decidirRelacao, coberturaReal, applyImportChain,
+    lastImpact, sinaisSilencio, fatosConhecimento,
     /* 10.E.2 */
     DATA_PERMS, DATA_PERMS_ALL, canData, orderTab, cepProtegido, ordersView, orderStats, geoStats, stockView,
     conversaoExplicita, valorEfetivo, correct, excludeFromAnalysis, restaurar, archiveFile, desativarVinculo,

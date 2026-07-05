@@ -30,12 +30,27 @@
         <dt>Tipo · origem</dt><dd>${UI.esc(k.tipo)} · ${UI.esc(k.origem)}</dd></dl>
       </div>`).join('')}
 
+      ${fatosImportados()}
+
       <div class="callout sect">A hierarquia de confiança decide o tom: <b>VERIFICADO</b> orienta com firmeza; <b>PROVISÓRIO</b> orienta com transparência ("regra interna, confirmo na conta conectada"); o que não se sabe é dito como <b>${UI.esc(D.STATUS.SEM_DADOS)}</b>.</div>`;
 
     UI.$('#v-conhecimento').onclick = e => {
       const b = e.target.closest('[data-act="tipo"]');
       if (b) { KO.tipo = b.dataset.t; render(); }
     };
+  }
+
+  /* 10.E.2.2 — fatos com prova vindos das importações (fonte, campos, versão de dados) */
+  function fatosImportados() {
+    if (!window.IMPORTAR || !window.V8IMP) return '';
+    const fatos = V8IMP.fatosConhecimento(IMPORTAR.eng);
+    if (!fatos.length) return '';
+    return `<div class="panel sect"><div class="sect-h" style="margin-top:0"><span class="h2">Fatos validados das importações</span>
+      <span class="src">memória com prova — nunca solta</span></div>
+      ${fatos.map(f => `<div class="exec-li"><span class="sig pos"></span>
+        <div class="t"><b><span class="st pos plain" style="margin-right:6px">${UI.esc(f.tipo)}</span>${UI.esc(f.fato)}</b>
+        <span>fontes: ${UI.esc(f.fontes)} · campos: ${UI.esc(f.campos || '—')} · período: ${UI.esc(f.periodo)} · versão de dados: ${UI.esc(f.versaoDados)} · confiança: ${UI.esc(f.confianca)}</span></div></div>`).join('')}
+    </div>`;
   }
 
   UI.renderers.conhecimento = render;

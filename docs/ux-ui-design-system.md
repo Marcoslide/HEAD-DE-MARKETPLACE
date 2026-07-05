@@ -505,3 +505,54 @@ regras/período/cobertura/estimado/confiança.
 itens); suíte completa 525 verdes; validação headless com 15 auto-testes,
 cadastro via formulário real, OAuth com escopo, 16 áreas × 2 temas × 4
 larguras, zero erros de console.
+
+## Sprint 10.E.2.2 — Data Foundation + Intelligence Activation
+
+A importação deixou de ser "tela de upload" e virou a **base interna única e
+viva**: arquivo original → camada bruta completa → mapeamento de campos →
+camada normalizada → relações → indicadores → diagnósticos → inteligência →
+decisão/missão/aprendizado.
+
+- **Três níveis de campo**: bruto (toda coluna original, preservada e
+  acessível), normalizado (dicionário canônico com ~85 colunas → campo
+  interno, ex.: "ID do pedido" → `order_id`), derivado (cálculo com fórmula).
+- **Base de Dados e Mapeamento** (dentro de Fontes e Dados, 10 subáreas):
+  Campos Recebidos mostra TODA coluna com exemplo, tipo detectado, campo
+  normalizado, área que utiliza e status (utilizado · preservado e
+  disponível · aguardando mapeamento · inválido · excluído da análise) +
+  ações (ver valores, mapear, marcar auxiliar, excluir/restaurar).
+  "Hot Listing" → `order_hot_listing_flag`, campo auxiliar preservado.
+- **Mapeamento manual assistido**: o owner mapeia coluna nova sem código
+  (28 tipos × 22 entidades); cada mudança cria **nova versão** auditada;
+  **Reprocessar** atualiza os normalizados (`IMPORT_REPROCESS`).
+- **Relacionamentos automáticos por chaves seguras** (pedidos↔devoluções por
+  marketplace+conta+ID; pedidos↔produtos por SKU; produtos↔anúncios por
+  ID→SKU→nome-sugestão) com **fila de revisão**: relação incerta NUNCA
+  vincula sozinha — evidências + confirmar/rejeitar/ignorar, auditado.
+- **Cadeia explícita de 15 passos** após [Aplicar importação], com progresso
+  real na tela (arquivo preservado → campos mapeados → normalizados →
+  relações → dedup → cobertura → dashboards → agentes → Home → Mesa →
+  Silêncio → Conhecimento → Pedidos/Catálogo/Custos → histórico) — nunca só
+  "importação concluída".
+- **Hierarquia de evidência**: dado real importado > normalizado interno >
+  regras financeiras > integração > pesquisa > fixture. `coberturaReal()`
+  desativa o indicador demo equivalente; Home mostra "BASE REAL ATIVA".
+- **Mesa**: seção "O QUE MUDOU COM ESTA IMPORTAÇÃO" (fonte, período, escopo,
+  entidades, indicadores, insights novos, conflitos, faltantes, ações).
+  **Agentes** declaram fontes, CAMPOS usados, período, escopo, cobertura e
+  confiança; sem dado, declaram a limitação. Insights separam FATO ×
+  HIPÓTESE × RECOMENDAÇÃO — nunca causa confirmada sem evidência.
+- **Silêncio** recebe sinais avaliados que não exigem ação (motivo + fonte +
+  período); **Conhecimento** guarda fatos com prova (fontes, campos, versão
+  de dados); **Centro de Custos** usa pedidos importados como vendas.
+- **Catálogo**: Importar Cadastro Shopee + **Campos de Cadastro** (todo campo
+  do template acessível com destino Product Master × Anúncio Shopee ×
+  Variação; exige `CATALOG_RAW_FIELDS_VIEW`); nunca sobrescreve outro canal.
+- **Permissões novas**: FIELD_MAPPING_EDIT, IMPORT_REPROCESS,
+  INTELLIGENCE_SOURCE_VIEW, INTELLIGENCE_RULE_EDIT, PRODUCT_IMPORT_APPLY,
+  CATALOG_RAW_FIELDS_VIEW (campo sensível — CEP/comprador — atrás de
+  RAW_DATA_VIEW também na tela de campos).
+- **Testes**: `ui-v8-datafoundation.test.js` (34 itens em 10 blocos); suíte
+  completa 535 verdes; validação headless do critério de aceite completo
+  (38 colunas na tela, mapeamento manual, Mesa/Home/Silêncio/Conhecimento
+  atualizados), 15 auto-testes, 16 áreas × 2 temas × 4 larguras, zero erros.

@@ -28,7 +28,21 @@
       </tbody></table>
       <div class="tfoot"><span>${D.silencio.length} vigias · ${UI.esc(D.STATUS.DADO_SIMULADO)} · checagens internas</span></div></div>
 
+      ${sinaisImportados()}
+
       <div class="callout sect">Quando uma vigia cruza o critério, ela vira <b>missão</b> ou <b>decisão pendente</b> — nunca um alerta que morre na tela.</div>`;
+  }
+
+  /* 10.E.2.2 — sinais avaliados das IMPORTAÇÕES que não exigem ação (motivo + fonte + período) */
+  function sinaisImportados() {
+    if (!window.IMPORTAR || !window.V8IMP) return '';
+    const sinais = V8IMP.sinaisSilencio(IMPORTAR.eng);
+    if (!sinais.length) return '';
+    return `<div class="panel sect"><div class="sect-h" style="margin-top:0"><span class="h2">Sinais avaliados das importações</span>
+      <span class="src">DADO REAL — avaliado e silenciado com motivo</span></div>
+      ${sinais.map(s => `<div class="exec-li"><span class="sig pos"></span>
+        <div class="t"><b>${UI.esc(s.sinal)}</b><span>motivo do silêncio: ${UI.esc(s.motivo)} · fonte: ${UI.esc(s.fonte)} · período: ${UI.esc(s.periodo)}</span></div></div>`).join('')}
+    </div>`;
   }
 
   UI.renderers.silencio = render;
