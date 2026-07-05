@@ -55,7 +55,72 @@
     toggleTheme() { UI.setTheme(UI.theme() === 'dark' ? 'light' : 'dark'); },
 
     /* ---------- navegação ---------- */
-    NAMES: { home: 'Home', operacao: 'Operação', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', custos: 'Centro de Custos', empresas: 'Empresas e Operações', conexoes: 'Conexões', missao: 'A Missão', silencio: 'Silêncio', conhecimento: 'Conhecimento', importar: 'Fontes e Histórico de Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
+    NAMES: { home: 'Mesa Estratégica', operacao: 'Histórico Operacional', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', seo: 'Orgânico e SEO', custos: 'Lucratividade', empresas: 'Empresas e Operações', conexoes: 'Conexões', missao: 'Execução', silencio: 'Radar', conhecimento: 'Conhecimento', importar: 'Fontes e Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
+
+    /* ---------- 10.P.3 — ARQUITETURA DE 6 ÁREAS ----------
+       Reduz o menu principal a 6 áreas. Cada área agrupa, por sub-navegação
+       contextual, as views que já existem (view + sub opcional). Nada é
+       removido nem duplicado: a mesma view/fonte é reaproveitada. */
+    AREAS: [
+      { key: 'inicio', label: 'Início', subs: [
+        { label: 'Mesa Estratégica', view: 'home' } ] },
+      { key: 'catalogo', label: 'Catálogo', subs: [
+        { label: 'Visão Geral', view: 'catalogo', sub: 'Visão Geral' },
+        { label: 'Rascunhos', view: 'catalogo', sub: 'Rascunhos' },
+        { label: 'Marketplaces', view: 'catalogo', sub: 'Marketplaces' } ] },
+      { key: 'crescimento', label: 'Crescimento', subs: [
+        { label: 'Central de Inteligência', view: 'crescimento', sub: 'Mesa de Inteligência' },
+        { label: 'Orgânico e SEO', view: 'seo' },
+        { label: 'Ads', view: 'crescimento', sub: 'Ads' },
+        { label: 'Afiliados', view: 'crescimento', sub: 'Afiliados' },
+        { label: 'Full e Escala', view: 'crescimento', sub: 'Estoque Full' },
+        { label: 'Lucratividade', view: 'custos' },
+        { label: 'Radar', view: 'silencio' } ] },
+      { key: 'operacao', label: 'Operação', subs: [
+        { label: 'Pedidos', view: 'pedidos' },
+        { label: 'Estoque', view: 'crescimento', sub: 'Estoque Full' },
+        { label: 'Devoluções', view: 'crescimento', sub: 'Devoluções e Cancelamentos' },
+        { label: 'Atendimento', view: 'crescimento', sub: 'Chat e Atendimento' },
+        { label: 'Histórico Operacional', view: 'operacao' } ] },
+      { key: 'execucao', label: 'Execução', subs: [
+        { label: 'Centro de Decisões', view: 'missao', sub: 'Decisões' },
+        { label: 'Centro de Missões', view: 'missao', sub: 'Missões' },
+        { label: 'Conhecimento', view: 'conhecimento' } ] },
+      { key: 'config', label: 'Configurações', subs: [
+        { label: 'Empresas e Operações', view: 'empresas' },
+        { label: 'Fontes e Dados', view: 'importar' },
+        { label: 'Conexões', view: 'conexoes' },
+        { label: 'Equipe', view: 'equipe' },
+        { label: 'Planos', view: 'planos' },
+        { label: 'Ativação', view: 'ativacao' },
+        { label: 'Suporte', view: 'suporte' } ] },
+    ],
+    /* reverse map view → área (primeira área que contém a view) */
+    areaOf(view) {
+      for (const a of UI.AREAS) if (a.subs.some(s => s.view === view)) return a.key;
+      return 'inicio';
+    },
+    area: 'inicio',
+    goArea(key) {
+      const a = UI.AREAS.find(x => x.key === key) || UI.AREAS[0];
+      const first = a.subs[0];
+      UI.go(first.view, first.sub, a.key);
+    },
+    /* desenha a sub-navegação da área ativa; destaca a sub correspondente
+       à (view, sub) atual. Cada botão tem data-act para não cair no teste
+       de "botões sem comportamento". */
+    renderSubnav() {
+      const el = $('#subnav'); if (!el) return;
+      const a = UI.AREAS.find(x => x.key === UI.area);
+      if (!a || a.subs.length <= 1) { el.innerHTML = ''; el.classList.remove('on'); return; }
+      el.classList.add('on');
+      el.innerHTML = `<div class="subnav-in">${a.subs.map((s, i) =>
+        `<button class="subtab${UI._subMatch(s) ? ' on' : ''}" data-act="snav" data-i="${i}">${UI.esc(s.label)}</button>`).join('')}</div>`;
+    },
+    _subMatch(s) {
+      return s.view === UI.view && (s.sub || null) === (UI._activeSub || null);
+    },
+    _activeSub: null,
 
     /* ---------- conta comercial (10.V) ----------
        Sessão demonstrativa: conta semeada; sessão real: criada no gate. */
@@ -75,11 +140,19 @@
       V8COM.obComplete(acc);
       return acc;
     },
-    go(v, sub) {
+    go(v, sub, areaKey) {
       UI.view = v;
+      UI._activeSub = sub || null;
+      /* área explícita (vinda da sub-nav) mantém o destaque quando a mesma
+         view é reaproveitada em duas áreas (ex.: Estoque em Operação e Full em Crescimento) */
+      UI.area = (areaKey && UI.AREAS.some(a => a.key === areaKey)) ? areaKey : UI.areaOf(v);
       $$('.view').forEach(el => el.classList.toggle('on', el.id === 'v-' + v));
-      $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.v === v));
-      $('#crumb').textContent = UI.NAMES[v] + (sub ? ' · ' + sub : '');
+      $$('#nav button').forEach(b => b.classList.toggle('active', b.dataset.area === UI.area));
+      const a = UI.AREAS.find(x => x.key === UI.area);
+      /* rótulo da sub na barra: o label da sub casada, senão o sub cru */
+      const subHit = a && a.subs.find(s => UI._subMatch(s));
+      $('#crumb').textContent = (a ? a.label : UI.NAMES[v]) + (subHit ? ' · ' + subHit.label : (sub ? ' · ' + sub : ''));
+      UI.renderSubnav();
       if (UI.renderers[v]) UI.renderers[v](sub);
       $('#main').scrollTop = 0; window.scrollTo(0, 0);
     },
@@ -202,7 +275,13 @@
 
     $('#themeToggle').addEventListener('click', UI.toggleTheme);
     $('#sideFold').addEventListener('click', () => $('.shell').classList.toggle('folded'));
-    $$('#nav button').forEach(b => b.addEventListener('click', () => UI.go(b.dataset.v)));
+    $$('#nav button').forEach(b => b.addEventListener('click', () => UI.goArea(b.dataset.area)));
+    /* sub-navegação da área ativa */
+    $('#subnav').addEventListener('click', e => {
+      const b = e.target.closest('[data-act="snav"]'); if (!b) return;
+      const a = UI.AREAS.find(x => x.key === UI.area); if (!a) return;
+      const s = a.subs[+b.dataset.i]; if (s) UI.go(s.view, s.sub, a.key);
+    });
 
     /* barra global: menus e ações */
     $('#gbar').addEventListener('click', e => {

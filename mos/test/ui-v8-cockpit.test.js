@@ -239,8 +239,9 @@ test('19 · Home abre risco e oportunidade corretos', () => {
 test('20 · Home mostra atividade recente e estado da operação', () => {
   assert.match(homeJs, /Atividade recente/);
   assert.match(homeJs, /st\.audit\.slice\(-6\)/, 'atividade vem da trilha auditável real');
-  for (const bloco of ['status geral', 'marketplace em atenção', 'prioridade do dia', 'decisões pendentes', 'jobs críticos', 'Respostas pendentes', 'Próximos passos', 'Operações em risco'])
-    assert.ok(homeJs.includes(bloco), 'cockpit tem: ' + bloco);
+  /* 10.P.3 — Home virou Mesa Estratégica com 5 blocos nomeados */
+  for (const bloco of ['Mesa Estratégica', 'Resultado da operação', 'Maior oportunidade', 'Maior perda ou risco', 'Decisões pendentes', 'Missões em execução', 'Respostas pendentes', 'Próximos passos', 'Operações em risco'])
+    assert.ok(homeJs.includes(bloco), 'Mesa Estratégica tem: ' + bloco);
   assert.match(homeJs, /statusline/, 'faixa de status no topo');
 });
 

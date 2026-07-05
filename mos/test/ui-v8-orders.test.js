@@ -301,9 +301,10 @@ test('38 · área Pedidos: 10 abas, upload nasce dentro, estado vazio honesto, d
 });
 
 test('39 · navegação nova: Pedidos no menu, Central de Inteligência, botão global de Fontes', () => {
-  assert.match(html, /data-v="pedidos"/);
-  assert.ok(html.includes('<span>Central de Inteligência</span>'));
-  assert.ok(html.includes('<span>Fontes e Dados</span>'));
+  /* 10.P.3 — Pedidos vive na sub-nav de Operação; Central e Fontes na sub-nav de suas áreas */
+  assert.match(html, /id="v-pedidos"/);
+  assert.match(read('app.js'), /label: 'Central de Inteligência', view: 'crescimento'/);
+  assert.match(read('app.js'), /label: 'Fontes e Dados', view: 'importar'/);
   assert.match(html, /file-reader\.js/, 'leitor real carregado');
   assert.match(html, /pedidos\.js/, 'área carregada');
   assert.match(read('app.js'), /pedidos: 'Pedidos'/, 'renderer registrado no shell');

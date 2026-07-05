@@ -15,6 +15,17 @@
   }
   const mrow = (lbl, val, extra) => `<div class="metric-row"><span class="lbl">${lbl}</span><span class="val">${val}${extra || ''}</span></div>`;
 
+  /* 10.P.3 — card estratégico (oportunidade/risco): título, motivo, fonte e
+     ações (abrir detalhe · criar missão). Só mostra o que existe — sem inventar impacto. */
+  function estrat(sig, it) {
+    return `<div class="exec-li"><span class="sig ${sig}"></span>
+      <div class="t"><b>${UI.esc(it.txt)}</b><span>${UI.esc(it.motivo)}${it.fonte ? ' · fonte: ' + UI.esc(it.fonte) : ''}</span></div>
+      <div style="display:flex;gap:8px;flex:none">
+        ${it.acao ? `<button class="linklike" data-act="open" data-ref="${it.acao}">abrir →</button>` : ''}
+        <button class="linklike" data-act="open" data-ref="missao:" title="Transformar em missão de execução">criar missão →</button>
+      </div></div>`;
+  }
+
   function render() {
     const st = UI.state;
     const per = UI.ctx.periodo;
@@ -37,57 +48,66 @@
     const emAlta = [...porLoja].filter(x => x.k.deltaFaturamento != null).sort((a, b) => b.k.deltaFaturamento - a.k.deltaFaturamento)[0];
     const un = L.unpaidStats(null, per === 'hoje' ? '7d' : per);
     const decisoes = D.missoes.filter(m => m.status === D.STATUS.AGUARDANDO_APROVACAO);
+    const missoesExec = D.missoes.filter(m => m.status !== D.STATUS.AGUARDANDO_APROVACAO).slice(0, 4);
     const jobsCriticos = st.jobs.filter(j => j.status !== 'CONCLUÍDO (interno)');
     const audit = st.audit.slice(-6).reverse();
+    const ticket = ped ? UI.brl(fat / ped) : '—';
+
+    /* 10.P.3 — blocos estratégicos (máx. 3 cada), montados a partir do que existe */
+    const oportunidades = [
+      { txt: H.oportunidade.txt, motivo: 'maior oportunidade', fonte: D.STATUS.DADO_SIMULADO, acao: H.oportunidade.acao },
+      ...H.melhorou.slice(0, 2).map(m => ({ txt: m.txt, motivo: 'melhorou', fonte: m.fonte, acao: m.acao })),
+    ].slice(0, 3);
+    const riscos = [
+      { txt: H.risco.txt, motivo: 'maior risco', fonte: D.STATUS.DADO_SIMULADO, acao: H.risco.acao, nivel: 'neg' },
+      ...H.operacoesEmRisco.map(o => ({ txt: o.txt, motivo: 'risco operacional', fonte: D.STATUS.DADO_SIMULADO, acao: o.ref, nivel: o.nivel || 'neg' })),
+      ...H.piorou.map(m => ({ txt: m.txt, motivo: 'piorou', fonte: m.fonte, acao: m.acao, nivel: 'neg' })),
+    ].slice(0, 3);
 
     UI.$('#v-home').innerHTML = `
-      <div class="eyebrow">mesa executiva · ${UI.esc(D.meta.hoje)} · ${UI.esc(perLbl).toLowerCase()}</div>
-      <h1 class="h1">Bom dia, ${UI.esc(D.meta.usuario)}.</h1>
+      <div class="eyebrow">mesa estratégica da operação · ${UI.esc(D.meta.hoje)} · ${UI.esc(perLbl).toLowerCase()} · America/Sao_Paulo</div>
+      <h1 class="h1">Mesa Estratégica</h1>
       <p class="voice" style="margin-top:6px;max-width:76ch">${UI.esc(H.resumo)}</p>
 
-      <!-- TOPO: estado da operação em uma linha -->
+      <!-- BLOCO 1: RESULTADO DA OPERAÇÃO -->
+      <div class="sect-h"><span class="h2">Resultado da operação · ${UI.esc(perLbl).toLowerCase()}</span>
+        <span class="src" title="Lojas: ${UI.esc(lojasComDado.join(' · ') || 'nenhuma')}${lojasSemDado.length ? ' — SEM DADOS: ' + UI.esc(lojasSemDado.join(' · ')) : ''}">${lojasComDado.length} loja(s) · ${scopeDesc.cnpjs.length} CNPJ(s) · fonte: ${UI.esc(D.STATUS.DADO_SIMULADO)}${lojasSemDado.length ? ` · ${lojasSemDado.length} SEM DADOS fora da soma` : ''}</span></div>
       <div class="statusline">
+        <div class="sl"><span class="k">faturamento aprovado</span><span class="v">${UI.brl(fat)}</span>
+          <button data-act="open" data-ref="custos:">lucratividade →</button></div>
+        <div class="sl"><span class="k">pedidos pagos</span><span class="v">${ped - npg}</span></div>
+        <div class="sl"><span class="k">ticket médio</span><span class="v">${ticket}</span></div>
+        <div class="sl"><span class="k">pedidos não pagos</span><span class="v neg">${npg}</span>${un ? ` <span class="delta down">${un.taxaNaoPago}%</span>` : ''}
+          <button data-act="open" data-ref="crescimento:naopagos">ver perda →</button></div>
         <div class="sl"><span class="k">status geral</span><span class="v warn">${UI.esc(H.statusGeral)}</span></div>
-        <div class="sl"><span class="k">marketplace em atenção</span><span class="v neg">${UI.esc(H.mktAtencao.nome)}</span>
-          <button data-act="open" data-ref="crescimento:naopagos" title="${UI.esc(H.mktAtencao.motivo)}">ver motivo →</button></div>
-        <div class="sl"><span class="k">prioridade do dia</span><span class="v" title="${UI.esc(H.prioridadeDoDia)}">${UI.esc(H.prioridadeDoDia)}</span></div>
-        <div class="sl"><span class="k">decisões pendentes</span><span class="v ${decisoes.length ? 'warn' : 'pos'}">${decisoes.length}</span>
-          ${decisoes.length ? `<button data-act="open" data-ref="missao:${decisoes[0].id}">decidir →</button>` : ''}</div>
-        <div class="sl"><span class="k">jobs críticos</span><span class="v">${jobsCriticos.length}</span>
-          <button data-act="open" data-ref="operacao:">mesa de comando →</button></div>
-        <div class="sl"><span class="k">faturamento · ${UI.esc(perLbl).toLowerCase()}</span>
-          <span class="v">${UI.brl(fat)}</span>
-          <button data-act="open" data-ref="crescimento:" title="${lojasComDado.length} loja(s) com dado · ${UI.esc(D.STATUS.DADO_SIMULADO)}">performance →</button></div>
+        <div class="sl"><span class="k">margem / lucro</span><span class="v">estimado</span>
+          <button data-act="open" data-ref="custos:" title="Cálculo com fórmula e fonte no Centro de Lucratividade">ponto de equilíbrio →</button></div>
       </div>
 
       <div class="cockpit">
-        <!-- CENTRO ESQUERDO: risco, oportunidade, movimento, missão -->
+        <!-- BLOCO 2 e 3: OPORTUNIDADE E RISCO -->
         <div class="panel">
-          <div class="sect-h" style="margin-top:0"><span class="h2">O que pede você agora</span></div>
-          ${li('neg', H.risco.txt, 'risco principal', H.risco.acao, 'ver produto')}
-          ${li('pos', H.oportunidade.txt, 'oportunidade principal', H.oportunidade.acao, 'abrir')}
-          ${li('warn', H.decisaoPendente.txt, H.decisaoPendente.status, H.decisaoPendente.acao, 'decidir')}
-          ${li('warn', H.missaoAndamento.txt, H.missaoAndamento.status, H.missaoAndamento.acao, 'acompanhar')}
-          <div class="sect-h"><span class="h2">O que mudou desde ontem</span><span class="src">${UI.esc(D.STATUS.DADO_SIMULADO)}</span></div>
-          ${H.melhorou.map(m => li('pos', m.txt, 'melhorou · ' + m.fonte, m.acao, 'abrir')).join('')}
-          ${H.piorou.map(m => li('neg', m.txt, 'piorou · ' + m.fonte, m.acao, 'abrir')).join('')}
+          <div class="sect-h" style="margin-top:0"><span class="h2">Maior oportunidade de crescimento</span><span class="src">máx. 3 · onde vender mais</span></div>
+          ${oportunidades.map(o => estrat('pos', o)).join('') || '<div class="empty">Sem oportunidade priorizada no período.</div>'}
+          <div class="sect-h"><span class="h2">Maior perda ou risco</span><span class="src">máx. 3 · onde perde dinheiro</span></div>
+          ${riscos.map(r => estrat(r.nivel || 'neg', r)).join('') || '<div class="empty">Sem risco priorizado no período.</div>'}
+          <div class="sect-h"><span class="h2">Performance por loja</span><span class="src">por faturamento</span></div>
+          ${porLoja.length ? porLoja.slice(0, 4).map((x, i) => `<div class="metric-row"><span class="lbl">${i + 1}º <button class="linklike" data-act="focoloja" data-loja="${x.lid}">${UI.esc(x.nome)}</button></span>
+            <span class="val">${UI.brl(x.k.faturamento)}${x.k.deltaFaturamento != null ? ` <span class="delta ${x.k.deltaFaturamento >= 0 ? 'up' : 'down'}">${x.k.deltaFaturamento >= 0 ? '+' : ''}${x.k.deltaFaturamento}%</span>` : ''}</span></div>`).join('') : '<div class="empty">Sem dado de loja no recorte.</div>'}
         </div>
 
-        <!-- CENTRO DIREITO: performance por escopo e risco operacional -->
+        <!-- BLOCO 4 e 5: DECISÕES E MISSÕES -->
         <div class="panel">
-          <div class="sect-h" style="margin-top:0"><span class="h2">Performance · ${UI.esc(perLbl).toLowerCase()}</span>
-            <button class="linklike" data-act="open" data-ref="crescimento:">detalhe →</button></div>
-          <p class="src" style="margin-bottom:6px" title="Lojas incluídas: ${UI.esc(lojasComDado.join(' · ') || 'nenhuma')}${lojasSemDado.length ? ' — SEM DADOS: ' + UI.esc(lojasSemDado.join(' · ')) : ''}">
-            consolidado de <b>${lojasComDado.length} loja(s)</b> · ${scopeDesc.cnpjs.length} CNPJ(s) · ${scopeDesc.contas.length} conta(s) · ${UI.esc(scopeDesc.origem)}${lojasSemDado.length ? ` · ${lojasSemDado.length} loja(s) SEM DADOS fora da soma` : ''}</p>
-          ${mrow('Pedidos criados', ped)}
-          ${mrow('Pedidos não pagos', `<span class="num crit" style="font-size:13px">${npg}</span>`, un ? ` <span class="delta down">${un.taxaNaoPago}%</span>` : '')}
-          ${mrow('Faturamento', UI.brl(fat))}
-          ${porLoja.length > 1 ? `
-          <div class="sect-h"><span class="h2">Ranking de lojas</span><span class="src">por faturamento</span></div>
-          ${porLoja.slice(0, 4).map((x, i) => `<div class="metric-row"><span class="lbl">${i + 1}º <button class="linklike" data-act="focoloja" data-loja="${x.lid}">${UI.esc(x.nome)}</button></span>
-            <span class="val">${UI.brl(x.k.faturamento)}${x.k.deltaFaturamento != null ? ` <span class="delta ${x.k.deltaFaturamento >= 0 ? 'up' : 'down'}">${x.k.deltaFaturamento >= 0 ? '+' : ''}${x.k.deltaFaturamento}%</span>` : ''}</span></div>`).join('')}
-          ${emQueda && emQueda.k.deltaFaturamento < 0 ? mrow('Loja em queda', `<span class="num crit" style="font-size:12.5px">${UI.esc(emQueda.nome)}</span>`, ` <span class="delta down">${emQueda.k.deltaFaturamento}%</span>`) : ''}
-          ${emAlta && emAlta.k.deltaFaturamento > 0 ? mrow('Loja em crescimento', `<span class="num good" style="font-size:12.5px">${UI.esc(emAlta.nome)}</span>`, ` <span class="delta up">+${emAlta.k.deltaFaturamento}%</span>`) : ''}` : ''}
+          <div class="sect-h" style="margin-top:0"><span class="h2">Decisões pendentes</span><span class="src">${decisoes.length} aguardando você</span></div>
+          ${decisoes.length ? decisoes.map(d => `<div class="exec-li"><span class="sig warn"></span>
+            <div class="t"><b>${UI.esc(d.titulo)}</b><span>${UI.esc(d.origem || 'decisão')} · ${UI.esc(d.status)}${d.reversivel ? ' · reversível' : ''}</span></div>
+            <button class="linklike" data-act="open" data-ref="missao:${d.id}">decidir →</button></div>`).join('')
+            : '<div class="exec-li"><span class="sig pos"></span><div class="t"><b>Nada aguardando decisão.</b><span>as decisões aparecem aqui com contexto, impacto e recomendação</span></div></div>'}
+          <div class="sect-h"><span class="h2">Missões em execução</span><span class="src">o que a equipe faz agora</span></div>
+          ${missoesExec.length ? missoesExec.map(m => `<div class="exec-li"><span class="sig ${m.status === D.STATUS.EM_REVISAO ? 'warn' : ''}"></span>
+            <div class="t"><b>${UI.esc(m.titulo)}</b><span>${UI.esc(m.origem || 'missão')} · ${UI.esc(m.agora || m.status)}</span></div>
+            <button class="linklike" data-act="open" data-ref="missao:${m.id}">acompanhar →</button></div>`).join('')
+            : '<div class="exec-li"><span class="sig"></span><div class="t"><b>Nenhuma missão em execução.</b><span>missões nascem de insight, decisão, rotina ou comando</span></div></div>'}
           <div class="sect-h"><span class="h2">Operações em risco</span></div>
           ${H.operacoesEmRisco.map(o => li(o.nivel, o.txt, 'risco operacional', o.ref, 'abrir')).join('')}
           ${li('', H.intervencao.txt, H.intervencao.fonte, H.intervencao.acao, 'ver anúncio')}

@@ -42,13 +42,17 @@ test('02 · alternância de tema com preferência salva por usuário', () => {
 /* ---------- navegação e contexto ---------- */
 
 test('03 · menu 10.E.4: Pedidos, Central, Centro de Custos e Empresas e Operações', () => {
-  for (const v of ['home', 'operacao', 'pedidos', 'catalogo', 'crescimento', 'custos', 'empresas', 'conexoes', 'missao', 'silencio', 'conhecimento', 'importar'])
-    assert.match(html, new RegExp(`data-v="${v}"`), `área ${v}`);
-  for (const nome of ['Home', 'Operação', 'Pedidos', 'Catálogo', 'Central de Inteligência', 'Centro de Custos', 'Empresas e Operações', 'Conexões', 'A Missão', 'Silêncio', 'Conhecimento', 'Fontes e Dados'])
-    assert.ok(html.includes(`<span>${nome}</span>`), `nome do menu: ${nome}`);
-  assert.ok(!html.includes('<span>Importar</span>'), '"Importar" genérico deixou de ser item principal');
-  assert.ok(!html.includes('<span>Crescimento</span>'), 'Crescimento renomeado para Central de Inteligência');
+  /* 10.P.3 — menu reduzido a 6 áreas; toda view antiga segue como seção acessível pela sub-nav */
+  for (const v of ['home', 'operacao', 'pedidos', 'catalogo', 'crescimento', 'seo', 'custos', 'empresas', 'conexoes', 'missao', 'silencio', 'conhecimento', 'importar'])
+    assert.match(html, new RegExp(`id="v-${v}"`), `view ${v} preservada`);
+  for (const nome of ['Início', 'Catálogo', 'Crescimento', 'Operação', 'Execução', 'Configurações'])
+    assert.ok(html.includes(`<span>${nome}</span>`), `área do menu: ${nome}`);
+  const nAreas = (html.match(/data-area="/g) || []).length;
+  assert.equal(nAreas, 6, 'exatamente 6 áreas no menu principal');
+  for (const k of ['inicio', 'catalogo', 'crescimento', 'operacao', 'execucao', 'config'])
+    assert.match(html, new RegExp(`data-area="${k}"`), `área ${k} no menu`);
   assert.match(appJs, /UI\.renderers\[v\]\(sub\)/, 'cada navegação chama o renderer da área');
+  assert.match(appJs, /renderSubnav/, 'sub-navegação contextual das 6 áreas');
   assert.match(appJs, /data-ref="importar:"/, 'botão global de Fontes e Histórico na barra');
 });
 

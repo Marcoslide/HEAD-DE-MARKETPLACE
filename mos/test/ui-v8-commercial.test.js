@@ -259,11 +259,12 @@ test('25-26 · onboarding e integrações nunca publicam nem escrevem externamen
 });
 
 test('27 · contratos anteriores continuam válidos (shell integrado)', () => {
-  assert.match(html, /data-v="ativacao"/); assert.match(html, /data-v="equipe"/);
-  assert.match(html, /data-v="planos"/); assert.match(html, /data-v="suporte"/);
+  /* 10.P.3 — as views seguem existindo como seções; o acesso agora é pela sub-nav das 6 áreas */
+  assert.match(html, /id="v-ativacao"/); assert.match(html, /id="v-equipe"/);
+  assert.match(html, /id="v-planos"/); assert.match(html, /id="v-suporte"/);
   assert.match(html, /id="gate"/);
   for (const v of ['home', 'operacao', 'catalogo', 'crescimento', 'conexoes', 'missao', 'silencio', 'conhecimento'])
-    assert.match(html, new RegExp(`data-v="${v}"`), 'área original intacta: ' + v);
+    assert.match(html, new RegExp(`id="v-${v}"`), 'área original intacta: ' + v);
   const appJs = read('app.js');
   assert.match(appJs, /ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte'/);
   assert.match(appJs, /seedDemoAccount/, 'sessão demonstrativa continua funcionando sem gate');

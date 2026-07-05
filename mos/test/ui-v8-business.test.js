@@ -88,8 +88,11 @@ test('15-16 · OAuth exige empresa e canal; conta nasce vinculada ao canal certo
 
 /* ---------- 17-21 · Centro de Custos separado; cadastros ---------- */
 test('17-21 · área separada; custo fixo, variável, taxa por marketplace e por SKU', () => {
-  assert.match(read('index.html'), /data-v="custos"/, 'Centro de Custos no menu');
-  assert.match(read('index.html'), /data-v="empresas"/, 'Empresas e Operações no menu');
+  /* 10.P.3 — menu reduzido a 6 áreas; Lucratividade e Empresas vivem nas sub-navegações */
+  assert.match(read('index.html'), /data-area="crescimento"/, 'Crescimento no menu de áreas');
+  assert.match(read('index.html'), /data-area="config"/, 'Configurações no menu de áreas');
+  assert.match(read('app.js'), /label: 'Lucratividade', view: 'custos'/, 'Lucratividade na sub-nav de Crescimento');
+  assert.match(read('app.js'), /label: 'Empresas e Operações', view: 'empresas'/, 'Empresas e Operações na sub-nav de Configurações');
   assert.ok(!cusJs.includes('Nova Empresa') && !empJs.includes('Adicionar Custo Fixo'), 'cadastro de empresa e custo NÃO se misturam');
   const { biz } = novo();
   const cf = V8BIZ.addCustoFixo(biz, { nome: 'Aluguel', categoria: 'Aluguel', valor: 10000, periodicidade: 'Mensal', inicio: '2026-07-01', empresaId: 'e1' }, {});
@@ -258,7 +261,8 @@ test('41-43 · sem CRM/Lead; sem escrita externa; áreas registradas e integrada
   assert.match(engineJs, /ESCRITA EXTERNA BLOQUEADA/, 'trava declarada');
   assert.match(empJs, /UI\.renderers\.empresas = render/, 'área empresas registrada');
   assert.match(cusJs, /UI\.renderers\.custos = render/, 'área custos registrada');
-  assert.match(read('app.js'), /custos: 'Centro de Custos', empresas: 'Empresas e Operações'/, 'NAMES no shell');
+  assert.match(read('app.js'), /custos: 'Lucratividade'/, 'NAMES no shell (Lucratividade)');
+  assert.match(read('app.js'), /empresas: 'Empresas e Operações'/, 'NAMES no shell (Empresas)');
   assert.match(read('catalogo.js'), /'Economia do Produto'/, 'aba no editor do Catálogo');
   assert.match(read('crescimento.js'), /insightsFinanceiros/, 'Central usa o Centro de Custos como fonte');
   assert.match(cusJs, /vendasDoEscopo/, 'vendas com fonte declarada (importado > simulado)');

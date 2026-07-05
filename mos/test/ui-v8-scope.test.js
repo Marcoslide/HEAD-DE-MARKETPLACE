@@ -118,7 +118,7 @@ test('12 · consolidado mostra QUAIS lojas entraram', () => {
   const d = V8LOGIC.scopeDescribe({ empresa: 'e1', cnpj: 'c1' });
   assert.equal(d.lojas.length, 4);
   assert.ok(d.lojas.includes('Loja Física Lagoa Santa'));
-  assert.match(read('home.js'), /consolidado de <b>\$\{lojasComDado\.length\} loja\(s\)<\/b>/, 'Home declara as lojas incluídas');
+  assert.match(read('home.js'), /\$\{lojasComDado\.length\} loja\(s\)/, 'Home declara as lojas incluídas');
   assert.match(read('home.js'), /SEM DADOS fora da soma/, 'loja sem dado é declarada fora da soma');
 });
 

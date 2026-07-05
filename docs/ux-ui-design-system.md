@@ -1194,3 +1194,48 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   (`Ponto de Equilíbrio com projeção`, `contribuição`, `Rentabilidade por SKU`,
   `Taxas por Faixa`, `Perdas`, dark, **console limpo**). `npm test` **734 verdes**
   (o teste de Postgres é pulado sem banco).
+
+## SPRINT 10.P.3 (Parte 2) — Navegação de 6 áreas + Mesa Estratégica + Orgânico/SEO
+
+> Rearranjo geral: o menu lateral deixou de ter ~20 itens e passou a **6 áreas**
+> — INÍCIO, CATÁLOGO, CRESCIMENTO, OPERAÇÃO, EXECUÇÃO, CONFIGURAÇÕES. Nada foi
+> removido nem duplicado: cada área **agrupa as views que já existiam** por uma
+> sub-navegação contextual. "Reorganizar, conectar, simplificar, dar hierarquia."
+
+- **Arquitetura de 6 áreas** (`app.js`, `UI.AREAS`): cada área declara suas
+  `subs` como `{label, view, sub?}`, apontando para as views/subtabs existentes
+  (mesma fonte, sem segunda fonte de verdade). Um mapa reverso `areaOf(view)`
+  destaca a área; a mesma view pode ser reaproveitada em duas áreas (ex.: **Estoque**
+  em Operação e **Full e Escala** em Crescimento) sem perder o destaque, porque
+  `go(view, sub, areaKey)` aceita a área explícita vinda da sub-nav.
+- **Sub-navegação** (`#subnav` + `.subtab`): barra secundária, sticky, que mostra
+  as subs da área ativa e destaca a sub casada por `(view, sub)`. Some quando a
+  área tem uma sub só (INÍCIO).
+- **Mapa de migração** (sem duplicar dados): Home→INÍCIO·Mesa Estratégica;
+  Catálogo→CATÁLOGO; Central de Inteligência/Ads/Afiliados/Full/Lucratividade/Radar→
+  CRESCIMENTO; Pedidos/Estoque/Devoluções/Atendimento/Histórico→OPERAÇÃO;
+  Decisões/Missões/Conhecimento→EXECUÇÃO; Empresas/Fontes/Conexões/Equipe/Planos/
+  Ativação/Suporte→CONFIGURAÇÕES. **Silêncio virou Radar**.
+- **Mesa Estratégica** (`home.js`): a Home responde "o que aconteceu / onde vender
+  mais / onde perco dinheiro / o que exige decisão / o que a equipe executa" em
+  **5 blocos nomeados** — Resultado da operação (faturamento aprovado, pedidos
+  pagos, ticket, não pagos, status, atalho para Lucratividade/PE), Maior
+  oportunidade (máx. 3), Maior perda ou risco (máx. 3), Decisões pendentes,
+  Missões em execução — cada card com motivo/fonte e ações (abrir · criar missão).
+- **Orgânico e SEO** (`seo.js`, view nova `v-seo`): área estratégica que analisa
+  os anúncios reais do Catálogo (`V8CAT`) em três visões — **Oportunidades de
+  Ranking**, **Problemas de Visibilidade**, **Testes e Melhorias**. Cada card é
+  **FATO** (métrica observada: impressões, CTR, conversão, completude de cadastro)
+  → **HIPÓTESE** (fator possível) → **TESTE** (ação mensurável), com
+  fonte/período/cobertura/confiança. Disclaimer fixo: **o Head não conhece o
+  algoritmo do marketplace**; nenhuma causa é afirmada sem evidência; sem métrica
+  de fonte, declara ausência.
+- **Preservação**: Catálogo (Visão Geral/Rascunhos/Marketplaces), editor Shopee,
+  campos fiscais, Item ID/SKU/Variation ID, importação, motor temporal, Central
+  de Inteligência e Lucratividade seguem intactos — os auto-testes internos
+  (`?uiself=1`, `?gbarself=1`) continuam verdes com a nova navegação.
+- **Testes**: assertions de menu/NAMES/cockpit migradas para o contrato de 6 áreas
+  (`ui-v8.test.js` valida exatamente 6 `data-area` + views preservadas + `renderSubnav`);
+  validação headless de 12 checagens (6 áreas, Mesa Estratégica com 5 blocos,
+  sub-nav de Crescimento, SEO honesto, Radar, área estável em Operação, Catálogo
+  preservado, console limpo). `npm test` **734 verdes**.
