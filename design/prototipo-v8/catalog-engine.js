@@ -361,6 +361,83 @@
   const health = cat => FILAS.map(([key, label, aba]) => ({ key, label, aba, itens: quickFilter(cat, key).map(l => l.id) }))
     .filter(f => f.itens.length);
 
+  /* =============================================================
+     10.E.3.1 (redesign) — STATUS NATIVO × STATUS OPERACIONAL HEAD
+     Preserva o status como veio do marketplace/planilha e traduz para
+     um estado comum comparável entre canais. Regra explícita, origem,
+     confiança e possibilidade de revisão manual. Nunca "ao vivo".
+     ============================================================= */
+  const STATUS_OPERACIONAL = ['PUBLICADO_E_ATIVO', 'PUBLICADO_COM_ATENÇÃO', 'PAUSADO_PELO_VENDEDOR', 'PAUSADO_PELO_MARKETPLACE',
+    'NÃO_PUBLICADO', 'EM_ANÁLISE', 'EM_REVISÃO', 'COM_PENDÊNCIA_DE_CADASTRO', 'COM_VIOLAÇÃO_OU_RESTRIÇÃO',
+    'BLOQUEADO_EXTERNAMENTE', 'RASCUNHO_INTERNO', 'ARQUIVADO_INTERNAMENTE', 'STATUS_DESCONHECIDO'];
+  /* frases nativas conhecidas (Shopee/Mercado Livre) → estado Head */
+  const NATIVO_TO_HEAD = [
+    [/viola|banido|infra[cç]/i, 'COM_VIOLAÇÃO_OU_RESTRIÇÃO'],
+    [/sob an[aá]lise|under review|an[aá]lise da shopee|pending/i, 'EM_ANÁLISE'],
+    [/revisar|para revisar|revis[aã]o|quality|objetivo de qualidade/i, 'EM_REVISÃO'],
+    [/padroniza/i, 'PUBLICADO_COM_ATENÇÃO'],
+    [/pausado pelo marketplace|pausado pela|deactivated by/i, 'PAUSADO_PELO_MARKETPLACE'],
+    [/pausado|paused|inativo|inactive/i, 'PAUSADO_PELO_VENDEDOR'],
+    [/n[ãa]o publicado|unlisted|rascunho|draft/i, 'NÃO_PUBLICADO'],
+    [/bloquead|blocked|suspenso/i, 'BLOQUEADO_EXTERNAMENTE'],
+    [/ativo|active|normal|live|publicad/i, 'PUBLICADO_E_ATIVO'],
+    [/desconhecid|unknown/i, 'STATUS_DESCONHECIDO'],
+  ];
+  const STATUS_INTERNO_TO_HEAD = { ATIVO: 'PUBLICADO_E_ATIVO', PAUSADO: 'PAUSADO_PELO_VENDEDOR', NAO_PUBLICADO: 'NÃO_PUBLICADO',
+    EM_REVISAO: 'EM_REVISÃO', BLOQUEADO: 'COM_VIOLAÇÃO_OU_RESTRIÇÃO', RASCUNHO: 'RASCUNHO_INTERNO' };
+  function statusOperacional(l) {
+    /* texto nativo = SOMENTE string vinda do marketplace/planilha (nunca o enum interno) */
+    const nativoTexto = l.statusNativo || l.statusReportado || null;
+    const nativo = nativoTexto || l.status || null;
+    if (l.arquivado) return { nativo: nativoTexto || 'arquivado', head: 'ARQUIVADO_INTERNAMENTE',
+      regra: 'anúncio arquivado internamente pelo time', origem: 'REGRA DE NORMALIZAÇÃO HEAD', confianca: 'alta', revisavel: true, marketplace: l.mktNome, conta: l.contaId };
+    let head = null, regra = null, confianca = 'média';
+    /* 1º: status interno canônico (demo/converge) tem regra direta */
+    if (STATUS_INTERNO_TO_HEAD[l.status]) { head = STATUS_INTERNO_TO_HEAD[l.status]; regra = 'status interno "' + l.status + '" → ' + head; confianca = 'alta'; }
+    /* 2º: refina com o texto NATIVO real (violação/análise/revisão pesam mais) */
+    if (nativoTexto) for (const [re, h] of NATIVO_TO_HEAD) if (re.test(nativoTexto)) { head = h; regra = 'status nativo "' + nativoTexto + '" casa com regra ' + h; confianca = 'alta'; break; }
+    if (l.motivo && /viola|restri|bloque/i.test(l.motivo)) { head = 'COM_VIOLAÇÃO_OU_RESTRIÇÃO'; regra = 'motivo do marketplace: ' + l.motivo; }
+    if (!head) { head = 'STATUS_DESCONHECIDO'; regra = 'sem regra aplicável ao status "' + (nativo || '—') + '"'; confianca = 'baixa'; }
+    return { nativo: nativo || '—', head, regra, origem: 'REGRA DE NORMALIZAÇÃO HEAD', confianca,
+      revisavel: true, marketplace: l.mktNome, conta: l.contaId,
+      fonte: l.fonte, situacao: l.situacao || (l.cadastroImportado ? 'STATUS REPORTADO POR PLANILHA' : 'estado interno do catálogo') };
+  }
+
+  /* ---------- DIAGNÓSTICO DO PRODUTO (só o que o dado sustenta) ---------- */
+  const REF = { ctr: 1.0, conversao: 1.5, devolucao: 6 }; /* referências internas (percentuais) */
+  function diagnosticoProduto(cat, l) {
+    const p = prodOf(cat, l);
+    const out = [];
+    const add = (tipo, fato, extra) => out.push(Object.assign({ tipo, fato, fonte: (l.perf && l.perf.fonte) || l.fonte || 'NORMALIZED_INTERNAL_DATA',
+      periodo: l.perf ? (l.perf.periodo.ini + ' a ' + l.perf.periodo.fim) : 'estado atual', marketplace: l.mktNome, conta: l.contaId || '—',
+      confianca: l.perf ? 'alta — dado importado/observado' : 'média — cadastro interno' }, extra || {}));
+    const pf = l.perf;
+    if (pf) {
+      const conv = pf.visitas ? (pf.pedidosPagos / pf.visitas) * 100 : null;
+      const ctr = pf.impressoes ? (pf.cliques / pf.impressoes) * 100 : null;
+      if (pf.vendidos90d === 0) add('Produto sem venda', 'nenhuma venda no período com performance vinculada', { campos: ['vendidos90d'], acao: 'revisar preço, foto e posição', impacto: 'faturamento nulo' });
+      if (pf.impressoes > 20000 && conv != null && conv < REF.conversao) add('Alto tráfego com baixa conversão', `${pf.impressoes} impressões e conversão ${round2(conv)}% (< ${REF.conversao}%)`, { campos: ['impressoes', 'pedidosPagos', 'visitas'], hipotese: 'preço, imagem, avaliação ou ficha podem influenciar — hipótese, não causa confirmada', confianca: 'média', acao: 'testar imagem/preço e revisar ficha', impacto: 'perda de conversão sobre tráfego pago' });
+      if (ctr != null && ctr < REF.ctr) add('CTR abaixo da referência interna', `CTR ${round2(ctr)}% (< ${REF.ctr}%) — cliques ÷ impressões`, { campos: ['cliques', 'impressoes'], hipotese: 'thumbnail/título/preço podem influenciar', acao: 'revisar foto de capa e título' });
+      if (conv != null && conv < REF.conversao && pf.impressoes <= 20000) add('Conversão abaixo da referência interna', `conversão ${round2(conv)}% (< ${REF.conversao}%)`, { campos: ['pedidosPagos', 'visitas'], acao: 'revisar ficha e prova social' });
+      if (pf.vendidos30d > 5 && (l.estoque || 0) <= 3) add('Muitas vendas e estoque crítico', `${pf.vendidos30d} vendas em 30d com estoque ${l.estoque}`, { campos: ['vendidos30d', 'estoque'], acao: 'repor estoque com prioridade', impacto: 'risco de ruptura e perda de posição', confianca: 'alta' });
+      if (pf.devolucoes != null && pf.pedidosPagos && (pf.devolucoes / pf.pedidosPagos) * 100 > REF.devolucao) add('Devolução acima da média', `${pf.devolucoes} devoluções sobre ${pf.pedidosPagos} pagos`, { campos: ['devolucoes', 'pedidosPagos'], acao: 'checar expectativa × produto e embalagem' });
+      const si = salesInfo(cat, l);
+      if (pf.vendidos30d > 5 && si.margemLiquida != null && si.margemLiquida < 15) add('Muitas vendas e margem baixa', `margem líquida ${si.margemLiquida}% com ${pf.vendidos30d} vendas/30d`, { campos: ['preco', 'custo'], acao: 'revisar preço/custo antes de acelerar', impacto: 'crescimento sem lucro' });
+    } else if (l.cadastroImportado || l.itemIdExterno) {
+      add('Sem performance vinculada', 'não há correspondência confirmada por item_id, SKU ou vínculo humano', { campos: ['item_id', 'sku'], confianca: 'alta — ausência declarada', acao: 'confirmar vínculo em Comparar Marketplaces / Pedidos' });
+    }
+    /* cadastro (independe de performance) */
+    if (!fotoPrincipal(cat, l)) add('Foto insuficiente', 'sem foto principal validada neste anúncio', { campos: ['fotos'], acao: 'adicionar/validar foto principal', aba: 'Fotos e Vídeos' });
+    if (!valorDe(cat, l, 'ean') && !(p && p.master.ean)) add('GTIN inválido ou ausente', 'sem EAN/GTIN registrado', { campos: ['ean'], acao: 'informar código de barras', aba: 'Informações Fiscais' });
+    if (!valorDe(cat, l, 'pesoEmbaladoKg') && !(p && p.master.pesoEmbaladoKg)) add('Cadastro incompleto', 'peso embalado ausente', { campos: ['pesoEmbaladoKg'], acao: 'informar peso', aba: 'Envio e Logística' });
+    return out;
+  }
+  const fotoPrincipal = (cat, l) => cat.media.some(m => m.usos.some(u => u.listingId === l.id && u.principal) && m.status !== 'MÍDIA REFERENCIADA');
+  const TAG_HEAD = { PUBLICADO_E_ATIVO: 'ATIVO', PUBLICADO_COM_ATENÇÃO: 'ATENÇÃO', PAUSADO_PELO_VENDEDOR: 'PAUSADO POR MIM',
+    PAUSADO_PELO_MARKETPLACE: 'PAUSADO PELO MARKETPLACE', 'NÃO_PUBLICADO': 'NÃO PUBLICADO', 'EM_ANÁLISE': 'EM ANÁLISE',
+    'EM_REVISÃO': 'EM REVISÃO', 'COM_PENDÊNCIA_DE_CADASTRO': 'REVISAR CADASTRO', 'COM_VIOLAÇÃO_OU_RESTRIÇÃO': 'VIOLAÇÃO',
+    BLOQUEADO_EXTERNAMENTE: 'BLOQUEADO', RASCUNHO_INTERNO: 'RASCUNHO', ARQUIVADO_INTERNAMENTE: 'ARQUIVADO', STATUS_DESCONHECIDO: 'STATUS?' };
+
   /* ---------- master × marketplaces ---------- */
   const CAMPOS_CMP = ['titulo', 'preco', 'estoque', 'pesoEmbaladoKg', 'marca', 'material', 'ean'];
   function masterVsListings(cat, produtoId) {
@@ -1005,6 +1082,7 @@
           skuPai: master.skuPai, ean: v0.ean || null, criadoEm: L.importadoEm, atualizadoEm: L.atualizadoEm,
           overrides, correcoes: L.correcoes || [], versoes: L.versoes || [], arquivado: null, excluidoDaAnalise: null,
           fonte: 'PLANILHA_SHOPEE', origem: 'DADO IMPORTADO VIA PLANILHA', situacao: L.situacao,
+          statusReportado: L.statusReportado, statusNativo: L.statusReportado,
           cadastroImportado: true, cadastroKey: L.key,
           cadastroRef: { arquivo: L.arquivo, aba: L.aba, importadoEm: L.importadoEm, statusReportado: L.statusReportado },
           midiasReferenciadas: L.midias || [], camposExtras, perf };
@@ -1213,5 +1291,7 @@
     saudeCadastro, cadastroRelacoes, cadastroOverview, cadListings, cadVariacoesDe, cadMasterDe, cadCamposRecebidos,
     cadImports, cadCorrigirCampo, cadDecidirVinculo, cadAddMediaManual, cadArquivar, cadMapearCampo, cadastroFixture,
     /* 10.E.3.1 — convergência para o editor completo */
-    cadastroConverge, STATUS_INTERNO };
+    cadastroConverge, STATUS_INTERNO,
+    /* 10.E.3.1 (redesign) — status nativo × Head + diagnóstico */
+    STATUS_OPERACIONAL, statusOperacional, diagnosticoProduto, TAG_HEAD };
 }));

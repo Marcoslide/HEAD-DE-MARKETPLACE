@@ -94,9 +94,31 @@
 
   /* ---------------- Visão Geral (dashboard executivo do catálogo) ---------------- */
   function visaoGeral() {
-    const ov = V8CAT.overview(CAT.eng(), window.IMPORTAR ? IMPORTAR.eng : null);
+    const cat = CAT.eng();
+    const ov = V8CAT.overview(cat, window.IMPORTAR ? IMPORTAR.eng : null);
+    const ls = V8CAT.ativos(cat);
+    /* distribuição por STATUS OPERACIONAL HEAD (normalizado, comparável entre canais) */
+    const porHead = {};
+    for (const l of ls) { const h = V8CAT.statusOperacional(l).head; porHead[h] = (porHead[h] || 0) + 1; }
+    /* diagnósticos do catálogo (só o que o dado sustenta) */
+    const diags = {};
+    for (const l of ls) for (const d of V8CAT.diagnosticoProduto(cat, l)) (diags[d.tipo] = diags[d.tipo] || []).push(l.id);
+    const diagTop = Object.entries(diags).sort((a, b) => b[1].length - a[1].length).slice(0, 8);
     return `
-      <div class="callout" style="margin-top:0">Cada indicador declara <b>fonte, período, cobertura e qualidade</b> — nenhum número sem origem. Publicação externa: ${UI.esc(D.STATUS.ESCRITA_BLOQUEADA)}.</div>
+      <div class="callout" style="margin-top:0">Central operacional do Catálogo. Cada indicador declara <b>fonte, período, cobertura e qualidade</b> — nenhum número sem origem. Publicação externa: ${UI.esc(D.STATUS.ESCRITA_BLOQUEADA)}.</div>
+      <div class="panel" style="margin-top:12px">
+        <div class="sect-h" style="margin-top:0"><span class="h2">Status operacional Head</span><span class="src">estado comum entre marketplaces · status nativo preservado por anúncio</span></div>
+        <div class="mesa-grid">
+          ${V8CAT.STATUS_OPERACIONAL.filter(s => porHead[s]).map(s => `<div class="mesa-kpi"><span class="k">${UI.esc(s.replace(/_/g, ' '))}</span><span class="v">${porHead[s]}</span><span class="f">normalização Head · revisável</span></div>`).join('') || '<span class="src">sem anúncios no escopo</span>'}
+        </div>
+      </div>
+      <div class="panel" style="margin-top:12px">
+        <div class="sect-h" style="margin-top:0"><span class="h2">Diagnóstico do produto</span><span class="src">só o que o dado sustenta — fato, fonte, hipótese e ação</span></div>
+        ${diagTop.length ? diagTop.map(([tipo, ids]) => `<div class="exec-li"><span class="sig ${/sem venda|crítico|violaç|baixa|alta/i.test(tipo) ? 'warn' : 'info'}"></span>
+          <div class="t"><b>${UI.esc(tipo)}</b><span>${ids.length} anúncio(s)</span></div>
+          <button class="linklike" data-act="diagfiltro" data-tipo="${UI.esc(tipo)}">ver anúncios →</button></div>`).join('')
+        : '<p class="src">nenhum diagnóstico no escopo — importe performance real para ativar os cruzamentos.</p>'}
+      </div>
       <div class="mesa-grid" style="margin-top:12px">
         ${ov.kpis.map(k => `<div class="mesa-kpi ${k.valor === 0 ? '' : ''}" title="fonte: ${UI.esc(k.fonte)} · período: ${UI.esc(k.periodo)} · cobertura: ${UI.esc(k.cobertura)} · ${UI.esc(k.qualidade)}">
           <span class="k">${UI.esc(k.label)}</span><span class="v">${k.valor}</span>
@@ -315,6 +337,7 @@
     let list = all.filter(TABS[CAT.anuncioTab] || TABS.Todos);
     if (CAT.anQ) list = V8CAT.searchListings(cat, CAT.anQ).filter(l => list.includes(l));
     if (CAT.anQuick) list = V8CAT.quickFilter(cat, CAT.anQuick, list);
+    if (CAT.diagFiltro) list = list.filter(l => V8CAT.diagnosticoProduto(cat, l).some(d => d.tipo === CAT.diagFiltro));
     const sel = CAT.lsel;
     const C = CAT.anCols;
     return `
@@ -331,7 +354,8 @@
         <button class="btn sm" disabled title="${UI.esc(L.disabledReason('sync'))}">sincronizar anúncios</button>
       </div>
       <div class="fbar" style="margin:6px 0 0">${QUICK_CHIPS.map(([k, lbl]) => `<button class="fchip ${CAT.anQuick === k ? 'on' : ''}" data-act="anchip" data-k="${k}">${lbl}</button>`).join('')}
-        ${CAT.anQuick ? `<button class="fchip" data-act="anchip" data-k="">limpar filtro</button>` : ''}</div>
+        ${CAT.anQuick ? `<button class="fchip" data-act="anchip" data-k="">limpar filtro</button>` : ''}
+        ${CAT.diagFiltro ? `<button class="fchip on" data-act="diagclear">diagnóstico: ${UI.esc(CAT.diagFiltro)} ✕</button>` : ''}</div>
       <div class="tabs" style="margin-top:8px">${Object.keys(TABS).map(t => `<button class="tab ${t === CAT.anuncioTab ? 'on' : ''}" data-act="antab" data-tab="${t}">${t}<span class="cnt">${all.filter(TABS[t]).length}</span></button>`).join('')}</div>
 
       ${list.length ? `
@@ -342,11 +366,13 @@
           ${C.sku ? '<th class="nosort">SKU pai · variação</th>' : ''}
           ${C.ids ? '<th class="nosort">ID · EAN</th>' : ''}
           <th class="nosort">Conta · loja</th>
+          <th class="nosort">Status nativo · Head</th>
           ${C.precos ? '<th class="nosort">Preço · promo</th>' : ''}
           <th class="nosort">Estoque</th>
           ${C.vendidos ? '<th class="nosort">Vendidos 7/30/90d</th>' : ''}
           ${C.perf ? '<th class="nosort">Faturamento · CTR · conv.</th>' : ''}
           <th class="nosort">Margem</th>
+          <th class="nosort">Diagnóstico</th>
           ${C.ranking ? '<th class="nosort">Posição</th>' : ''}
           ${C.fonte ? '<th class="nosort">Fonte</th>' : ''}
           <th class="nosort">Ações</th>
@@ -358,6 +384,8 @@
           const si = V8CAT.salesInfo(cat, l);
           const rk = V8CAT.rankingDe(cat, l.id);
           const fotos = V8CAT.fotosDe(cat, l.id);
+          const so = V8CAT.statusOperacional(l);
+          const dg = V8CAT.diagnosticoProduto(cat, l);
           return `<tr class="${sel.has(l.id) ? 'sel' : ''}">
             <td><input type="checkbox" data-act="lsel" data-id="${l.id}" ${sel.has(l.id) ? 'checked' : ''} aria-label="Selecionar ${UI.esc(l.titulo)}"></td>
             <td><span class="thumb" title="${fotos.length ? fotos.length + ' foto(s)' : 'SEM FOTO'}">${fotos.length ? '▦' : '∅'}</span></td>
@@ -366,11 +394,13 @@
             ${C.sku ? `<td><span class="src">${UI.esc(l.skuPai || '—')}</span><span class="tsub">${(p.variacoes || []).filter(v => !v.arquivada).length} variação(ões)</span></td>` : ''}
             ${C.ids ? `<td><span class="src">${l.itemIdExterno ? 'ext ' + l.itemIdExterno : 'sem ID externo'}</span><span class="tsub">${l.ean ? 'EAN ' + l.ean : 'SEM EAN'}</span></td>` : ''}
             <td><span class="src">${UI.esc(l.contaId || '—')}</span><span class="tsub">${UI.esc((D.scope.lojas.find(s => s.id === l.lojaId) || {}).nome || '—')}</span></td>
+            <td title="regra: ${UI.esc(so.regra)} · origem: ${UI.esc(so.origem)} · confiança: ${UI.esc(so.confianca)}"><span class="st ${/ATIVO/.test(so.head) ? 'pos' : /VIOLA|BLOQUE/.test(so.head) ? 'neg' : /DESCONHE/.test(so.head) ? 'warn' : ''} plain">${UI.esc(String(so.nativo).replace(/_/g, ' '))}</span><span class="tsub">Head: ${UI.esc(so.head.replace(/_/g, ' '))}</span></td>
             ${C.precos ? `<td>${UI.brl(V8CAT.valorDe(cat, l, 'preco'))}${l.precoPromo ? `<span class="tsub">promo ${UI.brl(l.precoPromo)}</span>` : ''}</td>` : ''}
             <td>${l.estoque ?? '—'}</td>
             ${C.vendidos ? `<td>${l.perf ? `${l.perf.vendidos7d} / ${l.perf.vendidos30d} / ${l.perf.vendidos90d}<span class="tsub">total ${l.perf.vendidosTotal}</span>` : `<span class="src">${UI.esc(D.STATUS.SEM_DADOS)}</span>`}</td>` : ''}
             ${C.perf ? `<td>${pc.semDados ? `<span class="src">${UI.esc(D.STATUS.SEM_DADOS)}</span>` : `${UI.brl(l.perf.faturamento)}<span class="tsub">CTR ${pc.ctr.taxa ?? '—'}% · conv ${pc.conversaoVisitas.taxa ?? '—'}%</span>`}</td>` : ''}
-            <td>${si.margemLiquida != null ? si.margemLiquida + '%' : '—'}</td>
+            <td>${si.margemLiquida != null ? si.margemLiquida + '%' : si.semCusto ? '<span class="src">sem custo</span>' : '—'}</td>
+            <td>${dg.length ? `<span class="st ${dg.some(d => /crítico|sem venda|violaç|alta|baixa/i.test(d.tipo)) ? 'warn' : 'info'} plain" title="${UI.esc(dg.map(d => d.tipo).join(' · '))}">${dg.length} sinal(is)</span><span class="tsub">${UI.esc(dg[0].tipo)}</span>` : '<span class="src">ok</span>'}</td>
             ${C.ranking ? `<td>${rk ? `<span class="tmain">#${rk.posicao}</span><span class="tsub">"${UI.esc(rk.palavra)}" · ${UI.esc(rk.dataHora)} · ${UI.esc(rk.fonte)} · ${UI.esc(rk.confianca.split('—')[0])}</span>` : `<span class="src">${UI.esc(D.STATUS.SEM_DADOS)} — sem posição inventada</span>`}</td>` : ''}
             ${C.fonte ? `<td><span class="src">${UI.esc(l.fonte)}</span><span class="tsub">${l.atualizadoEm}</span></td>` : ''}
             <td><span class="rowact">
@@ -1346,6 +1376,8 @@
     else if (act === 'adv') openAdvanced();
     else if (act === 'upcat') IMPORTAR.uploadModal({ titulo: 'Carregar cadastro de produtos Shopee', dica: 'Referência: Shopee_mass_upload basic_template / mass_update_parent_sku (XLSX). Vínculo por ID → SKU variação → SKU pai; conflito de SKU bloqueia; nenhum produto é duplicado automaticamente.', onDone: () => render(CAT.sub) });
     /* 10.E.2.4 — cadastro Shopee (dentro do Catálogo) */
+    else if (act === 'diagfiltro') { CAT.diagFiltro = b.dataset.tipo; CAT.sub = 'Anúncios'; UI.$('#crumb').textContent = 'Catálogo · Anúncios'; render('Anúncios'); }
+    else if (act === 'diagclear') { CAT.diagFiltro = null; body(); }
     else if (act === 'upcatshopee') cadUpload(false);
     else if (act === 'upcatdemo') cadUpload(true);
     /* 10.E.3.1 — Editar anúncio importado abre o EDITOR COMPLETO de 14 abas (não modal) */

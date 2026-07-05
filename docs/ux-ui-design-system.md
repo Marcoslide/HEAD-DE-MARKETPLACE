@@ -718,3 +718,43 @@ anúncio muda; o editor não.
   sprint); suíte completa **599 verdes**; validação headless abrindo o
   editor completo a partir do cadastro importado, percorrendo as 14 abas com
   os dados na aba certa, em light/dark e mobile, console limpo.
+
+## Sprint 10.E.3.1 (redesign) — Catálogo como Central Operacional
+
+Eleva o Catálogo de "lista de produtos" para central operacional de produtos
+e anúncios, com a mesma lógica que a equipe já conhece nos marketplaces —
+mas melhor, porque cruza status, performance, estoque, margem e pendências
+preservando a origem de cada dado. Reaproveita o editor de 14 abas, a
+importação Shopee, saúde/pendências, duplicar/adaptar, Anúncio Master e
+histórico já existentes; o que é novo é a camada de estado e diagnóstico.
+
+- **Status nativo × Status operacional Head** (`statusOperacional`): todo
+  anúncio preserva o **status nativo** exatamente como veio (marketplace,
+  planilha ou integração) e ganha um **status operacional Head** normalizado
+  em 13 estados (`PUBLICADO_E_ATIVO`, `PAUSADO_PELO_VENDEDOR`,
+  `PAUSADO_PELO_MARKETPLACE`, `NÃO_PUBLICADO`, `EM_ANÁLISE`, `EM_REVISÃO`,
+  `COM_VIOLAÇÃO_OU_RESTRIÇÃO`, `BLOQUEADO_EXTERNAMENTE`, `RASCUNHO_INTERNO`,
+  `ARQUIVADO_INTERNAMENTE`, `STATUS_DESCONHECIDO` …), com **regra**, **origem**,
+  **confiança** e revisão manual. A normalização usa o status interno + o
+  texto nativo (violação/análise/revisão pesam mais) — nunca "ao vivo" sem
+  integração. A tabela ganhou a coluna **Status nativo · Head** (regra e
+  confiança no tooltip); o importado mostra "Ativo/Pausado reportado" + Head.
+- **Diagnóstico do produto** (`diagnosticoProduto`): só o que o dado sustenta
+  — Alto tráfego com baixa conversão, Produto sem venda, Muitas vendas e
+  estoque crítico, CTR/Conversão abaixo da referência interna, Devolução
+  acima da média, Muitas vendas e margem baixa, Foto insuficiente, GTIN
+  ausente, Cadastro incompleto, Sem performance vinculada. Cada diagnóstico
+  declara fato, fonte, período, marketplace, conta, campos usados, **hipótese**
+  (nunca causa confirmada), confiança, impacto e ação. Coluna **Diagnóstico**
+  na tabela + painel na Visão Geral; clicar filtra os anúncios pelo sinal.
+- **Visão Geral operacional**: dashboard com os ~23 indicadores (cada um com
+  fonte/período/cobertura/qualidade) + distribuição por **Status operacional
+  Head** + **Diagnóstico do produto** (top sinais). Primeira tela do Catálogo.
+- **Honestidade mantida**: ranking só com fonte/data/escopo/confiança;
+  performance só com vínculo real; margem só com custo (senão "sem custo");
+  mídia por URL referenciada; edição interna auditada; nenhuma escrita
+  externa; **sem CRM/Leads/Pipeline** em nenhuma tela.
+- **Testes**: `ui-v8-catalog-redesign.test.js` (os 33 testes obrigatórios);
+  suíte completa **620 verdes**; validação headless da Visão Geral, colunas
+  de status/diagnóstico, filtro por diagnóstico e importado com status
+  nativo+Head, em light/dark e mobile, console limpo.
