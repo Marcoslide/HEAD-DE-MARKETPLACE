@@ -12,8 +12,12 @@
   const D = V8DATA, L = V8LOGIC, G = D.crescimento;
   const SUBS = ['Mesa de Inteligência', 'Métricas Principais', 'Pedidos e Funil', 'Performance de Produtos',
     'Tráfego', 'Devoluções e Cancelamentos', 'Estoque Full', 'Afiliados', 'Chat e Atendimento',
-    'Promoções e Cupons', 'Ads', 'Oportunidades', 'Experimentos', 'Aceleração', 'Expansão',
+    'Promoções e Cupons', 'Ads', 'SEO e Crescimento Orgânico', 'Lucratividade', 'Radar', 'Conhecimento',
+    'Oportunidades', 'Experimentos', 'Aceleração', 'Expansão',
     'Resultados e Aprendizados', 'Fontes e Histórico'];
+  /* 10.P.4.1 — abas da Central que abrem áreas fortes (mesma fonte, sem duplicar
+     no menu lateral): a aba leva à análise completa daquela área. */
+  const REDIR = { 'SEO e Crescimento Orgânico': 'seo', 'Lucratividade': 'custos', 'Radar': 'silencio', 'Conhecimento': 'conhecimento' };
   const CR = window.CRESCIMENTO = { sub: 'Mesa de Inteligência', mkt: 'ml', silenciados: {}, acompanhando: {}, sub2: {} };
   const LEGACY = { 'Performance': 'Pedidos e Funil', 'Pedidos Não Pagos': 'Pedidos e Funil' };
 
@@ -1003,7 +1007,10 @@
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const act = b.dataset.act;
-    if (act === 'sub') { CR.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Central de Inteligência · ' + CR.sub; render(CR.sub); }
+    if (act === 'sub') {
+      if (REDIR[b.dataset.sub]) { UI.go(REDIR[b.dataset.sub]); return; } /* abre a área forte (mesma fonte, sem duplicar no menu) */
+      CR.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Central de Inteligência · ' + CR.sub; render(CR.sub);
+    }
     else if (act === 'sub2') { CR.sub2[CR.sub] = b.dataset.sub2; body(); }
     else if (act === 'camposrecebidos') openCamposRecebidos(b.dataset.mt, b.dataset.area);
     else if (act === 'uparea') IMPORTAR.uploadModal({ titulo: 'Atualizar dados — ' + b.dataset.area, dica: 'Referência: ' + (AREAS_DADOS[b.dataset.area] || {}).ref, onDone: () => body() });

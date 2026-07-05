@@ -1381,3 +1381,36 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   (o que foi vendido), RECEBIMENTOS LIBERADOS (Renda do pedido real + previsto por
   ciclo), LUCRATIVIDADE (o que sobra após custos/taxas/Ads/afiliado/devolução).
 - `npm test` **747 verdes** (2 Postgres pulados sem banco).
+
+## SPRINT 10.P.4.1 — Correção: menu de 11 itens, sem duplicar as abas da Central
+
+> O menu de 21 itens (10.P.4) promoveu a **item principal** o que já eram **abas
+> internas da Central de Inteligência** (SEO, Ads, Afiliados, Estoque Full,
+> Devoluções, Atendimento). Isso duplicou a navegação. Correção: menu **curto e
+> objetivo**; o menu lateral não repete estruturas internas de uma tela.
+
+- **Menu (11 itens)** (`app.js`, `UI.MENU`): Início · Decisões e Missões ·
+  Pedidos · Catálogo · Central de Inteligência · Conciliação Financeira ·
+  **Sistema** (Empresas e Operações · Fontes e Importações · Conexões · Equipe e
+  Permissões · Configurações). O primeiro grupo não tem título; só **Sistema** é
+  rotulado. Nenhum item duplica uma aba da Central.
+- **Decisões e Missões = uma página** (`missao.js`): abas internas Visão Geral ·
+  Decisões Pendentes · Missões em Execução · Aguardando Aprovação · Bloqueadas ·
+  Concluídas · Histórico. A lógica: decisão → o dono aprova/recusa/ajusta/delega →
+  vira/altera missão → executada → vira aprendizado no histórico.
+- **Abas internas da Central** (`crescimento.js`): além das já existentes
+  (Ads, Afiliados, Estoque Full, Devoluções, Chat e Atendimento, Tráfego,
+  Promoções, Oportunidades, Experimentos, Aceleração, Expansão, Resultados,
+  Fontes e Histórico), entram **SEO e Crescimento Orgânico**, **Lucratividade**,
+  **Radar** e **Conhecimento**. Essas quatro abrem a análise completa da área
+  (mesma fonte/tela, sem duplicar no menu); a Central segue destacada enquanto se
+  navega nelas.
+- **Preservação**: todas as views seguem registradas (`v-seo`, `v-custos`,
+  `v-silencio`, `v-conhecimento` etc.) — nada apagado, nada duplicado. Topo segue
+  Empresa → Canal → Marketplace → Conta → Período → Fonte.
+- **Testes**: contrato migrado para 11 itens (`ui-v8.test.js` valida os 11 rótulos,
+  a ausência dos duplicados, Decisões+Missões numa página e SEO como aba da
+  Central). Validação headless de 22 checagens (11 itens na ordem exata, só
+  Sistema com título, 0 duplicados, página única de Decisões/Missões, 9 abas
+  internas da Central, SEO abre dentro da Central, console limpo). `npm test`
+  **747 verdes**.

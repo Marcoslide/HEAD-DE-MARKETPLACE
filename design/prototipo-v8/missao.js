@@ -30,23 +30,53 @@
     return D.missoes.filter(m => !m.lojaId || lojaIds.includes(m.lojaId));
   }
 
+  /* 10.P.4.1 — Decisões e Missões numa ÚNICA página com abas internas.
+     A lógica: decisão → o dono aprova/recusa/ajusta/delega → vira/altera missão
+     → missão é executada → resultado volta para histórico/aprendizado. */
+  const ABAS = ['Visão Geral', 'Decisões Pendentes', 'Missões em Execução', 'Aguardando Aprovação', 'Bloqueadas', 'Concluídas', 'Histórico'];
+  const GRUPOS = [
+    [D.STATUS.AGUARDANDO_APROVACAO, 'Decisões que pedem você'],
+    [D.STATUS.EM_PROCESSAMENTO, 'Em execução'],
+    [D.STATUS.PRONTO_REVISAO, 'Prontas para revisão'],
+    [D.STATUS.EM_REVISAO, 'Em revisão'],
+  ];
+  function filtrarAba(lista, aba) {
+    if (aba === 'Decisões Pendentes' || aba === 'Aguardando Aprovação') return lista.filter(m => m.status === D.STATUS.AGUARDANDO_APROVACAO);
+    if (aba === 'Missões em Execução') return lista.filter(m => m.status === D.STATUS.EM_PROCESSAMENTO);
+    if (aba === 'Bloqueadas') return lista.filter(m => m.status === D.STATUS.BLOQUEADO || m.status === D.STATUS.EM_REVISAO);
+    if (aba === 'Concluídas') return lista.filter(m => /conclu/i.test(m.status || '') || m.status === D.STATUS.PRONTO_REVISAO);
+    return lista;
+  }
+
   function render() {
-    const grupos = [
-      [D.STATUS.AGUARDANDO_APROVACAO, 'Decisões que pedem você'],
-      [D.STATUS.EM_PROCESSAMENTO, 'Em execução'],
-      [D.STATUS.PRONTO_REVISAO, 'Prontas para revisão'],
-      [D.STATUS.EM_REVISAO, 'Em revisão'],
-    ];
+    if (!MI.aba) MI.aba = 'Visão Geral';
     const doEscopo = missoesDoEscopo();
-    UI.$('#v-missao').innerHTML = `
-      <div class="eyebrow">a missão · central de execução</div>
-      <h1 class="h1">A Missão</h1>
-      <p class="sub" style="margin-top:6px">${UI.scopeLineHtml()}<br>O que o Head está executando, o que espera sua decisão e o que já foi entregue — tudo ${UI.esc(D.STATUS.ACAO_INTERNA).toLowerCase()} e reversível.</p>
-      ${grupos.map(([st, titulo]) => {
+    const cont = st => doEscopo.filter(m => m.status === st).length;
+    const tabs = `<div class="tabs" style="margin-top:14px;flex-wrap:wrap">${ABAS.map(a => {
+      const n = a === 'Decisões Pendentes' || a === 'Aguardando Aprovação' ? cont(D.STATUS.AGUARDANDO_APROVACAO) : a === 'Missões em Execução' ? cont(D.STATUS.EM_PROCESSAMENTO) : null;
+      return `<button class="tab ${a === MI.aba ? 'on' : ''}" data-act="miaba" data-aba="${a}">${a}${n ? `<span class="cnt">${n}</span>` : ''}</button>`;
+    }).join('')}</div>`;
+    let corpo;
+    if (MI.aba === 'Visão Geral') {
+      corpo = GRUPOS.map(([st, titulo]) => {
         const list = doEscopo.filter(m => m.status === st);
         return list.length ? `<div class="sect"><div class="sect-h"><span class="h2">${titulo}</span><span class="src">${list.length}</span></div>${list.map(m => card(m, MI._focus === m.id)).join('')}</div>` : '';
-      }).join('')}
-      ${doEscopo.length ? '' : '<div class="panel sect"><div class="empty"><b>Nenhuma missão no escopo atual</b>Missões nascem do radar, das decisões e da mesa de comando — troque a loja na barra global para ver outras.</div></div>'}`;
+      }).join('') || '<div class="panel sect"><div class="empty"><b>Nenhuma decisão ou missão no escopo atual</b>Elas nascem do radar, das decisões e da mesa de comando — troque a loja na barra global para ver outras.</div></div>';
+    } else if (MI.aba === 'Histórico') {
+      const aud = UI.state.audit.filter(a => /missao|decis/i.test(a.acao || '')).slice(-30).reverse();
+      corpo = aud.length ? `<div class="ctxcard">${aud.map(a => `<div class="ctxitem"><span>${UI.esc(a.detalhe || a.acao)}</span><span class="src">${UI.esc(a.actor || 'sistema')}</span></div>`).join('')}</div>`
+        : '<div class="panel"><div class="empty">Sem histórico de decisões/missões nesta sessão — cada aprovação e execução aparece aqui com autor.</div></div>';
+    } else {
+      const list = filtrarAba(doEscopo, MI.aba);
+      corpo = list.length ? list.map(m => card(m, MI._focus === m.id)).join('')
+        : `<div class="panel"><div class="empty">Nada em “${UI.esc(MI.aba)}” no escopo atual.</div></div>`;
+    }
+    UI.$('#v-missao').innerHTML = `
+      <div class="eyebrow">decisões e missões · aprovar e executar</div>
+      <h1 class="h1">Decisões e Missões</h1>
+      <p class="sub" style="margin-top:6px">${UI.scopeLineHtml()}<br>O que espera sua <b>decisão</b>, o que a equipe está <b>executando</b> e o que já foi entregue — tudo ${UI.esc(D.STATUS.ACAO_INTERNA).toLowerCase()} e reversível. Decisão vira missão; missão executada vira aprendizado.</p>
+      ${tabs}
+      <div id="miBody" style="margin-top:14px">${corpo}</div>`;
     UI.$('#v-missao').onclick = onClick;
     MI._focus = null;
   }
@@ -56,6 +86,7 @@
   function onClick(e) {
     const b = e.target.closest('[data-act]');
     if (!b) return;
+    if (b.dataset.act === 'miaba') { MI.aba = b.dataset.aba; render(); return; }
     const m = D.missoes.find(x => x.id === b.dataset.id);
     if (!m) return;
     if (b.dataset.act === 'aprovar') {

@@ -42,20 +42,25 @@ test('02 · alternância de tema com preferência salva por usuário', () => {
 /* ---------- navegação e contexto ---------- */
 
 test('03 · menu 10.E.4: Pedidos, Central, Centro de Custos e Empresas e Operações', () => {
-  /* 10.P.4 — menu lateral plano de 21 áreas em 4 grupos; nenhuma view perdida */
+  /* 10.P.4.1 — menu CURTO de 11 itens; nenhuma view perdida */
   for (const v of ['home', 'operacao', 'pedidos', 'catalogo', 'crescimento', 'seo', 'conciliacao', 'custos', 'empresas', 'conexoes', 'missao', 'silencio', 'conhecimento', 'importar', 'equipe', 'planos'])
     assert.match(html, new RegExp(`id="v-${v}"`), `view ${v} preservada`);
-  /* menu renderizado por UI.MENU (4 grupos) — cada área importante a 1 clique */
-  for (const grupo of ['Visão e Estratégia', 'Operação e Vendas', 'Resultado e Gestão', 'Sistema'])
-    assert.match(appJs, new RegExp(`grupo: '${grupo}'`), `grupo do menu: ${grupo}`);
-  for (const nome of ['Central de Inteligência', 'Crescimento Orgânico / SEO', 'Ads', 'Afiliados', 'Radar',
-    'Conciliação Financeira', 'Estoque e Full', 'Devoluções', 'Lucratividade', 'Decisões', 'Missões', 'Conhecimento'])
-    assert.match(appJs, new RegExp(`label: '${nome.replace(/[/]/g, '\\$&')}'`), `área visível no menu: ${nome}`);
+  /* os 11 itens do menu */
+  for (const nome of ['Início', 'Decisões e Missões', 'Pedidos', 'Catálogo', 'Central de Inteligência', 'Conciliação Financeira',
+    'Empresas e Operações', 'Fontes e Importações', 'Conexões', 'Equipe e Permissões', 'Configurações'])
+    assert.match(appJs, new RegExp(`label: '${nome}'`), `item de menu: ${nome}`);
   const nItens = (appJs.match(/\{ label: '[^']+', view:/g) || []).length;
-  assert.ok(nItens >= 21, 'pelo menos 21 itens de menu (' + nItens + ')');
-  assert.ok(!/data-area=/.test(html), 'sem menu de áreas agrupadas (submenu horizontal) na navegação principal');
+  assert.equal(nItens, 11, 'exatamente 11 itens de menu (' + nItens + ')');
+  /* SEO/Ads/Afiliados/Estoque/Devoluções/Atendimento/Lucratividade/Radar/Conhecimento NÃO se repetem no menu */
+  for (const dup of ["label: 'Ads'", "label: 'Afiliados'", "label: 'Crescimento Orgânico / SEO'", "label: 'Estoque e Full'", "label: 'Devoluções'", "label: 'Atendimento'", "label: 'Lucratividade'", "label: 'Radar'"])
+    assert.ok(!appJs.includes(dup), 'não duplicado no menu: ' + dup);
+  /* Decisões e Missões viram UMA página */
+  assert.ok(!/label: 'Decisões'[^e]/.test(appJs) && !appJs.includes("label: 'Missões'"), 'Decisões e Missões numa única página');
+  /* essas áreas viram abas internas da Central de Inteligência */
+  assert.match(read('crescimento.js'), /'SEO e Crescimento Orgânico': 'seo'/, 'SEO dentro da Central');
+  assert.ok(!/data-area=/.test(html), 'sem submenu horizontal como navegação principal');
   assert.match(appJs, /UI\.renderers\[v\]\(sub\)/, 'cada navegação chama o renderer da view');
-  assert.match(appJs, /renderNav/, 'menu lateral plano renderizado');
+  assert.match(appJs, /renderNav/, 'menu lateral renderizado');
   assert.match(appJs, /data-ref="importar:"/, 'atalho de Fontes e Importações disponível');
   /* topo: Empresa → Canal → Marketplace → Conta → Período → Fonte */
   for (const k of ['empresa', 'canal', 'marketplace', 'conta', 'período', 'fonte'])

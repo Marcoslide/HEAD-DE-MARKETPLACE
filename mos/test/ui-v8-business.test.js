@@ -88,9 +88,10 @@ test('15-16 · OAuth exige empresa e canal; conta nasce vinculada ao canal certo
 
 /* ---------- 17-21 · Centro de Custos separado; cadastros ---------- */
 test('17-21 · área separada; custo fixo, variável, taxa por marketplace e por SKU', () => {
-  /* 10.P.4 — menu lateral plano de 21 áreas; Lucratividade e Empresas são itens de 1 clique */
-  assert.match(read('app.js'), /renderNav/, 'menu lateral plano renderizado por UI.renderNav');
-  assert.match(read('app.js'), /label: 'Lucratividade', view: 'custos'/, 'Lucratividade no menu (Resultado e Gestão)');
+  /* 10.P.4.1 — menu curto de 11 itens; Lucratividade é ABA da Central (não item de menu) */
+  assert.match(read('app.js'), /renderNav/, 'menu lateral renderizado por UI.renderNav');
+  assert.match(read('crescimento.js'), /'Lucratividade': 'custos'/, 'Lucratividade dentro da Central de Inteligência');
+  assert.match(read('custos.js'), /UI\.renderers\.custos = render/, 'view de Lucratividade preservada');
   assert.match(read('app.js'), /label: 'Empresas e Operações', view: 'empresas'/, 'Empresas e Operações no menu (Sistema)');
   assert.ok(!cusJs.includes('Nova Empresa') && !empJs.includes('Adicionar Custo Fixo'), 'cadastro de empresa e custo NÃO se misturam');
   const { biz } = novo();

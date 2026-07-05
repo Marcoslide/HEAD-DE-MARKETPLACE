@@ -55,7 +55,7 @@
     toggleTheme() { UI.setTheme(UI.theme() === 'dark' ? 'light' : 'dark'); },
 
     /* ---------- navegação ---------- */
-    NAMES: { home: 'Mesa Estratégica', operacao: 'Histórico Operacional', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', seo: 'Orgânico e SEO', conciliacao: 'Conciliação Financeira', custos: 'Lucratividade', empresas: 'Empresas e Operações', conexoes: 'Conexões', missao: 'Execução', silencio: 'Radar', conhecimento: 'Conhecimento', importar: 'Fontes e Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
+    NAMES: { home: 'Mesa Estratégica', operacao: 'Histórico Operacional', pedidos: 'Pedidos', catalogo: 'Catálogo', crescimento: 'Central de Inteligência', seo: 'Orgânico e SEO', conciliacao: 'Conciliação Financeira', custos: 'Lucratividade', empresas: 'Empresas e Operações', conexoes: 'Conexões', missao: 'Decisões e Missões', silencio: 'Radar', conhecimento: 'Conhecimento', importar: 'Fontes e Dados', ativacao: 'Ativação', equipe: 'Equipe', planos: 'Planos', suporte: 'Suporte' },
 
     /* ---------- 10.P.4 — MENU LATERAL PLANO: 21 áreas em 4 grupos ----------
        Cada área importante fica a UM clique no menu lateral, organizada em
@@ -63,25 +63,17 @@
        subabas vivem DENTRO de cada tela. Migra as rotas existentes (view + sub
        opcional) sem perder nenhuma nem esconder o que importa. */
     MENU: [
-      { grupo: 'Visão e Estratégia', itens: [
+      /* 10.P.4.1 — menu curto: 6 áreas operacionais + Sistema. SEO, Ads, Afiliados,
+         Radar, Estoque Full, Devoluções, Atendimento, Lucratividade e Conhecimento
+         são ABAS INTERNAS da Central de Inteligência — não se repetem no menu.
+         Decisões e Missões viram UMA página. */
+      { grupo: '', itens: [
         { label: 'Início', view: 'home', icon: 'M3 10.5 12 3l9 7.5V21H3z' },
-        { label: 'Central de Inteligência', view: 'crescimento', sub: 'Mesa de Inteligência', icon: 'M3 3v18h18M7 14l3-4 3 3 5-7' },
-        { label: 'Crescimento Orgânico / SEO', view: 'seo', icon: 'M3 17l6-6 4 4 8-8M15 7h6v6' },
-        { label: 'Ads', view: 'crescimento', sub: 'Ads', icon: 'M3 11l18-7-7 18-3-7-8-4z' },
-        { label: 'Afiliados', view: 'crescimento', sub: 'Afiliados', icon: 'M9 12a4 4 0 0 1 4-4h4a4 4 0 0 1 0 8h-2M15 12a4 4 0 0 1-4 4H7a4 4 0 0 1 0-8h2' },
-        { label: 'Radar', view: 'silencio', icon: 'M12 3a9 9 0 1 0 9 9M12 12l6-4M12 12v-6' } ] },
-      { grupo: 'Operação e Vendas', itens: [
-        { label: 'Catálogo', view: 'catalogo', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' },
+        { label: 'Decisões e Missões', view: 'missao', icon: 'M9 11l3 3 8-8M4 12l3 3M4 18h16' },
         { label: 'Pedidos', view: 'pedidos', icon: 'M4 7h16l-1.5 12a2 2 0 0 1-2 1.8h-9A2 2 0 0 1 5.5 19zM8 7a4 4 0 0 1 8 0' },
-        { label: 'Conciliação Financeira', view: 'conciliacao', icon: 'M12 2v20M17 6H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H6' },
-        { label: 'Estoque e Full', view: 'crescimento', sub: 'Estoque Full', icon: 'M3 7l9-4 9 4-9 4zM3 7v10l9 4 9-4V7' },
-        { label: 'Devoluções', view: 'crescimento', sub: 'Devoluções e Cancelamentos', icon: 'M9 14l-4-4 4-4M5 10h9a5 5 0 0 1 0 10h-3' },
-        { label: 'Atendimento', view: 'crescimento', sub: 'Chat e Atendimento', icon: 'M21 15a2 2 0 0 1-2 2H8l-4 4V5a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2z' } ] },
-      { grupo: 'Resultado e Gestão', itens: [
-        { label: 'Lucratividade', view: 'custos', icon: 'M4 20V9M10 20V4M16 20v-8M22 20H2' },
-        { label: 'Decisões', view: 'missao', sub: 'Decisões', icon: 'M4 12l5 5L20 6' },
-        { label: 'Missões', view: 'missao', sub: 'Missões', icon: 'M5 3v18l7-4 7 4V3z' },
-        { label: 'Conhecimento', view: 'conhecimento', icon: 'M4 5a2 2 0 0 1 2-2h13v18H6a2 2 0 0 1-2-2zM19 3v18M8 8h7M8 12h7' } ] },
+        { label: 'Catálogo', view: 'catalogo', icon: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z' },
+        { label: 'Central de Inteligência', view: 'crescimento', sub: 'Mesa de Inteligência', icon: 'M3 3v18h18M7 14l3-4 3 3 5-7' },
+        { label: 'Conciliação Financeira', view: 'conciliacao', icon: 'M12 2v20M17 6H9.5a2.5 2.5 0 0 0 0 5h5a2.5 2.5 0 0 1 0 5H6' } ] },
       { grupo: 'Sistema', itens: [
         { label: 'Empresas e Operações', view: 'empresas', icon: 'M3 21h18M5 21V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v16M15 9h4a2 2 0 0 1 2 2v10' },
         { label: 'Fontes e Importações', view: 'importar', icon: 'M12 3v12M7 10l5 5 5-5M4 21h16' },
@@ -95,7 +87,7 @@
     /* desenha o menu lateral (grupos + itens) — nenhuma área importante escondida */
     renderNav() {
       const nav = $('#nav'); if (!nav) return;
-      nav.innerHTML = UI.MENU.map(g => `<div class="navgroup"><div class="navgroup-t">${UI.esc(g.grupo)}</div>${g.itens.map(it =>
+      nav.innerHTML = UI.MENU.map(g => `<div class="navgroup">${g.grupo ? `<div class="navgroup-t">${UI.esc(g.grupo)}</div>` : ''}${g.itens.map(it =>
         `<button data-nav="${it.view}|${it.sub || ''}" title="${UI.esc(it.label)}"><svg viewBox="0 0 24 24"><path d="${it.icon}"/></svg><span>${UI.esc(it.label)}</span><em class="nbadge" data-badge="${it.view}"></em></button>`).join('')}</div>`).join('');
     },
 
@@ -121,9 +113,13 @@
       UI.view = v;
       UI._activeSub = sub || null;
       $$('.view').forEach(el => el.classList.toggle('on', el.id === 'v-' + v));
-      /* destaca o item de menu que casa (view + sub); senão, o primeiro da view */
+      /* destaca o item de menu que casa (view + sub); senão, o primeiro da view.
+         10.P.4.1 — views que são análises DENTRO da Central (SEO/Lucratividade/
+         Radar/Conhecimento) mantêm a Central destacada. */
+      const CENTRAL_VIEWS = { seo: 'crescimento', custos: 'crescimento', silencio: 'crescimento', conhecimento: 'crescimento' };
       const itens = UI.menuItens();
-      const hit = itens.find(it => UI.menuMatch(it)) || itens.find(it => it.view === v) || null;
+      const hit = itens.find(it => UI.menuMatch(it)) || itens.find(it => it.view === v)
+        || (CENTRAL_VIEWS[v] ? itens.find(it => it.view === CENTRAL_VIEWS[v]) : null) || null;
       const hitKey = hit ? hit.view + '|' + (hit.sub || '') : null;
       $$('#nav button[data-nav]').forEach(b => b.classList.toggle('active', hitKey && b.dataset.nav === hitKey));
       $('#crumb').textContent = (hit ? hit.label : (UI.NAMES[v] || v)) + (sub && (!hit || hit.sub !== sub) ? ' · ' + sub : '');
