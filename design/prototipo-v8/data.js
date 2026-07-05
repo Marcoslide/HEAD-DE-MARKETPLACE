@@ -199,7 +199,10 @@
       aviso: 'Todos os dados desta instância são simulados e rotulados. Nenhuma conta externa conectada; escrita externa bloqueada.',
     },
     STATUS, MKTS, products,
-    PERIODOS: [['hoje', 'Hoje'], ['7d', 'Últimos 7 dias'], ['30d', 'Últimos 30 dias']],
+    /* 10.E.2.5.2 — filtro global de período completo (resolvido por V8TIME) */
+    PERIODOS: [['hoje', 'Hoje'], ['ontem', 'Ontem'], ['esta_semana', 'Esta semana'], ['semana_passada', 'Semana passada'],
+      ['7d', 'Últimos 7 dias'], ['15d', 'Últimos 15 dias'], ['30d', 'Últimos 30 dias'], ['este_mes', 'Este mês'],
+      ['mes_passado', 'Mês passado'], ['3m', 'Últimos 3 meses'], ['este_ano', 'Este ano'], ['ano_passado', 'Último ano'], ['custom', 'Período personalizado']],
 
     /* ============ 10.UI.2 · ESCOPO OPERACIONAL ============
        Grupo → Empresa → CNPJ → Loja → Conta de marketplace.

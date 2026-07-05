@@ -749,9 +749,15 @@
       if (existing) {
         if (existing.normalizedFingerprint === s.normalizedFingerprint) { duplicadosEvitados++; continue; } /* idêntico → nada */
         existing.versoes.push({ raw: existing.raw, batchId: existing.batchId, em: existing.atualizadoEm }); /* preserva versão */
-        existing.raw = s.raw; existing.batchId = batchId; existing.normalizedFingerprint = s.normalizedFingerprint;
-        existing.atualizadoEm = HOJE; existing.origem = origemDe(s.sourceType);
-        atualizados++; continue; /* ATUALIZA, nunca soma */
+        /* 10.E.2.5.2 — MERGE por campo: a nova fonte ATUALIZA o que trouxe, mas NÃO apaga
+           colunas antigas ausentes no novo arquivo (peso/dimensão continuam). */
+        const rawMerged = Object.assign({}, existing.raw);
+        for (const k2 of Object.keys(s.raw)) if (s.raw[k2] != null && s.raw[k2] !== '') rawMerged[k2] = s.raw[k2];
+        existing.raw = rawMerged;
+        if (s.metricas) existing.metricas = Object.assign({}, existing.metricas || {}, s.metricas);
+        existing.batchId = batchId; existing.normalizedFingerprint = s.normalizedFingerprint;
+        existing.atualizadoEm = HOJE; existing.updated_at = HOJE; existing.origem = origemDe(s.sourceType);
+        atualizados++; continue; /* ATUALIZA (merge), nunca soma nem apaga */
       }
       /* granularidade agregada NUNCA cria pedido individual;
          evento de devolução/cancelamento NUNCA cria pedido novo — vira order_event cruzado por ID */
@@ -779,6 +785,18 @@
         sourceType: s.sourceType, sourceFile: s.sourceFile, reportType: s.reportType,
         origem: origemDe(s.sourceType), batchId, importadoEm: HOJE, atualizadoEm: HOJE,
         normalizedFingerprint: s.normalizedFingerprint, confianca: s.confianca, versoes: [],
+        /* 10.E.2.5.2 — MODELO TEMPORAL obrigatório (nada de data inventada) */
+        occurred_at: s.data || s.raw['Data de criação do pedido'] || s.raw['Data de Criação do Pedido'] || null,
+        snapshot_at: s.metric_type === 'estoque' ? (s.momento || null) : null,
+        period_start: s.periodo_ini || null, period_end: s.periodo_fim || null,
+        imported_at: HOJE, processed_at: HOJE, updated_at: HOJE, timezone: 'America/Sao_Paulo',
+        source_date_raw: s.raw['Data'] || s.raw['Data de criação do pedido'] || s.raw['Data de Criação do Pedido'] || s.raw['Período'] || null,
+        source_row_number: s.linha || null, parser_version: '10.E.2.5.2',
+        granularidadeTemporal: s.metric_type === 'estoque' ? 'SNAPSHOT'
+          : (s.tipoLinha === 'DAILY_METRIC' || s.granularidade === 'DAILY_METRIC') ? 'DAILY'
+          : (s.tipoLinha === 'PERIOD_SUMMARY' || s.granularidade === 'PERIOD_METRIC' || s.granularidade === 'LISTING_METRIC' || s.granularidade === 'CHANNEL_ATTRIBUTION') ? 'RANGE_AGGREGATE'
+          : (s.data ? 'DAILY' : 'UNKNOWN'),
+        temporal_confidence: (s.data || (s.metric_type === 'estoque' && s.momento)) ? 'CONFIRMADA' : (s.periodo_ini && s.periodo_fim) ? 'PARCIAL' : 'AUSENTE',
       };
       eng.snapshots.push(snap);
       criados++;

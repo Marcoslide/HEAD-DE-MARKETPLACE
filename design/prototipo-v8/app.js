@@ -194,6 +194,12 @@
     if (!saved && window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches) saved = 'light';
     UI.setTheme(saved || 'dark', false);
 
+    /* 10.E.2.5.2 — restaura dados importados persistidos (sobrevive ao refresh) */
+    if (window.IMPORTAR && IMPORTAR.restaurar) {
+      IMPORTAR.restaurar().then(ok => { if (ok && UI.view) UI.go(UI.view); });
+      window.addEventListener('beforeunload', () => { try { IMPORTAR.persistir(); } catch (e) {} });
+    }
+
     $('#themeToggle').addEventListener('click', UI.toggleTheme);
     $('#sideFold').addEventListener('click', () => $('.shell').classList.toggle('folded'));
     $$('#nav button').forEach(b => b.addEventListener('click', () => UI.go(b.dataset.v)));
@@ -205,6 +211,18 @@
       const act = b.dataset.gact;
       if (act === 'menu') { UI._gmenu = UI._gmenu === b.dataset.menu ? null : b.dataset.menu; UI.renderGbar(); }
       else if (act === 'open') { UI._gmenu = null; UI.renderGbar(); UI.open(b.dataset.ref); }
+      else if (act === 'periodo' && b.dataset.val === 'custom') { /* 10.E.2.5.2 — período personalizado */
+        UI._gmenu = null; UI.renderGbar();
+        const c = UI.ctxCustom || { ini: '2026-06-05', fim: '2026-07-04' };
+        UI.openModal(`<h3 class="h2">Período personalizado</h3>
+          <p class="sub" style="margin-top:4px">Timezone da operação: America/Sao_Paulo.</p>
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+            <label style="flex:1"><span class="eyebrow">Data inicial</span><br><input class="input" type="date" id="perIni" value="${c.ini}" style="width:100%;margin-top:4px"></label>
+            <label style="flex:1"><span class="eyebrow">Data final</span><br><input class="input" type="date" id="perFim" value="${c.fim}" style="width:100%;margin-top:4px"></label>
+          </div>
+          <div style="display:flex;justify-content:flex-end;margin-top:16px"><button class="btn primary" id="perGo">Aplicar período</button></div>`);
+        $('#perGo').onclick = () => { UI.ctxCustom = { ini: $('#perIni').value, fim: $('#perFim').value }; UI.closeModal(); UI.setCtx('periodo', 'custom'); };
+      }
       else { /* seleção de contexto: empresa | marketplace | periodo */
         UI._gmenu = null;
         UI.setCtx(act, b.dataset.val);

@@ -787,12 +787,23 @@
     const cob = V8INT.coberturaFonte(eng(), CONTRATO_AREAS[nome].mt, filtroCtx());
     const escopo = `${UI.esc(UI.ctx.empresaNome || 'Empresa')} › ${UI.esc(UI.ctx.marketplace || 'Marketplace')} › ${UI.esc(UI.ctx.conta || cob.conta || 'Conta')}`;
     const badge = { 'Completa': 'ok', 'Parcial': 'warn', 'Conflitante': 'danger', 'Sem dados': 'plain' }[cob.estado] || 'plain';
+    /* 10.E.2.5.2 — cobertura TEMPORAL do período global selecionado (V8TIME) */
+    let temporalLinha = '';
+    if (window.V8TIME) {
+      const per = V8TIME.resolvePeriodo(UI.ctx.periodo || '7d', { custom: UI.ctxCustom });
+      const snaps = eng().snapshots.filter(s => s.metric_type === CONTRATO_AREAS[nome].mt && !s.excluidoDaAnalise && (!filtroCtx().contaId || (s.escopo && s.escopo.contaId === filtroCtx().contaId)));
+      const ct = V8TIME.coberturaTemporal(snaps, per);
+      const cbadge = { 'COBERTURA_COMPLETA': 'ok', 'COBERTURA_PARCIAL': 'warn', 'SEM_DADOS_NO_PERIODO': 'plain', 'DADO_SEM_DATA_EXATA': 'warn', 'PERIODO_NAO_IDENTIFICADO': 'plain' }[ct.status] || 'plain';
+      temporalLinha = `<div class="ctxitem"><span>Período selecionado · timezone</span><span class="src">${UI.esc(per.label)} (${per.ini} a ${per.fim}) · ${per.tz}</span></div>
+        <div class="ctxitem"><span>Cobertura temporal · granularidade</span><span class="src"><span class="st ${cbadge} plain">${UI.esc(ct.status)}</span> · ${UI.esc(ct.granularidade)} — ${UI.esc(ct.mensagem)}</span></div>`;
+    }
     return `<div class="ctxcard" style="margin-top:0">
       <div class="h"><b>${UI.esc(nome)}</b><span class="st ${badge} plain">Cobertura: ${UI.esc(cob.estado)}</span></div>
       <div class="ctxitem"><span>Caminho na Shopee</span><span class="src">${UI.esc(c.caminho || '—')}</span></div>
       <div class="ctxitem"><span>Arquivo esperado</span><span class="src">${UI.esc(c.arquivo || '—')}</span></div>
       <div class="ctxitem"><span>Escopo</span><span class="src">${escopo}</span></div>
-      <div class="ctxitem"><span>Período</span><span class="src">${cob.periodo ? cob.periodo.ini + ' a ' + cob.periodo.fim : 'não declarado (sem arquivo aplicado)'}</span></div>
+      <div class="ctxitem"><span>Período do arquivo</span><span class="src">${cob.periodo ? cob.periodo.ini + ' a ' + cob.periodo.fim : 'não declarado (sem arquivo aplicado)'}</span></div>
+      ${temporalLinha}
       <div class="ctxitem"><span>Registros aplicados</span><span class="src">${cob.registros} · ${cob.arquivo ? UI.esc(cob.arquivo) : 'nenhuma fonte'}</span></div>
     </div>`;
   }

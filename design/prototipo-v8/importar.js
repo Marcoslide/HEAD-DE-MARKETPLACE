@@ -12,6 +12,67 @@
     eng: V8IMP.createEngine(), sub: 'Fontes e Histórico',
     fluxo: { origem: 'Planilha', destino: 'Performance', lojaId: 's1', arquivo: null, batch: null },
   };
+
+  /* =============================================================
+     10.E.2.5.2 — PERSISTÊNCIA (protótipo cliente): os dados importados
+     sobrevivem ao refresh via IndexedDB do navegador. Em produção, a
+     persistência é o backend real (mos/ · Postgres) — aqui é a camada
+     honesta possível num Artifact estático. Nunca é a "fonte única":
+     a base real é o servidor; isto é cache/estado local do protótipo.
+     ============================================================= */
+  const IDB = { db: null, NAME: 'headmos-v8', STORE: 'engine' };
+  const CAMPOS_ENG = ['batches', 'staging', 'snapshots', 'observations', 'masterLinks', 'conflicts', 'audit',
+    'seq', 'rawFiles', 'rawErrors', 'customMappings', 'camposExcluidos', 'impactos', 'revisoesRelacao'];
+  function idbOpen() {
+    return new Promise(res => {
+      if (IDB.db) return res(IDB.db);
+      if (typeof indexedDB === 'undefined') return res(null);
+      let req; try { req = indexedDB.open(IDB.NAME, 1); } catch (e) { return res(null); }
+      req.onupgradeneeded = () => { try { req.result.createObjectStore(IDB.STORE); } catch (e) {} };
+      req.onsuccess = () => { IDB.db = req.result; res(IDB.db); };
+      req.onerror = () => res(null);
+    });
+  }
+  let persistTimer = null;
+  IM.persistir = function () { /* debounced */
+    clearTimeout(persistTimer);
+    persistTimer = setTimeout(async () => {
+      const db = await idbOpen(); if (!db) return;
+      try {
+        const dump = {}; for (const k of CAMPOS_ENG) dump[k] = IM.eng[k];
+        dump.fileHashes = Array.from((IM.eng.fileHashes && IM.eng.fileHashes.entries && IM.eng.fileHashes.entries()) || []);
+        dump._savedAt = D.meta ? D.meta.hoje || '' : '';
+        const tx = db.transaction(IDB.STORE, 'readwrite');
+        tx.objectStore(IDB.STORE).put(JSON.parse(JSON.stringify(dump)), 'state');
+      } catch (e) { /* quota/serialização — protótipo tolera */ }
+    }, 250);
+  };
+  IM.restaurar = async function () {
+    const db = await idbOpen(); if (!db) return false;
+    return new Promise(res => {
+      try {
+        const tx = db.transaction(IDB.STORE, 'readonly');
+        const rq = tx.objectStore(IDB.STORE).get('state');
+        rq.onsuccess = () => {
+          const d = rq.result; if (!d || !d.snapshots) return res(false);
+          for (const k of CAMPOS_ENG) if (d[k] != null) IM.eng[k] = d[k];
+          IM.eng.fileHashes = new Map(d.fileHashes || []);
+          IM._restaurado = { snapshots: (d.snapshots || []).length, savedAt: d._savedAt || null };
+          res(true);
+        };
+        rq.onerror = () => res(false);
+      } catch (e) { res(false); }
+    });
+  };
+  IM.limparPersistencia = async function () { const db = await idbOpen(); if (!db) return; try { db.transaction(IDB.STORE, 'readwrite').objectStore(IDB.STORE).delete('state'); } catch (e) {} };
+  /* toda aplicação de importação persiste automaticamente (sem tocar call sites) */
+  if (!V8IMP._persistWrapped) {
+    V8IMP._persistWrapped = true;
+    for (const fn of ['apply', 'applyImportChain', 'stage', 'reprocess']) {
+      const orig = V8IMP[fn];
+      if (typeof orig === 'function') V8IMP[fn] = function () { const r = orig.apply(this, arguments); try { if (window.IMPORTAR && arguments[0] === IM.eng) IM.persistir(); } catch (e) {} return r; };
+    }
+  }
   const SUBS = ['Fontes e Histórico', 'Base de Dados e Mapeamento', 'Nova importação', 'Lotes e jobs', 'Vínculos SKU', 'Anúncio Master', 'Perfis de importação'];
   const BD_SUBS = ['Arquivos Importados', 'Campos Recebidos', 'Mapeamentos', 'Dados Brutos', 'Dados Normalizados',
     'Campos Aguardando Uso', 'Conflitos', 'Relacionamentos', 'Cobertura', 'Atualizações Recentes'];

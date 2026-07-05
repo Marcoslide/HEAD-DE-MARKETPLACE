@@ -1003,3 +1003,57 @@ de ser só dado de estoque/pedido e passa a ser **chave estratégica**.
   lateral). Suíte **698 verdes**. Headless: toolbar compacta, filtros
   expandem/recolhem, painel lateral, criação por WhatsApp; console limpo,
   light/dark/mobile.
+
+## 10.E.2.5.2 — Modelo temporal + persistência + upsert + filtro por período
+
+Todo dado importado ganha **contexto temporal** e sobrevive ao refresh; o filtro
+global de período funciona respeitando a **granularidade** (um agregado de 30
+dias nunca é fatiado em dias falsos); a reimportação faz **upsert de verdade**.
+
+- **Motor temporal** (`tempo-engine.js`, `V8TIME`): resolve os 13 presets do
+  filtro global (Hoje, Ontem, Esta/Semana passada, Últimos 7/15/30 dias, Este/
+  Mês passado, Últimos 3 meses, Este/Último ano, Personalizado) em intervalos
+  ISO com timezone `America/Sao_Paulo`. `granularidadeDe` classifica cada
+  registro (DAILY / SNAPSHOT / RANGE_AGGREGATE / UNKNOWN); `pertenceAoPeriodo`
+  filtra por data exata (diário/snapshot) ou só inclui um agregado quando o
+  recorte o **contém inteiro**; `coberturaTemporal` devolve status honesto
+  (COBERTURA_COMPLETA / PARCIAL / SEM_DADOS_NO_PERIODO / DADO_SEM_DATA_EXATA /
+  PERIODO_NAO_IDENTIFICADO) com mensagem; `queryTemporal` responde valor +
+  período + timezone + cobertura + granularidade + fonte + confiança.
+- **Campos temporais no snapshot** (`import-engine.js`): cada registro recebe
+  `occurred_at`, `snapshot_at`, `period_start/period_end`, `imported_at`,
+  `processed_at`, `updated_at`, `timezone`, `source_date_raw`, `parser_version`,
+  `granularidadeTemporal` e `temporal_confidence` (CONFIRMADA/PARCIAL/AUSENTE).
+  **Nada de data inventada**: sem data de linha, guarda só o período e marca
+  como agregado.
+- **Upsert real + merge por campo**: registro novo insere; idêntico ignora;
+  alterado **atualiza versionando** (RAW original preservado nas versões); e a
+  atualização faz **merge por campo** — uma planilha nova que não traz uma
+  coluna antiga **não apaga** o valor já existente (peso/dimensão permanecem
+  enquanto preço/estoque/vendas são atualizados). Estoque continua snapshot: o
+  atual é a última leitura, o histórico nunca é somado.
+- **Filtro global de período**: `V8DATA.PERIODOS` com os 13 presets + um modal de
+  **período personalizado** (data inicial/final). Cada área da Central mostra
+  agora **Período selecionado · Timezone · Cobertura temporal · Granularidade** —
+  e, quando a fonte é um agregado, declara honestamente que não há quebra diária
+  para o recorte pedido (ex.: "Performance dos últimos 7 dias indisponível: a
+  fonte é agregado de 30 dias").
+- **Persistência (protótipo)**: os dados importados sobrevivem ao refresh via
+  **IndexedDB** do navegador (`IM.persistir`/`IM.restaurar`, restaurados no boot
+  em `app.js`; toda aplicação de importação persiste automaticamente). Isto é a
+  camada honesta possível num **Artifact estático** — não é a "fonte única": em
+  produção a persistência é o backend real (`mos/` · Postgres, dos sprints 10.D/
+  10.D.1). Prova headless: **104 registros importados permanecem após um reload
+  completo**.
+- **Testes**: `ui-v8-temporal.test.js` (12 blocos: presets, campos temporais,
+  agregado-não-vira-dia, filtro diário por período, snapshot-não-soma, reimport
+  não duplica, atualiza versionando, merge sem apagar, queryTemporal com
+  metadados, persistência declarada, RAW preservado, sem escrita externa). Suíte
+  completa **710 verdes**. Headless: modelo temporal, refresh sem perda
+  (IndexedDB), cobertura por período, honestidade do agregado; console limpo,
+  light/dark/mobile.
+- **Escopo honesto**: entregue o núcleo temporal + persistência de protótipo +
+  filtro/cobertura na Central. O redesenho do wizard de importação em 7 etapas
+  com preview de 20 linhas e a aplicação do filtro célula-a-célula em todas as
+  telas (Home/Pedidos/Ads/Afiliados/Chat) ficam como continuação — o motor
+  (`V8TIME` + campos temporais) já está pronto para essas telas consumirem.
