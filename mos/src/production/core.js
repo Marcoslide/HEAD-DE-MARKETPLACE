@@ -265,6 +265,20 @@ const MIGRATIONS = [
     },
     validate(db) { try { db.prepare('SELECT order_status FROM orders LIMIT 1').all(); return true; } catch (e) { return false; } },
   },
+  {
+    /* 10.F.2 — HONESTIDADE sobre identificadores: o relatório real de Pedidos
+       Shopee NÃO traz Item ID / Variation ID; quando ausentes, a ORIGEM fica
+       AUSENTE_NA_FONTE (nunca inventados; nome nunca os preenche). */
+    id: '007-order-item-id-origin',
+    up(db) {
+      for (const col of ['external_listing_id_origem TEXT', 'external_variation_id_origem TEXT']) {
+        try { db.exec('ALTER TABLE order_item ADD COLUMN ' + col + ';'); }
+        catch (e) { if (!/already exists|duplicate column/i.test(e.message)) throw e; }
+      }
+    },
+    down(db) { /* colunas ficam — remover derrubaria dado */ },
+    validate(db) { try { db.prepare('SELECT external_listing_id_origem FROM order_item LIMIT 1').all(); return true; } catch (e) { return false; } },
+  },
 ];
 
 function openDb(cfg) {
@@ -282,16 +296,25 @@ function openDb(cfg) {
   return db;
 }
 function migrate(db) {
-  const done = new Set(db.prepare('SELECT id FROM _migrations').all().map(r => r.id));
-  const aplicadas = [];
-  for (const m of MIGRATIONS) {
-    if (done.has(m.id)) continue; /* idempotente */
-    m.up(db);
-    if (!m.validate(db)) throw new Error('migration falhou na validação: ' + m.id);
-    db.prepare('INSERT INTO _migrations(id, aplicada_em) VALUES(?, ?)').run(m.id, new Date().toISOString());
-    aplicadas.push(m.id);
+  /* concurrency-safe no Postgres: um lock de advisory serializa migradores
+     concorrentes (vários processos/testes abrindo o mesmo banco ao mesmo tempo)
+     sem forçar execução serial dos testes. No SQLite (arquivo local) não aplica. */
+  const isPg = db.kind !== 'sqlite';
+  if (isPg) { try { db.prepare('SELECT pg_advisory_lock(987654321)').get(); } catch (e) { /* sem suporte → segue */ } }
+  try {
+    const done = new Set(db.prepare('SELECT id FROM _migrations').all().map(r => r.id));
+    const aplicadas = [];
+    for (const m of MIGRATIONS) {
+      if (done.has(m.id)) continue; /* idempotente */
+      m.up(db);
+      if (!m.validate(db)) throw new Error('migration falhou na validação: ' + m.id);
+      db.prepare('INSERT INTO _migrations(id, aplicada_em) VALUES(?, ?) ON CONFLICT(id) DO NOTHING').run(m.id, new Date().toISOString());
+      aplicadas.push(m.id);
+    }
+    return aplicadas;
+  } finally {
+    if (isPg) { try { db.prepare('SELECT pg_advisory_unlock(987654321)').get(); } catch (e) {} }
   }
-  return aplicadas;
 }
 function migrationStatus(db) {
   const done = new Set(db.prepare('SELECT id FROM _migrations').all().map(r => r.id));

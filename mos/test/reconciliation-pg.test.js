@@ -6,6 +6,7 @@
    vê os mesmos dados. SÓ roda com Postgres (HEAD_TEST_PG=postgres://...).
    ============================================================= */
 'use strict';
+process.env.HEAD_TEST_NO_RATELIMIT = '1'; /* isolamento: sem disputa de rate limit entre testes */
 const test = require('node:test');
 const assert = require('node:assert');
 const core = require('../src/production/core.js');
@@ -41,27 +42,28 @@ if (!PG) {
   ];
 
   const orders = () => [
-    { external_order_id: '260601CONC1', marketplace: 'shopee', marketplace_account_id: 'acc-shopee', internal_order_id: 'PED-1', gross_order_value: 210, expected_net_value: 176.63, paid_at: '2026-06-19', delivered_at: '2026-06-20' },
-    { external_order_id: '260601AJUS1', marketplace: 'shopee', marketplace_account_id: 'acc-shopee', internal_order_id: 'PED-2', gross_order_value: 250, expected_net_value: 205, paid_at: '2026-06-17', delivered_at: '2026-06-18' },
-    { external_order_id: '260601REEM1', marketplace: 'shopee', marketplace_account_id: 'acc-shopee', internal_order_id: 'PED-3', gross_order_value: 110, expected_net_value: 90, paid_at: '2026-06-14', delivered_at: '2026-06-15' },
-    { external_order_id: '260601AGUA1', marketplace: 'shopee', marketplace_account_id: 'acc-shopee', internal_order_id: 'PED-4', gross_order_value: 140, expected_net_value: 115, paid_at: '2026-07-01', delivered_at: '2026-07-02' },
+    { external_order_id: '260601CONC1', marketplace: 'shopee', marketplace_account_id: 'acc_recon', internal_order_id: 'PED-1', gross_order_value: 210, expected_net_value: 176.63, paid_at: '2026-06-19', delivered_at: '2026-06-20' },
+    { external_order_id: '260601AJUS1', marketplace: 'shopee', marketplace_account_id: 'acc_recon', internal_order_id: 'PED-2', gross_order_value: 250, expected_net_value: 205, paid_at: '2026-06-17', delivered_at: '2026-06-18' },
+    { external_order_id: '260601REEM1', marketplace: 'shopee', marketplace_account_id: 'acc_recon', internal_order_id: 'PED-3', gross_order_value: 110, expected_net_value: 90, paid_at: '2026-06-14', delivered_at: '2026-06-15' },
+    { external_order_id: '260601AGUA1', marketplace: 'shopee', marketplace_account_id: 'acc_recon', internal_order_id: 'PED-4', gross_order_value: 140, expected_net_value: 115, paid_at: '2026-07-01', delivered_at: '2026-07-02' },
   ];
 
-  const rule = { marketplace: 'shopee', marketplace_account_id: 'acc-shopee', rule_name: 'Shopee estoque próprio', shipping_mode: 'proprio', expected_release_days_min: 10, expected_release_days_max: 15, grace_days: 3, priority: 1 };
-  const escopo = { company_id: 'e1', marketplace: 'shopee', marketplace_account_id: 'acc-shopee' };
+  const rule = { marketplace: 'shopee', marketplace_account_id: 'acc_recon', rule_name: 'Shopee estoque próprio', shipping_mode: 'proprio', expected_release_days_min: 10, expected_release_days_max: 15, grace_days: 3, priority: 1 };
+  const escopo = { company_id: 'co_recon', marketplace: 'shopee', marketplace_account_id: 'acc_recon' };
 
   function freshDb() { const db = core.openDb({ env: 'LOCAL', databaseUrl: PG }); core.migrate(db); return db; }
 
   test('conciliação Postgres — jornada oficial completa', () => {
     const db = freshDb();
-    /* limpa o escopo de testes anteriores (eventos não têm company_id) */
-    db.prepare('DELETE FROM financial_reconciliation_event').run();
+    /* ISOLAMENTO: limpa SOMENTE os registros da própria empresa (co_recon).
+       Eventos não têm company_id → apaga só os dos casos desta empresa. */
+    db.prepare('DELETE FROM financial_reconciliation_event WHERE reconciliation_id IN (SELECT reconciliation_id FROM financial_reconciliation_case WHERE company_id = ?)').run('co_recon');
     for (const t of ['financial_transaction', 'financial_reconciliation_case', 'financial_reconciliation_rule'])
-      db.prepare(`DELETE FROM ${t} WHERE company_id = ? OR company_id IS NULL`).run('e1');
+      db.prepare(`DELETE FROM ${t} WHERE company_id = ?`).run('co_recon');
     const svc = createReconciliation(db);
 
     /* 1. parser localiza o cabeçalho apesar do preâmbulo */
-    const parsed = svc.parseWalletReport(walletSheet(), { marketplace: 'shopee', contaId: 'acc-shopee', empresaId: 'e1', arquivo: 'balance.xlsx' });
+    const parsed = svc.parseWalletReport(walletSheet(), { marketplace: 'shopee', contaId: 'acc_recon', empresaId: 'co_recon', arquivo: 'balance.xlsx' });
     assert.equal(parsed.headerRow, 8, 'cabeçalho localizado na linha certa (após o preâmbulo)');
     assert.equal(parsed.transactions.length, 10, 'todas as linhas de dados normalizadas');
 
@@ -90,7 +92,7 @@ if (!PG) {
     assert.ok(rr.movimentosSemPedido >= 1, 'indenização sem pedido não some');
 
     /* 5. eventos de conciliação registrados */
-    const nEv = db.prepare('SELECT count(*) c FROM financial_reconciliation_event').get();
+    const nEv = db.prepare('SELECT count(*) c FROM financial_reconciliation_event WHERE reconciliation_id IN (SELECT reconciliation_id FROM financial_reconciliation_case WHERE company_id = ?)').get('co_recon');
     assert.ok(Number(nEv.c) >= 5, 'histórico de eventos gravado');
 
     /* 6. resumo alimenta três visões distintas */
@@ -103,7 +105,7 @@ if (!PG) {
     const imp2 = svc.importWallet({ escopo, transactions: parsed.transactions });
     assert.equal(imp2.inserted, 0, 'nada novo inserido');
     assert.equal(imp2.unchanged, 10, 'tudo deduplicado');
-    const nTx = db.prepare('SELECT count(*) c FROM financial_transaction').get();
+    const nTx = db.prepare('SELECT count(*) c FROM financial_transaction WHERE company_id = ?').get('co_recon');
     assert.equal(Number(nTx.c), 10, 'sem duplicação de transações');
 
     /* 8. período sobreposto: reimporta com 1 linha alterada → atualiza SÓ ela */
@@ -111,7 +113,7 @@ if (!PG) {
     alterado[0] = Object.assign({}, alterado[0], { amount: 181.00, status: 'Processando' });
     const imp3 = svc.importWallet({ escopo, transactions: alterado });
     assert.equal(imp3.updated, 1, 'só a linha realmente alterada é atualizada');
-    assert.equal(Number(db.prepare('SELECT count(*) c FROM financial_transaction').get().c), 10, 'ainda sem duplicar');
+    assert.equal(Number(db.prepare('SELECT count(*) c FROM financial_transaction WHERE company_id = ?').get('co_recon').c), 10, 'ainda sem duplicar');
   });
 
   test('conciliação Postgres — NOVA instância do backend vê os mesmos dados', () => {

@@ -67,12 +67,14 @@ function createOrders(db) {
         const ie = db.prepare('SELECT order_item_id FROM order_item WHERE dedup_key = ?').get(ik);
         if (!ie) {
           db.prepare(`INSERT INTO order_item(order_item_id, internal_order_id, company_id, marketplace, marketplace_account_id,
-            external_order_id, external_listing_id, external_variation_id, seller_sku, gtin_ean, product_name_original,
+            external_order_id, external_listing_id, external_variation_id, external_listing_id_origem, external_variation_id_origem,
+            seller_sku, gtin_ean, product_name_original,
             quantity, unit_price, gross_item_value, product_master_id, identity_confidence, identity_origin, needs_review,
             source, raw_payload, dedup_key, created_at, updated_at)
-            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
             iid, oid, esc.company_id || null, o.marketplace, esc.marketplace_account_id || null, o.external_order_id,
-            it.external_listing_id, it.external_variation_id, it.seller_sku, it.gtin_ean, it.product_name_original,
+            it.external_listing_id, it.external_variation_id, it.external_listing_id_origem || 'AUSENTE_NA_FONTE', it.external_variation_id_origem || 'AUSENTE_NA_FONTE',
+            it.seller_sku, it.gtin_ean, it.product_name_original,
             r2(it.quantity), r2(it.unit_price), r2(it.gross_item_value), ident.product_master_id, ident.identity_confidence,
             ident.identity_origin, ident.needs_review ? 1 : 0, 'IMPORT', JSON.stringify(it.raw || null), ik, ts, ts);
           insertedI++;

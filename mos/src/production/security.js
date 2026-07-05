@@ -35,6 +35,10 @@ const can = (papel, perm) => {
 function createSecurity(db, audit, logger) {
   /* ---------- rate limit persistido (sobrevive restart) ---------- */
   function rateLimit(chave, max, janelaMin) {
+    /* bypass CONTROLADO só para testes automatizados (nunca em STAGING/PROD):
+       exige a env explícita HEAD_TEST_NO_RATELIMIT=1. Permite testes paralelos
+       com autenticação sem disputar o limite por IP. */
+    if (process.env.HEAD_TEST_NO_RATELIMIT === '1') return;
     const janela = new Date().toISOString().slice(0, 16 - (janelaMin >= 60 ? 3 : 0));
     db.prepare(`INSERT INTO rate_limits(chave, janela, n) VALUES(?,?,1)
       ON CONFLICT(chave, janela) DO UPDATE SET n = rate_limits.n + 1`).run(chave, janela);

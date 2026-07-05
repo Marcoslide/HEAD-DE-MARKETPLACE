@@ -11,6 +11,7 @@
    Sem ele, é pulado — mantendo `npm test` verde onde não há banco.
    ============================================================= */
 'use strict';
+process.env.HEAD_TEST_NO_RATELIMIT = '1'; /* isolamento: login de teste não disputa o rate limit por IP */
 const test = require('node:test');
 const assert = require('node:assert');
 const http = require('node:http');

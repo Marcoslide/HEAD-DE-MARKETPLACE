@@ -6,6 +6,7 @@
    SÓ roda com Postgres (HEAD_TEST_PG=postgres://...).
    ============================================================= */
 'use strict';
+process.env.HEAD_TEST_NO_RATELIMIT = '1'; /* isolamento: sem disputa de rate limit entre testes */
 const test = require('node:test');
 const assert = require('node:assert');
 const core = require('../src/production/core.js');
@@ -20,7 +21,7 @@ if (!PG) {
   test('pedidos (Postgres) — pulado: defina HEAD_TEST_PG=postgres://…', { skip: true }, () => {});
 } else {
   const NOW = '2026-07-05T12:00:00.000Z';
-  const esc = { company_id: 'e1', marketplace: 'shopee', marketplace_account_id: 'acc-shopee' };
+  const esc = { company_id: 'co_ord', marketplace: 'shopee', marketplace_account_id: 'acc_ord' };
   const HC = V8CONC.SHOPEE_TX_HEADER, HO = V8PED.SHOPEE_ORDERS_HEADER;
   const wrow = o => HC.map(h => o[h] != null ? o[h] : '');
   const orow = o => HO.map(h => o[h] != null ? o[h] : '');
@@ -28,7 +29,7 @@ if (!PG) {
   const wallet = () => V8CONC.normalizeShopeeWallet([
     wrow({ 'Data': '2026-06-20 10:00:00', 'Tipo de transação': 'Renda do pedido', 'Descrição': 'Renda do pedido 260601FLIP', 'ID do pedido': '260601FLIP', 'Direção do dinheiro': 'Entrada', 'Valor': '176.63', 'Status': 'Transação completa' }),
     wrow({ 'Data': '2026-06-22 10:00:00', 'Tipo de transação': 'Renda do pedido', 'Descrição': 'Renda do pedido 260601MULT', 'ID do pedido': '260601MULT', 'Direção do dinheiro': 'Entrada', 'Valor': '250.00', 'Status': 'Transação completa' }),
-  ], { marketplace: 'shopee', contaId: 'acc-shopee', empresaId: 'e1', arquivo: 'w.xlsx' });
+  ], { marketplace: 'shopee', contaId: 'acc_ord', empresaId: 'co_ord', arquivo: 'w.xlsx' });
 
   const ordersSheet = () => [
     ['Relatório de Pedidos'], ['Conta', 'lidermolduras'], ['Detalhes'],
@@ -39,14 +40,17 @@ if (!PG) {
     orow({ 'ID do pedido': '260601AGUA', 'Status do pedido': 'Enviado', 'Data de criação do pedido': '2026-07-01', 'Nome do Produto': 'Garrafa', 'Número de referência SKU': 'GAR-1L', 'Quantidade': '1', 'Valor Total': '140.00', 'Cidade': 'RJ', 'UF': 'RJ' }),
   ];
 
-  const rule = { marketplace: 'shopee', marketplace_account_id: 'acc-shopee', rule_name: 'Shopee', shipping_mode: 'proprio', expected_release_days_min: 10, expected_release_days_max: 15, grace_days: 3, priority: 1 };
+  const rule = { marketplace: 'shopee', marketplace_account_id: 'acc_ord', rule_name: 'Shopee', shipping_mode: 'proprio', expected_release_days_min: 10, expected_release_days_max: 15, grace_days: 3, priority: 1 };
 
   function freshDb() { const db = core.openDb({ env: 'LOCAL', databaseUrl: PG }); core.migrate(db); return db; }
+  const CO = 'co_ord';
+  const nOrders = db => Number(db.prepare('SELECT count(*) c FROM orders WHERE company_id = ?').get(CO).c);
   function limpar(db) {
-    db.prepare('DELETE FROM order_event').run();
-    db.prepare('DELETE FROM financial_reconciliation_event').run();
-    for (const t of ['order_item', 'orders']) db.prepare(`DELETE FROM ${t} WHERE company_id = ? OR company_id IS NULL`).run('e1');
-    for (const t of ['financial_transaction', 'financial_reconciliation_case', 'financial_reconciliation_rule']) db.prepare(`DELETE FROM ${t} WHERE company_id = ? OR company_id IS NULL`).run('e1');
+    /* ISOLAMENTO: apaga SOMENTE os registros desta empresa (co_ord); eventos por subquery */
+    db.prepare('DELETE FROM order_event WHERE internal_order_id IN (SELECT internal_order_id FROM orders WHERE company_id = ?)').run(CO);
+    db.prepare('DELETE FROM financial_reconciliation_event WHERE reconciliation_id IN (SELECT reconciliation_id FROM financial_reconciliation_case WHERE company_id = ?)').run(CO);
+    for (const t of ['order_item', 'orders', 'financial_transaction', 'financial_reconciliation_case', 'financial_reconciliation_rule'])
+      db.prepare(`DELETE FROM ${t} WHERE company_id = ?`).run(CO);
   }
 
   test('pedidos Postgres — cruzamento e o flip RECEBIDO_SEM_CONFERENCIA → CONCILIADO', () => {
@@ -61,7 +65,7 @@ if (!PG) {
     assert.equal(antes.reconciliation_status, 'RECEBIDO_SEM_CONFERENCIA', 'sem pedido importado');
 
     /* 2. importa PEDIDOS (parser real com preâmbulo) e cruza */
-    const parsed = orders.parseOrdersReport(ordersSheet(), { marketplace: 'shopee', contaId: 'acc-shopee', empresaId: 'e1', arquivo: 'pedidos.xlsx' });
+    const parsed = orders.parseOrdersReport(ordersSheet(), { marketplace: 'shopee', contaId: 'acc_ord', empresaId: 'co_ord', arquivo: 'pedidos.xlsx' });
     assert.equal(parsed.headerRow, 3, 'cabeçalho de pedidos localizado');
     assert.equal(parsed.orders.length, 3, '3 pedidos');
     const imp = orders.importOrders({ escopo: esc, orders: parsed.orders, rules: [rule], now: NOW, taxas: {} });
@@ -83,6 +87,8 @@ if (!PG) {
     assert.ok(itens.some(i => i.needs_review === 1), 'item sem identificador forte → revisão');
     assert.ok(itens.some(i => i.identity_origin === 'SELLER_SKU'), 'item com SKU identificado por SKU');
     assert.ok(imp.needsReview >= 1, 'contagem de revisão');
+    /* HONESTIDADE: Item ID/Variation ID AUSENTE_NA_FONTE (o relatório não os traz) */
+    assert.ok(itens.every(i => i.external_listing_id == null && i.external_listing_id_origem === 'AUSENTE_NA_FONTE'), 'Item ID ausente na fonte, nunca inventado');
 
     /* 6. identidade financeira: esperado (pedido) × recebido (carteira) */
     const fi = orders.financialIdentity('260601FLIP');
@@ -100,13 +106,13 @@ if (!PG) {
     /* 9. reimportação sem duplicar; status novo atualiza sem apagar */
     const imp2 = orders.importOrders({ escopo: esc, orders: parsed.orders, rules: [rule], now: NOW, taxas: {} });
     assert.equal(imp2.insertedOrders, 0, 'nada novo');
-    assert.equal(Number(db.prepare('SELECT count(*) c FROM orders').get().c), 3, 'sem duplicar pedidos');
+    assert.equal(nOrders(db), 3, 'sem duplicar pedidos');
     const mut = parsed.orders.map(o => Object.assign({}, o));
     mut[0] = Object.assign({}, mut[0], { order_status: 'Devolvido' });
     const imp3 = orders.importOrders({ escopo: esc, orders: mut, rules: [rule], now: NOW, taxas: {} });
     assert.equal(imp3.updatedOrders, 3);
     assert.equal(db.prepare('SELECT order_status FROM orders WHERE external_order_id = ?').get('260601FLIP').order_status, 'Devolvido', 'status atualizado');
-    assert.equal(Number(db.prepare('SELECT count(*) c FROM orders').get().c), 3, 'ainda sem duplicar');
+    assert.equal(nOrders(db), 3, 'ainda sem duplicar');
   });
 
   test('pedidos Postgres — NOVA instância do backend vê os mesmos pedidos e vínculos', () => {

@@ -1457,3 +1457,24 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   Atrasados/…) e o **detalhe do pedido** (Resumo · Itens e SKUs · Operação ·
   Identidade Financeira · Conciliação · Devoluções · Histórico) consumindo a API.
 - `npm test` **753 verdes** (3 Postgres pulados sem banco).
+
+## SPRINT 10.F.2 — correções obrigatórias (isolamento de testes + honestidade de IDs)
+
+- **Isolamento dos testes Postgres** (não mais "passa serialmente"): cada teste
+  usa **company_id e marketplace_account_id próprios** (`co_recon`/`acc_recon`,
+  `co_ord`/`acc_ord`), limpa **apenas os próprios registros** (eventos por subquery,
+  sem `OR company_id IS NULL`), e conta escopado à sua empresa. `migrate()` ganhou
+  **advisory lock no Postgres** (`pg_advisory_lock`) + `INSERT ... ON CONFLICT DO
+  NOTHING` no `_migrations`, tornando a migração **concurrency-safe** para vários
+  processos abrindo o banco ao mesmo tempo. Bypass de rate limit **controlado só em
+  teste** (`HEAD_TEST_NO_RATELIMIT=1` em `security.js`; nunca em STAGING/PROD).
+  Resultado: **Performance + Conciliação + Pedidos passam JUNTOS, em paralelo, sem
+  `--test-concurrency=1` e sem 429** (verificado 3×, 9/9).
+- **Honestidade sobre Item ID / Variation ID**: o relatório real de Pedidos Shopee
+  **não traz** esses campos. `V8PED` marca a origem como **`AUSENTE_NA_FONTE`**
+  (nunca inventa; nome de produto jamais os preenche); neste arquivo o vínculo real
+  é **Marketplace + Conta + Pedido + SKU**, e a identidade do item resolve por
+  `SELLER_SKU`. A origem é persistida em `order_item`
+  (`external_listing_id_origem`/`external_variation_id_origem`, migração `007`) e
+  a interface exibe a origem de cada identificador. Correção da afirmação anterior:
+  a importação **não** "identifica Item ID e Variation ID" neste arquivo.

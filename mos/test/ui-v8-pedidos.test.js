@@ -32,6 +32,11 @@ test('01-05 · parser localiza cabeçalho com preâmbulo e agrupa itens por pedi
   assert.equal(bbb.items[1].quantity, 2);
   assert.ok(bbb.items[0].raw, 'linha RAW preservada por item');
   assert.ok(bbb.source_first_row > 4, 'linha de origem registrada');
+  /* HONESTIDADE: este relatório NÃO tem Item ID / Variation ID → AUSENTE_NA_FONTE */
+  assert.equal(bbb.items[0].external_listing_id, null, 'Item ID não vem nesta fonte');
+  assert.equal(bbb.items[0].external_listing_id_origem, 'AUSENTE_NA_FONTE');
+  assert.equal(bbb.items[0].external_variation_id_origem, 'AUSENTE_NA_FONTE');
+  assert.equal(P.identidadeItem(bbb.items[0]).identity_origin, 'SELLER_SKU', 'neste arquivo o vínculo real é o SKU');
 });
 
 test('06-07 · identidade por prioridade; nome de produto NUNCA é chave', () => {

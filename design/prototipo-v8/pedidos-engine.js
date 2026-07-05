@@ -74,9 +74,17 @@
       const unit = num(val(o, 'Preço unitário'));
       const subtotal = num(val(o, 'Subtotal do produto'));
       const grossItem = subtotal || (unit ? unit * qtd : null);
+      /* HONESTIDADE: Item ID / Variation ID só existem se vierem NA FONTE.
+         Este relatório de Pedidos Shopee não traz esses campos — então ficam
+         AUSENTE_NA_FONTE (nunca inventados; nome jamais os preenche). */
+      const itemId = oid(val(o, 'Item ID')), variationId = oid(val(o, 'Variation ID'));
+      const temColItem = header.includes('Item ID') || (ALIAS['Item ID'] || []).some(a => header.includes(a));
+      const temColVar = header.includes('Variation ID') || (ALIAS['Variation ID'] || []).some(a => header.includes(a));
       ped.items.push({
         seller_sku: oid(val(o, 'Número de referência SKU')), product_name_original: val(o, 'Nome do Produto'),
-        external_listing_id: oid(val(o, 'Item ID')), external_variation_id: oid(val(o, 'Variation ID')),
+        external_listing_id: itemId, external_variation_id: variationId,
+        external_listing_id_origem: itemId ? 'FONTE' : (temColItem ? 'VAZIO_NA_FONTE' : 'AUSENTE_NA_FONTE'),
+        external_variation_id_origem: variationId ? 'FONTE' : (temColVar ? 'VAZIO_NA_FONTE' : 'AUSENTE_NA_FONTE'),
         gtin_ean: oid(val(o, 'GTIN')), quantity: qtd, unit_price: unit || null,
         gross_item_value: grossItem, source_row: (ctx.baseRow || headerRow + 1) + i + 1, raw: r,
       });
