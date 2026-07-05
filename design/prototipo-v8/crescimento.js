@@ -14,7 +14,7 @@
     'Tráfego', 'Devoluções e Cancelamentos', 'Estoque Full', 'Afiliados', 'Chat e Atendimento',
     'Promoções e Cupons', 'Ads', 'Oportunidades', 'Experimentos', 'Aceleração', 'Expansão',
     'Resultados e Aprendizados', 'Fontes e Histórico'];
-  const CR = window.CRESCIMENTO = { sub: 'Mesa de Inteligência', mkt: 'ml', silenciados: {}, acompanhando: {} };
+  const CR = window.CRESCIMENTO = { sub: 'Mesa de Inteligência', mkt: 'ml', silenciados: {}, acompanhando: {}, sub2: {} };
   const LEGACY = { 'Performance': 'Pedidos e Funil', 'Pedidos Não Pagos': 'Pedidos e Funil' };
 
   const mktAtivo = () => UI.ctx.marketplace || CR.mkt;
@@ -50,6 +50,7 @@
     else if (CR.sub === 'Resultados e Aprendizados') el.innerHTML = resultados();
     else if (CR.sub === 'Ads') el.innerHTML = ads();
     else if (CR.sub === 'Fontes e Histórico') el.innerHTML = fontesHistorico();
+    else if (CONTRATO_AREAS[CR.sub]) el.innerHTML = areaContratoTotal(CR.sub);
     else if (AREAS_DADOS[CR.sub]) el.innerHTML = dataArea(CR.sub);
     else el.innerHTML = mesa();
     UI.refreshBadges();
@@ -762,12 +763,238 @@
       </div>`;
   }
 
+  /* =============================================================
+     10.E.2.5.1 — CONTRATO TOTAL DE CAMPOS + VISUALIZAÇÃO COMPLETA
+     Performance de Produtos, Devoluções e Estoque Full recebem TODAS
+     as colunas, com subabas, Campos Recebidos e Cruzamentos. Nada é
+     escolhido e jogado fora; onde falta arquivo, declara-se sem dados.
+     ============================================================= */
+  const CONTRATO_AREAS = {
+    'Performance de Produtos': { mt: 'performance_item', ini: 'Visão Geral',
+      subs: ['Visão Geral', 'Produtos e Anúncios', 'Variações', 'Funil de Conversão', 'Tráfego e Descoberta', 'Carrinho', 'Vendas e Pedidos', 'Campos Recebidos', 'Cruzamentos', 'Diagnósticos', 'Histórico da Fonte'] },
+    'Devoluções e Cancelamentos': { mt: 'devolucoes', ini: 'Visão Geral',
+      subs: ['Visão Geral', 'Eventos de Devolução', 'Reembolsos', 'Cancelamentos', 'Motivos', 'Produtos e Variações Afetados', 'Retorno ao Armazém', 'Campos Recebidos', 'Cruzamentos', 'Histórico da Fonte'] },
+    'Estoque Full': { mt: 'estoque', ini: 'Visão Geral',
+      subs: ['Visão Geral', 'Estoque por SKU', 'Estoque por Armazém', 'Reposição', 'Cobertura e Velocidade', 'Estoque Parado e Excesso', 'Estoque Crítico', 'Histórico de Snapshots', 'Campos Recebidos', 'Cruzamentos', 'Análises da Inteligência'] },
+  };
+  const catCross = () => { try { return (window.CATALOGO && CATALOGO.eng && CATALOGO.eng()) || { listings: [] }; } catch (_) { return { listings: [] }; } };
+  const g = (m, k) => m && m[k] != null ? +m[k] : null;
+  const nz = v => v == null ? '—' : (typeof v === 'number' ? v.toLocaleString('pt-BR') : UI.esc(String(v)));
+
+  /* cabeçalho padrão de toda área da Central (contrato do sprint) */
+  function areaHeader(nome) {
+    const c = V8INT.CONTRATOS[nome] || {};
+    const cob = V8INT.coberturaFonte(eng(), CONTRATO_AREAS[nome].mt, filtroCtx());
+    const escopo = `${UI.esc(UI.ctx.empresaNome || 'Empresa')} › ${UI.esc(UI.ctx.marketplace || 'Marketplace')} › ${UI.esc(UI.ctx.conta || cob.conta || 'Conta')}`;
+    const badge = { 'Completa': 'ok', 'Parcial': 'warn', 'Conflitante': 'danger', 'Sem dados': 'plain' }[cob.estado] || 'plain';
+    return `<div class="ctxcard" style="margin-top:0">
+      <div class="h"><b>${UI.esc(nome)}</b><span class="st ${badge} plain">Cobertura: ${UI.esc(cob.estado)}</span></div>
+      <div class="ctxitem"><span>Caminho na Shopee</span><span class="src">${UI.esc(c.caminho || '—')}</span></div>
+      <div class="ctxitem"><span>Arquivo esperado</span><span class="src">${UI.esc(c.arquivo || '—')}</span></div>
+      <div class="ctxitem"><span>Escopo</span><span class="src">${escopo}</span></div>
+      <div class="ctxitem"><span>Período</span><span class="src">${cob.periodo ? cob.periodo.ini + ' a ' + cob.periodo.fim : 'não declarado (sem arquivo aplicado)'}</span></div>
+      <div class="ctxitem"><span>Registros aplicados</span><span class="src">${cob.registros} · ${cob.arquivo ? UI.esc(cob.arquivo) : 'nenhuma fonte'}</span></div>
+    </div>`;
+  }
+
+  function semArquivo(nome) {
+    const c = V8INT.CONTRATOS[nome] || {};
+    return `<div class="panel" style="margin-top:12px"><div class="empty">
+      <b>SEM DADOS — nenhum arquivo de "${UI.esc(nome)}" aplicado neste escopo</b>
+      Envie o relatório real e TODAS as colunas entram, aparecem nas subabas e alimentam a Inteligência. Nada é estimado nem preenchido com demo.</div>
+      <div class="callout" style="margin-top:10px"><b>Onde baixar:</b> ${UI.esc(c.caminho || '')}</div>
+      <div class="sect-h" style="margin-top:12px"><span class="h2">Colunas que o Head vai receber (${(c.colunas || []).length})</span><span class="src">contrato de campos desta fonte</span></div>
+      <div class="tagrow" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:8px">${(c.colunas || []).map(x => `<span class="chip">${UI.esc(x)}</span>`).join('')}</div>
+      <div class="fbar" style="margin-top:12px"><button class="btn sm primary" data-act="uparea" data-area="${UI.esc(nome)}">Enviar ${UI.esc(nome)}</button></div>
+    </div>`;
+  }
+
+  function areaContratoTotal(nome) {
+    const cfg = CONTRATO_AREAS[nome];
+    const sub2 = CR.sub2[nome] || cfg.ini;
+    const bar = `<div class="tabs" style="margin-top:12px;flex-wrap:wrap">${cfg.subs.map(s => `<button class="tab sm ${s === sub2 ? 'on' : ''}" data-act="sub2" data-sub2="${s}">${s}</button>`).join('')}</div>`;
+    let inner = '';
+    if (nome === 'Performance de Produtos') inner = perfSub(sub2);
+    else if (nome === 'Devoluções e Cancelamentos') inner = devolSub(sub2);
+    else if (nome === 'Estoque Full') inner = estoqueSub(sub2);
+    return areaHeader(nome) + bar + `<div style="margin-top:12px">${inner}</div>`;
+  }
+
+  /* ---------- Campos Recebidos (reaproveita fieldCatalog: toda coluna, com destino) ---------- */
+  function camposRecebidosPanel(nome) {
+    const cat = V8IMP.fieldCatalog(eng());
+    const contrato = (V8INT.CONTRATOS[nome] || {}).colunas || [];
+    const linhas = cat.filter(c => contrato.includes(c.coluna));
+    if (!linhas.length) return semArquivo(nome);
+    const stTag = s => ({ 'utilizado': 'ok', 'preservado e disponível': 'warn', 'aguardando mapeamento': 'danger', 'excluído da análise': 'plain' }[s] || 'plain');
+    return `<div class="panel" style="margin-top:0">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Campos Recebidos — ${linhas.length} coluna(s)</span><span class="src">nenhuma coluna desaparece; cada uma tem campo normalizado, entidade, área e status</span></div>
+      <div class="tblwrap"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">Coluna original</th><th class="nosort">Valor exemplo</th><th class="nosort">Tipo</th><th class="nosort">Campo normalizado</th><th class="nosort">Entidade</th><th class="nosort">Áreas que usam</th><th class="nosort">Status</th></tr></thead><tbody>
+        ${linhas.map(c => `<tr><td class="tmain">${UI.esc(c.coluna)}</td><td><span class="src">${UI.esc(String(c.exemplo == null ? '—' : c.exemplo)).slice(0, 28)}</span></td><td><span class="src">${UI.esc(c.tipo)}</span></td>
+          <td>${c.campoNormalizado ? UI.esc(c.campoNormalizado) : '<span class="src">—</span>'}</td><td><span class="src">${UI.esc(c.entidade || '—')}</span></td>
+          <td><span class="src">${UI.esc((c.areas || []).join(' · ') || '—')}</span></td><td><span class="st ${stTag(c.status)} plain">${UI.esc(c.status)}</span></td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="src" style="margin-top:6px">arquivo · aba · bloco · linha ficam na camada bruta de cada fonte (botão "brutos" em Fontes e Histórico). Campo sem uso fica preservado e mapeável — nunca some.</p>
+    </div>`;
+  }
+  function openCamposRecebidos(mt, area) { CR.sub2[area] = 'Campos Recebidos'; body(); }
+
+  /* ---------- Cruzamentos (motor por prioridade) ---------- */
+  function cruzamentosPanel(destaque) {
+    const mc = V8INT.motorCruzamento(eng(), V8IMP, catCross(), filtroCtx());
+    const fonteTag = (ok, nome) => `<span class="st ${ok ? 'ok' : 'plain'} plain">${nome}${ok ? '' : ' (sem dados)'}</span>`;
+    if (!mc.entidades.length) return `<div class="panel" style="margin-top:0"><div class="empty"><b>Sem entidades para cruzar</b>Assim que houver Performance, Estoque ou Devoluções no escopo, o motor cruza por marketplace + conta + ID do Item → Variação → SKU.</div></div>`;
+    return `<div class="panel" style="margin-top:0">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Motor de cruzamento — ${mc.resumo.total} entidade(s)</span><span class="src">prioridade: ID do Item → Variação → SKU da Variação → SKU Principal → Pedido → Devolução</span></div>
+      <div class="fbar" style="margin-top:0">${fonteTag(mc.fontes.performance, 'Performance')} ${fonteTag(mc.fontes.estoque, 'Estoque Full')} ${fonteTag(mc.fontes.devolucoes, 'Devoluções')} ${fonteTag(mc.fontes.cadastro, 'Cadastro')}</div>
+      <div class="tblwrap" style="margin-top:10px"><table class="tbl" style="min-width:0"><thead><tr>
+        <th class="nosort">SKU (chave)</th><th class="nosort">ID do Item</th><th class="nosort">Performance</th><th class="nosort">Estoque</th><th class="nosort">Devoluções</th><th class="nosort">Cadastro</th></tr></thead><tbody>
+        ${mc.entidades.map(e => `<tr><td class="tmain">${UI.esc(e.sku || '—')}</td><td><span class="src">${UI.esc(e.item_id || '—')}</span></td>
+          <td>${e.performance ? '<span class="st ok plain">sim</span>' : '<span class="src">—</span>'}</td>
+          <td>${e.estoque ? '<span class="st ok plain">sim</span>' : '<span class="src">—</span>'}</td>
+          <td>${e.devolucoes.length ? `<span class="st warn plain">${e.devolucoes.length}</span>` : '<span class="src">—</span>'}</td>
+          <td>${e.cadastro ? '<span class="st ok plain">vinculado</span>' : '<span class="src">—</span>'}</td></tr>`).join('')}
+      </tbody></table></div>
+      <p class="src" style="margin-top:6px">${mc.resumo.comCruzamento} entidade(s) cruzam ≥2 fontes · ${mc.fila.length} em fila de revisão (sem chave forte) · ${UI.esc(mc.nota)}</p>
+    </div>`;
+  }
+
+  /* ============ PERFORMANCE DE PRODUTOS ============ */
+  function perfSub(sub2) {
+    const pv = V8IMP.performanceItemView(eng(), filtroCtx());
+    if (sub2 === 'Campos Recebidos') return camposRecebidosPanel('Performance de Produtos');
+    if (sub2 === 'Cruzamentos') return cruzamentosPanel();
+    if (pv.semDados) return semArquivo('Performance de Produtos');
+    const t = pv.totais;
+    const kpi = (l, v) => `<div class="mesa-kpi"><span class="lbl">${l}</span><span class="val">${v}</span></div>`;
+    const colM = (it, k) => nz(g(it.metricas, k));
+    if (sub2 === 'Visão Geral') return `<div class="panel" style="margin-top:0">
+      <div class="mesa-grid">${kpi('Impressões', num(t.impressions))}${kpi('Cliques', num(t.clicks))}${kpi('Carrinho (un.)', num(t.cart_units))}${kpi('Pedido Feito', num(t.orders_placed))}${kpi('Produto Pago', num(t.orders_paid))}${kpi('Vendas (Pago)', brl(t.sales_paid_brl))}</div>
+      ${provTag(pv.fonteArquivo, pv.itens[0].aba, pv.periodo, 'por anúncio/variação')}
+      <p class="src" style="margin-top:6px">${pv.itens.length} anúncio(s)/variação(ões) com todos os campos de identificação, tráfego, carrinho e vendas — abra as subabas.</p></div>`;
+    if (sub2 === 'Produtos e Anúncios') return `<div class="panel" style="margin-top:0">
+      <div class="sect-h" style="margin-top:0"><span class="h2">Produtos e Anúncios — colunas configuráveis</span><span class="src">ID do Item é a chave prioritária</span></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr>
+        <th class="nosort">Produto</th><th class="nosort">ID do Item</th><th class="nosort">SKU Principal</th><th class="nosort">SKU Var.</th><th class="nosort">Status</th><th class="nosort">Impressões</th><th class="nosort">Cliques</th><th class="nosort">CTR</th><th class="nosort">Visitantes</th><th class="nosort">Carrinho</th><th class="nosort">Pedido Feito</th><th class="nosort">Produto Pago</th><th class="nosort">Vendas (Pago)</th><th class="nosort">Conv. Pago</th></tr></thead><tbody>
+        ${pv.itens.map(it => `<tr><td class="tmain">${UI.esc((it.produto || '—')).slice(0, 34)}${it.variacao ? `<span class="tsub">${UI.esc(it.variacao)}</span>` : ''}</td>
+          <td><span class="src">${UI.esc(it.item_id)}</span></td><td><span class="src">${UI.esc(it.sku_pai || '—')}</span></td><td><span class="src">${UI.esc(it.sku_variacao || '—')}</span></td>
+          <td><span class="src">${UI.esc(it.statusItem || '—')}</span></td><td>${colM(it, 'impressions')}</td><td>${colM(it, 'clicks')}</td><td>${pct(g(it.metricas, 'ctr'))}</td>
+          <td>${colM(it, 'visitors')}</td><td>${colM(it, 'cart_units')}</td><td>${colM(it, 'orders_placed')}</td><td>${colM(it, 'orders_paid')}</td><td>${brl(g(it.metricas, 'sales_paid_brl'))}</td><td>${pct(g(it.metricas, 'conv_paid'))}</td></tr>`).join('')}
+      </tbody></table></div><p class="src" style="margin-top:6px">todas as ~34 colunas do relatório ficam preservadas; esta tabela mostra as principais + botão Campos Recebidos para as demais.</p></div>`;
+    if (sub2 === 'Variações') { const comVar = pv.itens.filter(it => it.variacao_id || it.sku_variacao);
+      return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Variações — ${comVar.length}</span><span class="src">ID da Variação + SKU da Variação como chave</span></div>
+      ${comVar.length ? `<div class="tblwrap"><table class="tbl"><thead><tr><th class="nosort">Produto</th><th class="nosort">Variação</th><th class="nosort">ID Variação</th><th class="nosort">SKU Var.</th><th class="nosort">Status Var.</th><th class="nosort">Pago</th><th class="nosort">Vendas (Pago)</th></tr></thead><tbody>
+        ${comVar.map(it => `<tr><td class="tmain">${UI.esc((it.produto || '—')).slice(0, 30)}</td><td>${UI.esc(it.variacao || '—')}</td><td><span class="src">${UI.esc(it.variacao_id || '—')}</span></td><td><span class="src">${UI.esc(it.sku_variacao || '—')}</span></td><td><span class="src">${UI.esc(it.statusVariacao || '—')}</span></td><td>${colM(it, 'orders_paid')}</td><td>${brl(g(it.metricas, 'sales_paid_brl'))}</td></tr>`).join('')}
+      </tbody></table></div>` : '<div class="empty"><b>Nenhuma variação declarada nesta fonte</b>Os anúncios importados não trazem ID/SKU de variação neste recorte.</div>'}</div>`; }
+    if (sub2 === 'Funil de Conversão') return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Funil por anúncio</span><span class="src">etapa ausente é declarada, nunca inventada</span></div>
+      ${pv.itens.map(it => `<div class="ctxcard" style="margin-top:8px"><div class="h"><b>${UI.esc((it.produto || it.item_id)).slice(0, 40)}</b><span class="src">${UI.esc(it.sku_variacao || it.sku_pai || it.item_id)}</span></div>
+        <div class="funilrow" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px">${it.funil.map(f => `<span class="chip ${f.disponivel ? '' : 'off'}" style="${f.disponivel ? '' : 'opacity:.5'}">${UI.esc(f.etapa)}: ${f.disponivel ? nz(f.valor) : 'dados insuficientes'}</span>`).join(' → ')}</div></div>`).join('')}
+      <p class="src" style="margin-top:8px">Impressões → Cliques → Visitantes → Visualizações → Carrinho → Pedido Realizado → Produto Pago. Onde falta o campo, a etapa declara "dados insuficientes".</p></div>`;
+    if (sub2 === 'Tráfego e Descoberta') return tabelaCampos(pv.itens, [['produto', 'Produto', it => UI.esc((it.produto || '—').slice(0, 30))], ['impr', 'Impressões', it => colM(it, 'impressions')], ['imprU', 'Impr. Únicas', it => colM(it, 'unique_impressions')], ['cli', 'Cliques', it => colM(it, 'clicks')], ['cliU', 'Cliques Únicos', it => colM(it, 'unique_clicks')], ['ctr', 'CTR', it => pct(g(it.metricas, 'ctr'))], ['vis', 'Visitantes', it => colM(it, 'visitors')], ['pv', 'Visual. Página', it => colM(it, 'page_views')], ['rej', 'Rejeição', it => pct(g(it.metricas, 'bounce_rate'))], ['busca', 'Cliques Busca', it => colM(it, 'search_clicks')], ['curt', 'Curtidas', it => colM(it, 'likes')]], 'Tráfego e Descoberta — todos os campos de descoberta do relatório');
+    if (sub2 === 'Carrinho') return tabelaCampos(pv.itens, [['produto', 'Produto', it => UI.esc((it.produto || '—').slice(0, 34))], ['cv', 'Visitantes Carrinho', it => colM(it, 'cart_visitors')], ['cu', 'Unidades Carrinho', it => colM(it, 'cart_units')], ['cc', 'Conversão Carrinho', it => pct(g(it.metricas, 'cart_conversion'))], ['pp', 'Produto Pago', it => colM(it, 'orders_paid')]], 'Carrinho — adição ao carrinho × pagamento');
+    if (sub2 === 'Vendas e Pedidos') return tabelaCampos(pv.itens, [['produto', 'Produto', it => UI.esc((it.produto || '—').slice(0, 30))], ['sp', 'Vendas (Realizado)', it => brl(g(it.metricas, 'sales_placed_brl'))], ['spg', 'Vendas (Pago)', it => brl(g(it.metricas, 'sales_paid_brl'))], ['pf', 'Pedido Feito', it => colM(it, 'orders_placed')], ['pgo', 'Produto Pago', it => colM(it, 'orders_paid')], ['ur', 'Un. Realizado', it => colM(it, 'units_placed')], ['up', 'Un. Pago', it => colM(it, 'units_paid')], ['cr', 'Comprad. Realiz.', it => colM(it, 'buyers_placed')], ['cp', 'Comprad. Pago', it => colM(it, 'buyers_paid')], ['convr', 'Conv. Realizado', it => pct(g(it.metricas, 'conv_placed'))], ['convp', 'Conv. Pago', it => pct(g(it.metricas, 'conv_paid'))]], 'Vendas e Pedidos — pedido realizado × pago (todos os campos)');
+    if (sub2 === 'Diagnósticos') { const an = V8INT.analises(eng(), V8IMP, catCross(), filtroCtx()).itens.filter(a => a.fonte.includes('Performance'));
+      return analisesPanel(an, 'Diagnósticos de Performance'); }
+    if (sub2 === 'Histórico da Fonte') return histFonte('Performance de Produtos');
+    return '';
+  }
+  function tabelaCampos(itens, cols, titulo) {
+    return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">${UI.esc(titulo)}</span><span class="src">valores reais, sem interpolação</span></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr>${cols.map(c => `<th class="nosort">${UI.esc(c[1])}</th>`).join('')}</tr></thead><tbody>
+        ${itens.map(it => `<tr>${cols.map((c, i) => `<td class="${i === 0 ? 'tmain' : ''}">${c[2](it)}</td>`).join('')}</tr>`).join('')}
+      </tbody></table></div></div>`;
+  }
+  function analisesPanel(itens, titulo) {
+    if (!itens.length) return `<div class="panel" style="margin-top:0"><div class="empty"><b>Sem análise no recorte atual</b>A Inteligência só levanta hipótese quando os campos existem — nada é inventado.</div></div>`;
+    return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">${UI.esc(titulo)} — ${itens.length}</span><span class="src">correlação nunca é afirmada como causa</span></div>
+      ${itens.map(a => `<div class="ctxcard" style="margin-top:8px"><div class="h"><b>${UI.esc(a.tipo)}</b><span class="st warn plain">confiança: ${UI.esc(a.confianca)}</span></div>
+        <p style="margin:6px 0 0">${UI.esc(a.fato)}</p>
+        <div class="ctxitem"><span>Fonte · campos</span><span class="src">${UI.esc(a.fonte)} · ${UI.esc((a.campos || []).join(', '))}</span></div>
+        <div class="ctxitem"><span>Período · cobertura</span><span class="src">${a.periodo ? a.periodo.ini + ' a ' + a.periodo.fim : '—'} · ${UI.esc(a.cobertura)}</span></div>
+        ${a.hipotese ? `<div class="ctxitem"><span>Hipótese</span><span class="src">${UI.esc(a.hipotese)}</span></div>` : ''}
+        ${a.acao ? `<div class="ctxitem"><span>Ação sugerida</span><span class="src">${UI.esc(a.acao)}</span></div>` : ''}</div>`).join('')}</div>`;
+  }
+  function histFonte(nome) {
+    const cfg = CONTRATO_AREAS[nome];
+    const fontes = V8IMP.areaSources(eng(), [cfg.mt]);
+    if (!fontes.length) return `<div class="panel" style="margin-top:0"><div class="empty"><b>Sem importações desta fonte</b></div></div>`;
+    return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Histórico da fonte — ${fontes.length}</span><span class="src">reimportar atualiza, nunca soma</span></div>
+      ${fontes.slice().reverse().map(r => `<div class="metric-row"><span class="lbl">${UI.esc(r.arquivo)}</span><span class="val"><span class="src">${r.ultimaAtualizacao} · ${r.linhas} linha(s) · ${r.duplicidadesEvitadas} dup. evitada(s)</span> <button class="linklike" data-act="verbrutos" data-id="${r.batchId}">brutos</button></span></div>`).join('')}</div>`;
+  }
+
+  /* ============ DEVOLUÇÕES E CANCELAMENTOS ============ */
+  function devolSub(sub2) {
+    const dv = V8IMP.devolucoesView(eng(), filtroCtx());
+    if (sub2 === 'Campos Recebidos') return camposRecebidosPanel('Devoluções e Cancelamentos');
+    if (sub2 === 'Cruzamentos') return cruzamentosPanel();
+    if (sub2 === 'Histórico da Fonte') return histFonte('Devoluções e Cancelamentos');
+    if (dv.semDados) return semArquivo('Devoluções e Cancelamentos');
+    const linha = e => `<tr><td class="tmain">${UI.esc(e.return_id || '—')}</td><td><span class="src">${UI.esc(e.pedido || '—')}</span></td><td>${UI.esc((e.produto || '—').slice(0, 26))}</td><td><span class="src">${UI.esc(e.sku_pai || '—')}</span></td><td><span class="src">${UI.esc(e.variacao || '—')}</span></td><td><span class="src">${UI.esc(e.sku_variacao || '—')}</span></td><td><span class="src">${UI.esc(e.tipo || '—')}</span></td><td><span class="src">${UI.esc(e.status || '—')}</span></td><td>${nz(e.quantidade)}</td><td>${brl(e.precoUnidade)}</td><td>${brl(e.reembolso)}</td><td><span class="src">${UI.esc(e.tempoEnvio || '—')}</span></td><td><span class="src">${UI.esc(e.tempoReembolso || '—')}</span></td><td><span class="src">${UI.esc(e.retornoArmazem || '—')}</span></td><td><span class="src">${UI.esc(e.dataPedido || '—')}</span></td></tr>`;
+    const tabela = evs => `<div class="tblwrap"><table class="tbl"><thead><tr><th class="nosort">ID Devolução</th><th class="nosort">Pedido</th><th class="nosort">Produto</th><th class="nosort">SKU Principal</th><th class="nosort">Variação</th><th class="nosort">SKU Var.</th><th class="nosort">Tipo</th><th class="nosort">Status</th><th class="nosort">Qtd</th><th class="nosort">Preço Un.</th><th class="nosort">Reembolso</th><th class="nosort">Envio</th><th class="nosort">Reembolso (t)</th><th class="nosort">Retorno Arm.</th><th class="nosort">Data Pedido</th></tr></thead><tbody>${evs.map(linha).join('')}</tbody></table></div>`;
+    const kpi = (l, v) => `<div class="mesa-kpi"><span class="lbl">${l}</span><span class="val">${v}</span></div>`;
+    if (sub2 === 'Visão Geral') return `<div class="panel" style="margin-top:0">
+      <div class="mesa-grid">${kpi('Eventos', dv.eventos.length)}${kpi('Reembolso total', brl(dv.reembolsoTotal))}${kpi('Cancelamentos', dv.cancelamentos.length)}${kpi('Retorno ao armazém', dv.retornoArmazem.length)}</div>
+      <p class="src" style="margin-top:6px">período real: ${dv.periodo ? dv.periodo.ini + ' a ' + dv.periodo.fim : '—'} · ${UI.esc(dv.nota)}</p>${tabela(dv.eventos)}</div>`;
+    if (sub2 === 'Eventos de Devolução') return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Eventos — ${dv.eventos.length}</span><span class="src">nunca cria pedido novo</span></div>${tabela(dv.eventos)}</div>`;
+    if (sub2 === 'Reembolsos') { const rf = dv.eventos.filter(e => (e.reembolso || 0) > 0);
+      return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Reembolsos — ${brl(dv.reembolsoTotal)}</span><span class="src">valor real do arquivo, nunca R$ 0,00 se há valor</span></div>${tabela(rf)}</div>`; }
+    if (sub2 === 'Cancelamentos') return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Cancelamentos — ${dv.cancelamentos.length}</span></div>${dv.cancelamentos.length ? tabela(dv.cancelamentos) : '<div class="empty"><b>Nenhum cancelamento no recorte</b></div>'}</div>`;
+    if (sub2 === 'Motivos') { const ms = Object.entries(dv.porMotivo).sort((a, b) => b[1] - a[1]);
+      return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Motivos da devolução</span></div>${ms.length ? ms.map(([m, n]) => `<div class="metric-row"><span class="lbl">${UI.esc(m)}</span><span class="val">${n}</span></div>`).join('') : '<div class="empty"><b>Sem motivos declarados</b></div>'}</div>`; }
+    if (sub2 === 'Produtos e Variações Afetados') { const bySku = {}; for (const e of dv.eventos) { const k = e.sku_variacao || e.sku_pai || e.produto || '—'; (bySku[k] = bySku[k] || { sku: k, produto: e.produto, n: 0, valor: 0 }); bySku[k].n++; bySku[k].valor += e.reembolso || 0; }
+      return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Produtos e variações afetados</span></div><div class="tblwrap"><table class="tbl"><thead><tr><th class="nosort">SKU</th><th class="nosort">Produto</th><th class="nosort">Devoluções</th><th class="nosort">Reembolso</th></tr></thead><tbody>${Object.values(bySku).map(x => `<tr><td class="tmain">${UI.esc(x.sku)}</td><td>${UI.esc((x.produto || '—').slice(0, 34))}</td><td>${x.n}</td><td>${brl(x.valor)}</td></tr>`).join('')}</tbody></table></div></div>`; }
+    if (sub2 === 'Retorno ao Armazém') return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Retorno ao armazém Shopee — ${dv.retornoArmazem.length}</span></div>${dv.retornoArmazem.length ? tabela(dv.retornoArmazem) : '<div class="empty"><b>Nenhum retorno ao armazém declarado</b></div>'}</div>`;
+    return '';
+  }
+
+  /* ============ ESTOQUE FULL ============ */
+  function estoqueSub(sub2) {
+    if (sub2 === 'Campos Recebidos') return camposRecebidosPanel('Estoque Full');
+    if (sub2 === 'Cruzamentos') return cruzamentosPanel();
+    const sv = V8IMP.stockView(eng(), filtroCtx());
+    if (!sv.atual.length) return semArquivo('Estoque Full');
+    const kpi = (l, v) => `<div class="mesa-kpi"><span class="lbl">${l}</span><span class="val">${v}</span></div>`;
+    const rowFull = s => `<tr><td class="tmain">${UI.esc((s.produto || '—').slice(0, 26))}${s.variacao ? `<span class="tsub">${UI.esc(s.variacao)}</span>` : ''}</td><td><span class="src">${UI.esc(s.sku)}</span></td><td><span class="src">${UI.esc(s.warehouseSkuId || '—')}</span></td><td><span class="src">${UI.esc(s.shopSkuId || '—')}</span></td><td><span class="src">${UI.esc(s.barcode || '—')}</span></td><td>${UI.esc(s.armazem)}</td><td>${nz(s.estoqueTotal)}</td><td>${s.disponivel <= 5 ? `<span class="num crit">${s.disponivel}</span>` : s.disponivel}</td><td>${nz(s.reservado)}</td><td>${nz(s.naoVendavel)}</td><td>${nz(s.velocidade)}</td><td>${nz(s.cobertura)}</td><td>${nz(s.excesso)}</td><td>${nz(s.reposicao)}</td><td>${nz(s.vendas7d)}</td><td>${nz(s.vendas30d)}</td><td>${nz(s.vendas90d)}</td><td><span class="src">${UI.esc(String(s.momento))}</span></td></tr>`;
+    const tabela = rows => `<div class="tblwrap"><table class="tbl"><thead><tr><th class="nosort">Produto</th><th class="nosort">Seller SKU</th><th class="nosort">WH SKU</th><th class="nosort">Shop SKU</th><th class="nosort">Barcode</th><th class="nosort">Armazém</th><th class="nosort">Total</th><th class="nosort">Vendável</th><th class="nosort">Reservado</th><th class="nosort">Não Vend.</th><th class="nosort">Veloc.</th><th class="nosort">Cobertura</th><th class="nosort">Excesso</th><th class="nosort">Reposição</th><th class="nosort">V7d</th><th class="nosort">V30d</th><th class="nosort">V90d</th><th class="nosort">Leitura</th></tr></thead><tbody>${rows.map(rowFull).join('')}</tbody></table></div>`;
+    if (sub2 === 'Visão Geral' || sub2 === 'Estoque por SKU') {
+      const tv = sv.atual.reduce((a, s) => a + (s.disponivel || 0), 0), rv = sv.atual.reduce((a, s) => a + (s.reservado || 0), 0);
+      return `<div class="panel" style="margin-top:0"><div class="mesa-grid">${kpi('SKUs', sv.atual.length)}${kpi('Vendável', num(tv))}${kpi('Reservado', num(rv))}${kpi('Críticos (≤5)', sv.atual.filter(s => s.disponivel <= 5).length)}</div>
+        <p class="src" style="margin-top:6px">${UI.esc(sv.nota)} — todas as 22 colunas do Current Inventory Report preservadas.</p>${tabela(sv.atual)}</div>`;
+    }
+    if (sub2 === 'Estoque por Armazém') { const byW = {}; for (const s of sv.atual) { (byW[s.armazem] = byW[s.armazem] || []).push(s); }
+      return Object.entries(byW).map(([w, list]) => `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">${UI.esc(w)} — ${list.length} SKU(s)</span></div>${tabela(list)}</div>`).join(''); }
+    if (sub2 === 'Reposição') { const rep = sv.atual.filter(s => (s.reposicao || 0) > 0).sort((a, b) => b.reposicao - a.reposicao);
+      return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Reposição recomendada (Shopee) — ${rep.length}</span></div>${rep.length ? tabela(rep) : '<div class="empty"><b>Nenhuma reposição recomendada no snapshot</b></div>'}</div>`; }
+    if (sub2 === 'Cobertura e Velocidade') { const ord = sv.atual.slice().sort((a, b) => (a.cobertura || 1e9) - (b.cobertura || 1e9));
+      return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Cobertura em dias × velocidade de venda</span></div>${tabela(ord)}</div>`; }
+    if (sub2 === 'Estoque Parado e Excesso') { const ex = sv.atual.filter(s => (s.excesso || 0) > 0 || (s.velocidade != null && s.velocidade < 0.5 && s.disponivel >= 20));
+      return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Estoque parado / excesso — ${ex.length}</span><span class="src">capital parado no Full</span></div>${ex.length ? tabela(ex) : '<div class="empty"><b>Sem excesso relevante no snapshot</b></div>'}</div>`; }
+    if (sub2 === 'Estoque Crítico') { const cr = sv.atual.filter(s => s.disponivel <= 5);
+      return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Estoque crítico (≤5 vendáveis) — ${cr.length}</span></div>${cr.length ? tabela(cr) : '<div class="empty"><b>Nenhum SKU crítico</b></div>'}</div>`; }
+    if (sub2 === 'Histórico de Snapshots') return `<div class="panel" style="margin-top:0"><div class="sect-h" style="margin-top:0"><span class="h2">Histórico de snapshots — ${sv.historico.length} leitura(s)</span><span class="src">cada leitura é um snapshot; nunca somamos dias diferentes</span></div>
+      <div class="tblwrap"><table class="tbl"><thead><tr><th class="nosort">SKU</th><th class="nosort">Armazém</th><th class="nosort">Vendável</th><th class="nosort">Reservado</th><th class="nosort">V30d</th><th class="nosort">Leitura</th></tr></thead><tbody>${sv.historico.map(h => `<tr><td class="tmain">${UI.esc(h.sku)}</td><td>${UI.esc(h.armazem)}</td><td>${nz(h.disponivel)}</td><td>${nz(h.reservado)}</td><td>${nz(h.vendas30d)}</td><td><span class="src">${UI.esc(String(h.momento))}</span></td></tr>`).join('')}</tbody></table></div></div>`;
+    if (sub2 === 'Análises da Inteligência') { const fi = V8INT.fullIntelligence(eng(), V8IMP, filtroCtx());
+      const anEst = V8INT.analises(eng(), V8IMP, catCross(), filtroCtx()).itens.filter(a => a.fonte.includes('Estoque'));
+      return `${analisesPanel(anEst, 'Análises de Estoque')}
+      <div class="panel" style="margin-top:12px"><div class="sect-h" style="margin-top:0"><span class="h2">Inteligência sobre o Full</span><span class="src">${UI.esc(fi.nota)}</span></div>
+        ${fi.semDados ? '<div class="empty"><b>Sem snapshot para analisar</b></div>' : fi.itens.map(x => `<div class="ctxcard" style="margin-top:8px"><div class="h"><b>${UI.esc((x.produto || x.sku)).slice(0, 40)}</b><span class="st plain">${UI.esc(x.sku)}</span></div>
+          <p style="margin:6px 0 0">${UI.esc(x.leitura)}</p>
+          <div class="ctxitem"><span>Evidência</span><span class="src">${UI.esc(x.evidencia)} · V7d ${nz(x.vendas7d)} · V30d ${nz(x.vendas30d)} · V90d ${nz(x.vendas90d)}</span></div>
+          ${x.hipotese ? `<div class="ctxitem"><span>Hipótese</span><span class="src">${UI.esc(x.hipotese)}</span></div>` : ''}
+          <div class="ctxitem"><span>Causalidade</span><span class="src">${x.temEvidenciaCausal ? 'com evidência' : 'não afirmada — falta grupo de comparação'}</span></div></div>`).join('')}</div>`;
+    }
+    return '';
+  }
+
   /* ---------------- eventos ---------------- */
   function onClick(e) {
     const b = e.target.closest('[data-act]');
     if (!b) return;
     const act = b.dataset.act;
     if (act === 'sub') { CR.sub = b.dataset.sub; UI.$('#crumb').textContent = 'Central de Inteligência · ' + CR.sub; render(CR.sub); }
+    else if (act === 'sub2') { CR.sub2[CR.sub] = b.dataset.sub2; body(); }
+    else if (act === 'camposrecebidos') openCamposRecebidos(b.dataset.mt, b.dataset.area);
     else if (act === 'uparea') IMPORTAR.uploadModal({ titulo: 'Atualizar dados — ' + b.dataset.area, dica: 'Referência: ' + (AREAS_DADOS[b.dataset.area] || {}).ref, onDone: () => body() });
     else if (act === 'upcentral') IMPORTAR.uploadModal({ titulo: 'Atualizar dados — Central de Inteligência', onDone: () => body() });
     else if (act === 'gofontes') UI.go('importar');

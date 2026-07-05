@@ -107,6 +107,17 @@
     /* Chat e Atendimento — export real (Métricas Principais / Tendências) */
     SHOPEE_CHAT_REAL: P('SUPPORTED', 'shopee', 'SERVICE_METRIC', 'atendimento',
       ['Chats Respondidos', 'Chats Não-Respondidos', 'CSAT %', 'Tempo médio de resposta'], 'day_metric'),
+    /* ---------- 10.E.2.5.1 · fontes REAIS com contrato TOTAL de campos ---------- */
+    /* Performance de Produtos — export "Análise de Produtos" (por ID do Item + variação):
+       tráfego, carrinho, vendas (pedido realizado/pago) por anúncio e variação. */
+    SHOPEE_PRODUCT_PERFORMANCE: P('SUPPORTED', 'shopee', 'LISTING_METRIC', 'performance_item',
+      ['ID do Item', 'SKU Principal', 'Impressão do Produto', 'Visitantes do Produto (Adicionar ao Carrinho)',
+        'Vendas (Pedido Realizado) (BRL)', 'Vendas (Pedido Pago) (BRL)'], 'item_period'),
+    /* Devoluções e Cancelamentos — export real (por ID da Devolução): reembolso, motivo,
+       prazo, retorno ao armazém, produto/variação/SKU afetados. */
+    SHOPEE_RETURNS_REAL: P('SUPPORTED', 'shopee', 'TRANSACTIONAL', 'devolucoes',
+      ['ID da Devolução', 'ID do Pedido', 'Status da Devolução / Reembolso', 'Motivo da Devolução',
+        'Quantia Total de Reembolsos'], 'order_event'),
   };
 
   /* ---------------- detecção por CONJUNTO de colunas (10.E.3.1) ----------------
@@ -133,6 +144,9 @@
     SHOPEE_AFFILIATE_REAL: { ident: ['Id de atribuição da comissão', 'Campanha do parceiro'], minIdent: 2, minHits: 3, prio: 9 },
     SHOPEE_INVENTORY_FULL: { ident: ['Seller SKU ID', 'Warehouse SKU ID', 'Sellable'], minIdent: 2, minHits: 3, prio: 9 },
     SHOPEE_CHAT_REAL: { ident: ['Chats Respondidos', 'CSAT %'], minIdent: 2, minHits: 3, prio: 9 },
+    /* 10.E.2.5.1 — identificadores próprios das fontes reais de performance e devoluções */
+    SHOPEE_PRODUCT_PERFORMANCE: { ident: ['ID do Item', 'SKU Principal', 'Impressão do Produto', 'Vendas (Pedido Pago) (BRL)'], minIdent: 3, minHits: 4, prio: 10 },
+    SHOPEE_RETURNS_REAL: { ident: ['ID da Devolução', 'ID do Pedido', 'Motivo da Devolução'], minIdent: 2, minHits: 3, prio: 10 },
     SHOPEE_HOT_LISTING: { aux: true, prio: -1 }, /* só vence se NENHUM perfil forte qualificar */
   };
   const NOME_PERFIL = {
@@ -146,6 +160,7 @@
     SHOPEE_PRODUCT_CONTRIBUTION: 'Contribuição por Produto',
     SHOPEE_ADS: 'Ads (CPC)', SHOPEE_AFFILIATE_REAL: 'Afiliados', SHOPEE_INVENTORY_FULL: 'Estoque Full',
     SHOPEE_CHAT_REAL: 'Chat e Atendimento',
+    SHOPEE_PRODUCT_PERFORMANCE: 'Performance de Produtos', SHOPEE_RETURNS_REAL: 'Devoluções e Cancelamentos',
   };
   /* nome amigável da base de métricas por aba */
   const NOME_BASE = { pedido_feito: 'Pedido Feito', produto_pago: 'Produto Pago' };
@@ -180,6 +195,30 @@
     'Excess Qty': 'excess_qty', 'unitsSoldInLast7Days': 'sold_7d', 'unitsSoldInLast15Days': 'sold_15d',
     'unitsSoldInLast30Days': 'sold_30d', 'unitsSoldInLast60Days': 'sold_60d', 'unitsSoldInLast90Days': 'sold_90d',
     'Disponível': 'sellable', 'Reservado': 'reserved', 'Em trânsito': 'in_transit',
+    /* 10.E.2.5.1 — colunas do Current Inventory Report completas (IR/ASN/aprovação) */
+    'Pending IR Approval': 'pending_ir_approval', 'IR Approval': 'ir_approval', 'Pending ASN Inbound': 'pending_asn_inbound',
+  };
+  /* 10.E.2.5.1 — Performance de Produtos (Análise de Produtos): tráfego + carrinho + vendas por anúncio/variação */
+  const PERF_ITEM_COLS = {
+    'Impressão do Produto': 'impressions', 'Impressões de Produto': 'impressions', 'Impressões Únicas de Produto': 'unique_impressions',
+    'Cliques Por Produto': 'clicks', 'Cliques por Produto': 'clicks', 'Cliques Únicos no Produto': 'unique_clicks', 'CTR': 'ctr',
+    'Visitantes do Produto (Visita)': 'visitors', 'Visualizações da Página do Produto': 'page_views',
+    'Visitantes que saíram da página': 'bounced_visitors', 'Taxa de Rejeição do Produto': 'bounce_rate',
+    'Cliques em Buscas': 'search_clicks', 'Curtidas': 'likes',
+    'Visitantes do Produto (Adicionar ao Carrinho)': 'cart_visitors', 'Unidades (Adicionar ao Carrinho)': 'cart_units',
+    'Taxa de Conversão (Adicionar ao Carrinho)': 'cart_conversion',
+    'Vendas (Pedido Realizado) (BRL)': 'sales_placed_brl', 'Vendas (Pedido Pago) (BRL)': 'sales_paid_brl',
+    'Pedido Feito': 'orders_placed', 'Produto Pago': 'orders_paid',
+    'Unidades (Pedido Realizado)': 'units_placed', 'Unidades (Pedido Pago)': 'units_paid',
+    'Compradores (Pedido Realizado)': 'buyers_placed', 'Compradores (Pedido Pago)': 'buyers_paid',
+    'Taxa de Conversão de Pedido (Pedido Realizado)': 'conv_placed', 'Taxa de Conversão de Pedido (Pedido Pago)': 'conv_paid',
+    'Vendas por Pedido (Pedido Realizado) (BRL)': 'sales_per_order_placed_brl', 'Vendas por Pedido (Pedido Pago) (BRL)': 'sales_per_order_paid_brl',
+  };
+  /* 10.E.2.5.1 — Devoluções e Cancelamentos (export real por ID da Devolução) */
+  const DEVOL_COLS = {
+    'Preço da Unidade': 'unit_price_brl', 'Quantidade de Devoluções': 'return_qty',
+    'Quantia Total de Reembolsos': 'refund_total_brl', 'Tempo Decorrido de Reembolso': 'refund_elapsed',
+    'Tempo de Envio de Devolução': 'return_ship_time',
   };
   const ADS_COLS = {
     'Impressões': 'impressions', 'Cliques': 'clicks', 'CTR': 'ctr', 'Conversões': 'conversions',
@@ -327,8 +366,10 @@
     if (r.metric_type === 'afiliados') return ['af', r.marketplace, r.contaId, r.external_order_id || '-', r.attributionId || '-', r.item_id || '-'].join('|');
     /* PEDIDOS: marketplace + conta + ID do pedido = pedido único (nunca duplica) */
     if (r.metric_type === 'pedidos' && gran === 'TRANSACTIONAL') return KEYS.order(r);
-    /* DEVOLUÇÃO/REEMBOLSO/CANCELAMENTO: + tipo + ID do evento quando existir */
-    if (r.metric_type === 'devolucoes') return KEYS.event(r);
+    /* 10.E.2.5.1 — PERFORMANCE por anúncio: marketplace + conta + ID do Item + variação + período (nunca duplica) */
+    if (r.metric_type === 'performance_item') return ['pi', r.marketplace, r.contaId, r.item_id, r.variacao_id || '-', r.periodo_ini, r.periodo_fim].join('|');
+    /* DEVOLUÇÃO/REEMBOLSO/CANCELAMENTO: por ID da Devolução quando existir; senão + tipo + ID do evento */
+    if (r.metric_type === 'devolucoes') return r.return_id ? ['ret', r.marketplace, r.contaId, r.return_id].join('|') : KEYS.event(r);
     /* ESTOQUE: + armazém + SKU + momento da leitura (cada leitura é um snapshot novo) */
     if (r.metric_type === 'estoque') return KEYS.stock(r);
     if (gran === 'DAILY_METRIC') return r.item_id ? KEYS.daily_item(r) : KEYS.daily(r);
@@ -393,7 +434,7 @@
           return;
         }
         const child = { nome: file.nome, tamanho: file.tamanho || null, formato: file.formato || null,
-          sourceType: file.sourceType, periodo: bl.periodo || file.periodo || null,
+          sourceType: file.sourceType, periodo: bl.periodo || file.periodo || null, momento: file.momento || null,
           abas: [{ nome: aba.nome, headers: bl.headers.slice(), rows: bl.rows.slice(), titulo: bl.titulo || null }] };
         const b = stage(eng, child, escopo, opts);
         if (b && b.id) { b.abaOrigem = aba.nome; b.blocoOrigem = rotulo; }
@@ -490,8 +531,11 @@
       /* linha sem chave obrigatória NÃO é descartada em silêncio: vai para "linhas com erro" com motivo */
       const skuEstoque = r['SKU'] || r['Seller SKU ID'] || r['Warehouse SKU ID'] || r['Shop SKU ID'];
       const armazemEstoque = r['Armazém'] || r['Warehouse'] || (det.perfil === 'SHOPEE_INVENTORY_FULL' ? 'Full' : null);
+      const pedidoDevol = r['ID do pedido'] || r['ID do Pedido'];
+      const perfItemId = r['ID do Item'];
       const semChave = det.destino === 'pedidos' && !r['ID do pedido'] ? 'ID do pedido ausente'
-        : det.destino === 'devolucoes' && !r['ID do pedido'] ? 'ID do pedido ausente no evento'
+        : det.destino === 'devolucoes' && !pedidoDevol ? 'ID do pedido ausente no evento'
+        : det.destino === 'performance_item' && !perfItemId ? 'ID do Item ausente na performance'
         : det.destino === 'estoque' && !(skuEstoque && armazemEstoque) ? 'SKU/Armazém ausente' : null;
       if (semChave) {
         linhasComErro++;
@@ -513,14 +557,35 @@
         base.external_order_id = String(r['ID do pedido']);
         base.data = r['Data de criação do pedido'] || null;
       } else if (det.destino === 'devolucoes') {
-        base.external_order_id = String(r['ID do pedido']);
-        base.tipo_evento = r['Tipo de evento'] || 'DEVOLUÇÃO';
+        base.external_order_id = String(pedidoDevol);
+        base.tipo_evento = r['Tipo de evento'] || r['Tipo de Devolução'] || 'DEVOLUÇÃO';
         base.event_id = r['ID do evento'] != null ? String(r['ID do evento']) : null;
+        /* 10.E.2.5.1 — export real de devoluções: chave por ID da Devolução + campos completos */
+        if (r['ID da Devolução'] != null) {
+          base.return_id = String(r['ID da Devolução']);
+          base.sku_pai = r['SKU Principal'] || null; base.sku_variacao = r['SKU da Variação'] || null;
+          base.produtoNome = r['Nome do Produto'] || null; base.variacaoNome = r['Nome da Variação'] || null;
+          base.motivo = r['Motivo da Devolução'] || null; base.statusDevol = r['Status da Devolução / Reembolso'] || null;
+          base.retornoArmazem = r['Retorno ao Armazém Shopee'] || null;
+          base.metricas = normCols(r, DEVOL_COLS);
+        }
+      } else if (det.destino === 'performance_item') {
+        /* 10.E.2.5.1 — Performance por anúncio/variação: identidade prioritária ID do Item + variação + SKU */
+        base.item_id = String(perfItemId);
+        base.variacao_id = r['ID da Variação'] != null ? String(r['ID da Variação']) : null;
+        base.sku_pai = r['SKU Principal'] || null; base.sku_variacao = r['SKU da Variação'] || null;
+        base.produtoNome = r['Produto'] || null; base.variacaoNome = r['Nome da Variação'] || null;
+        base.statusItem = r['Status Atual do Item'] || null; base.statusVariacao = r['Status Atual da Variação'] || null;
+        base.metricas = normCols(r, PERF_ITEM_COLS);
       } else if (det.destino === 'estoque') {
         base.armazem = armazemEstoque; base.sku_ref = skuEstoque;
         base.momento = r['Momento da leitura'] || file.momento || ((file.periodo || {}).fim) || HOJE;
         base.metricas = normCols(r, ESTOQUE_COLS);
         base.produtoNome = r['Product Name'] || r['Nome do Produto'] || null;
+        /* 10.E.2.5.1 — identidade completa do snapshot Full (todos os SKUs, variação, barcode) */
+        base.variacaoNome = r['Variations'] || r['Variação'] || null; base.sku_variacao = skuEstoque;
+        base.warehouseSkuId = r['Warehouse SKU ID'] || null; base.shopSkuId = r['Shop SKU ID'] || null;
+        base.barcode = r['Barcode'] || null; base.fulfillMode = r['Fulfill Mapping Mode'] || null;
       } else if (det.destino === 'ads') {
         /* 10.E.2.5 — Ads: campanha explica atribuição/custo, NUNCA soma no faturamento */
         base.campanha = r['Nome do Anúncio'] || r['Campanha'] || ('campanha ' + (i + 1));
@@ -703,6 +768,11 @@
         nomeBase: s.nomeBase || null, fonte: s.fonte || null, classeFonte: s.classeFonte || null,
         campanha: s.campanha || null, attributionId: s.attributionId || null,
         produtoNome: s.produtoNome || null, statusItem: s.statusItem || null,
+        /* 10.E.2.5.1 — identidade completa preservada no snapshot (performance/devoluções/estoque full) */
+        variacao_id: s.variacao_id || null, variacaoNome: s.variacaoNome || null, statusVariacao: s.statusVariacao || null,
+        sku_pai: s.sku_pai || null, sku_variacao: s.sku_variacao || null,
+        return_id: s.return_id || null, statusDevol: s.statusDevol || null, motivo: s.motivo || null, retornoArmazem: s.retornoArmazem || null,
+        warehouseSkuId: s.warehouseSkuId || null, shopSkuId: s.shopSkuId || null, barcode: s.barcode || null, fulfillMode: s.fulfillMode || null,
         sourceSheet: s.sourceSheet || null, granLabel: s.granLabel || null, vinculo: s.vinculo || null,
         periodo_ini: s.periodo_ini, periodo_fim: s.periodo_fim, metric_type: s.metric_type,
         escopo: { companyId: s.companyId, cnpjId: s.cnpjId, lojaId: s.lojaId, contaId: s.contaId, marketplace: s.marketplace },
@@ -1015,16 +1085,36 @@
       const k = [s.escopo.marketplace, s.escopo.contaId, s.armazem, s.sku_ref].join('|');
       (porChave[k] = porChave[k] || []).push(s);
     }
+    /* 10.E.2.5.1 — lê Sellable/Reserved/Unsellable reais (via metricas) e não só 'Disponível' legado */
+    const mval = (s, campo, colLegada) => {
+      const m = s.metricas || {};
+      if (m[campo] != null) return +m[campo] || 0;
+      const leg = colLegada ? valorEfetivo(s, colLegada) : null;
+      return leg != null ? (+leg || 0) : 0;
+    };
     const atual = [], historico = [];
     for (const lista of Object.values(porChave)) {
       lista.sort((a, b) => String(a.momento).localeCompare(String(b.momento)));
       const last = lista[lista.length - 1];
+      const m = last.metricas || {};
       atual.push({ sku: last.sku_ref, armazem: last.armazem, momento: last.momento,
-        produto: last.raw['Nome do Produto'] || null,
-        disponivel: +valorEfetivo(last, 'Disponível') || 0, reservado: +last.raw['Reservado'] || 0,
-        emTransito: +last.raw['Em trânsito'] || 0, arquivo: last.sourceFile, leituras: lista.length });
+        produto: last.produtoNome || last.raw['Nome do Produto'] || last.raw['Product Name'] || null,
+        variacao: last.variacaoNome || null, warehouseSkuId: last.warehouseSkuId || null,
+        shopSkuId: last.shopSkuId || null, barcode: last.barcode || null,
+        disponivel: mval(last, 'sellable', 'Disponível'), reservado: mval(last, 'reserved', 'Reservado'),
+        naoVendavel: mval(last, 'unsellable'), emTransito: mval(last, 'in_transit', 'Em trânsito'),
+        estoqueTotal: (m.stock_level != null ? +m.stock_level : (mval(last, 'sellable', 'Disponível') + mval(last, 'reserved', 'Reservado') + mval(last, 'unsellable'))),
+        velocidade: m.selling_speed != null ? +m.selling_speed : null, cobertura: m.coverage_days != null ? +m.coverage_days : null,
+        excesso: m.excess_qty != null ? +m.excess_qty : null, reposicao: m.recommend_replenishment != null ? +m.recommend_replenishment : null,
+        inbound: m.pending_asn_inbound != null ? +m.pending_asn_inbound : null,
+        aprovIR: m.ir_approval != null ? +m.ir_approval : null, pendIR: m.pending_ir_approval != null ? +m.pending_ir_approval : null,
+        vendas7d: m.sold_7d != null ? +m.sold_7d : null, vendas15d: m.sold_15d != null ? +m.sold_15d : null,
+        vendas30d: m.sold_30d != null ? +m.sold_30d : null, vendas60d: m.sold_60d != null ? +m.sold_60d : null,
+        vendas90d: m.sold_90d != null ? +m.sold_90d : null,
+        arquivo: last.sourceFile, key: last.key, leituras: lista.length });
       historico.push(...lista.map(s => ({ sku: s.sku_ref, armazem: s.armazem, momento: s.momento,
-        disponivel: +s.raw['Disponível'] || 0, arquivo: s.sourceFile })));
+        disponivel: mval(s, 'sellable', 'Disponível'), reservado: mval(s, 'reserved', 'Reservado'),
+        vendas30d: (s.metricas || {}).sold_30d != null ? +s.metricas.sold_30d : null, arquivo: s.sourceFile })));
     }
     return { atual, historico, nota: 'cada leitura é um snapshot novo — o histórico nunca é sobrescrito' };
   }
@@ -1517,6 +1607,77 @@
     'Taxa de Conversão': FM('conversion_rate', 'Percentual', 'Métrica agregada', ['Central', 'Tráfego']),
     'Taxa de Vendas': FM('sales_rate', 'Percentual', 'Anúncio', ['Catálogo']),
     'Compradores': FM('buyers', 'Número', 'Métrica agregada', ['Central', 'Tráfego', 'Catálogo']),
+    /* ---------- 10.E.2.5.1 · Performance de Produtos (Análise de Produtos, por anúncio/variação) ---------- */
+    'ID da Variação': FM('variation_external_id', 'ID externo', 'Variação', ['Performance de Produtos', 'Catálogo', 'Central']),
+    'Nome da Variação': FM('variation_name', 'Variação', 'Variação', ['Performance de Produtos', 'Catálogo']),
+    'Status Atual da Variação': FM('variation_status', 'Status', 'Variação', ['Performance de Produtos', 'Catálogo']),
+    'SKU Principal': FM('sku_parent', 'SKU', 'Anúncio', ['Performance de Produtos', 'Devoluções', 'Catálogo', 'Central']),
+    'SKU da Variação': FM('sku_variation', 'SKU', 'Variação', ['Performance de Produtos', 'Devoluções', 'Catálogo']),
+    'Impressão do Produto': FM('impressions', 'Número', 'Anúncio', ['Performance de Produtos', 'Tráfego', 'Central']),
+    'Impressões Únicas de Produto': FM('unique_impressions', 'Número', 'Anúncio', ['Performance de Produtos', 'Tráfego']),
+    'Cliques Únicos no Produto': FM('unique_clicks', 'Número', 'Anúncio', ['Performance de Produtos', 'Tráfego']),
+    'Visitantes do Produto (Visita)': FM('visitors', 'Número', 'Anúncio', ['Performance de Produtos', 'Tráfego']),
+    'Visualizações da Página do Produto': FM('page_views', 'Número', 'Anúncio', ['Performance de Produtos', 'Tráfego']),
+    'Visitantes que saíram da página': FM('bounced_visitors', 'Número', 'Anúncio', ['Performance de Produtos', 'Tráfego']),
+    'Taxa de Rejeição do Produto': FM('bounce_rate', 'Percentual', 'Anúncio', ['Performance de Produtos', 'Diagnóstico']),
+    'Cliques em Buscas': FM('search_clicks', 'Número', 'Anúncio', ['Performance de Produtos', 'Tráfego']),
+    'Curtidas': FM('likes', 'Número', 'Anúncio', ['Performance de Produtos']),
+    'Visitantes do Produto (Adicionar ao Carrinho)': FM('cart_visitors', 'Número', 'Anúncio', ['Performance de Produtos', 'Carrinho']),
+    'Unidades (Adicionar ao Carrinho)': FM('cart_units', 'Número', 'Anúncio', ['Performance de Produtos', 'Carrinho']),
+    'Taxa de Conversão (Adicionar ao Carrinho)': FM('cart_conversion', 'Percentual', 'Anúncio', ['Performance de Produtos', 'Carrinho']),
+    'Vendas (Pedido Realizado) (BRL)': FM('sales_placed_brl', 'Moeda', 'Anúncio', ['Performance de Produtos', 'Central', 'Centro de Custos']),
+    'Vendas (Pedido Pago) (BRL)': FM('sales_paid_brl', 'Moeda', 'Anúncio', ['Performance de Produtos', 'Central', 'Centro de Custos']),
+    'Pedido Feito': FM('orders_placed', 'Número', 'Anúncio', ['Performance de Produtos', 'Central']),
+    'Produto Pago': FM('orders_paid', 'Número', 'Anúncio', ['Performance de Produtos', 'Central']),
+    'Unidades (Pedido Realizado)': FM('units_placed', 'Número', 'Anúncio', ['Performance de Produtos']),
+    'Unidades (Pedido Pago)': FM('units_paid', 'Número', 'Anúncio', ['Performance de Produtos']),
+    'Compradores (Pedido Realizado)': FM('buyers_placed', 'Número', 'Anúncio', ['Performance de Produtos']),
+    'Compradores (Pedido Pago)': FM('buyers_paid', 'Número', 'Anúncio', ['Performance de Produtos']),
+    'Taxa de Conversão de Pedido (Pedido Realizado)': FM('conv_placed', 'Percentual', 'Anúncio', ['Performance de Produtos', 'Diagnóstico']),
+    'Taxa de Conversão de Pedido (Pedido Pago)': FM('conv_paid', 'Percentual', 'Anúncio', ['Performance de Produtos', 'Diagnóstico']),
+    'Vendas por Pedido (Pedido Realizado) (BRL)': FM('sales_per_order_placed_brl', 'Moeda', 'Anúncio', ['Performance de Produtos']),
+    'Vendas por Pedido (Pedido Pago) (BRL)': FM('sales_per_order_paid_brl', 'Moeda', 'Anúncio', ['Performance de Produtos']),
+    /* ---------- 10.E.2.5.1 · Devoluções e Cancelamentos (export real por ID da Devolução) ---------- */
+    'ID da Devolução': FM('return_id', 'Identificador', 'Devolução', ['Devoluções', 'Central']),
+    'ID do Pedido': FM('order_id', 'Identificador', 'Pedido', ['Devoluções', 'Pedidos', 'Central']),
+    'Data de Criação do Pedido': FM('order_created_at', 'Data e hora', 'Pedido', ['Devoluções', 'Pedidos']),
+    'Nome de Usuário do Comprador': FM('buyer_username', 'Texto', 'Devolução', ['Devoluções'], { sensivel: true }),
+    'IMEI': FM('imei', 'Identificador', 'Devolução', ['Devoluções']),
+    'Preço da Unidade': FM('unit_price_brl', 'Moeda', 'Devolução', ['Devoluções', 'Centro de Custos']),
+    'Tempo de Envio de Devolução': FM('return_ship_time', 'Texto', 'Devolução', ['Devoluções']),
+    'Tipo de Devolução': FM('return_type', 'Status', 'Devolução', ['Devoluções']),
+    'Quantidade de Devoluções': FM('return_qty', 'Número', 'Devolução', ['Devoluções']),
+    'Solução para Retorno e Reembolso': FM('return_solution', 'Texto', 'Devolução', ['Devoluções']),
+    'Motivo da Devolução': FM('return_reason', 'Texto', 'Devolução', ['Devoluções', 'Central', 'Diagnóstico']),
+    'Observações da Devolução': FM('return_notes', 'Observação', 'Devolução', ['Devoluções']),
+    'Quantia Total de Reembolsos': FM('refund_total_brl', 'Moeda', 'Reembolso', ['Devoluções', 'Centro de Custos']),
+    'Tempo Decorrido de Reembolso': FM('refund_elapsed', 'Texto', 'Reembolso', ['Devoluções']),
+    'Retorno ao Armazém Shopee': FM('return_to_warehouse', 'Texto', 'Devolução', ['Devoluções']),
+    /* ---------- 10.E.2.5.1 · Estoque Full (Current Inventory Report — todas as colunas) ---------- */
+    'Product Name': FM('product_name', 'Produto', 'Estoque', ['Estoque Full', 'Catálogo', 'Central']),
+    'Variations': FM('variation_name', 'Variação', 'Estoque', ['Estoque Full', 'Catálogo']),
+    'Warehouse SKU ID': FM('warehouse_sku_id', 'SKU', 'Estoque', ['Estoque Full', 'Central']),
+    'Seller SKU ID': FM('seller_sku_id', 'SKU', 'Estoque', ['Estoque Full', 'Catálogo', 'Central']),
+    'Shop SKU ID': FM('shop_sku_id', 'SKU', 'Estoque', ['Estoque Full']),
+    'Fulfill Mapping Mode': FM('fulfill_mode', 'Texto', 'Estoque', ['Estoque Full']),
+    'Barcode': FM('barcode', 'Identificador', 'Estoque', ['Estoque Full', 'Catálogo']),
+    'Warehouse': FM('warehouse', 'Texto', 'Estoque', ['Estoque Full', 'Central']),
+    'Stock Level': FM('stock_level', 'Número', 'Estoque', ['Estoque Full']),
+    'Sellable': FM('sellable', 'Número', 'Estoque', ['Estoque Full', 'Catálogo', 'Central']),
+    'Reserved': FM('reserved', 'Número', 'Estoque', ['Estoque Full', 'Central']),
+    'Unsellable': FM('unsellable', 'Número', 'Estoque', ['Estoque Full', 'Central']),
+    'Recommend Replenishment Qty': FM('recommend_replenishment', 'Número', 'Estoque', ['Estoque Full']),
+    'Pending IR Approval': FM('pending_ir_approval', 'Número', 'Estoque', ['Estoque Full']),
+    'IR Approval': FM('ir_approval', 'Número', 'Estoque', ['Estoque Full']),
+    'Pending ASN Inbound': FM('pending_asn_inbound', 'Número', 'Estoque', ['Estoque Full']),
+    'Selling Speed': FM('selling_speed', 'Número', 'Estoque', ['Estoque Full', 'Diagnóstico']),
+    'Coverage Days': FM('coverage_days', 'Número', 'Estoque', ['Estoque Full', 'Diagnóstico']),
+    'Excess Qty': FM('excess_qty', 'Número', 'Estoque', ['Estoque Full']),
+    'unitsSoldInLast7Days': FM('sold_7d', 'Número', 'Estoque', ['Estoque Full', 'Performance de Produtos']),
+    'unitsSoldInLast15Days': FM('sold_15d', 'Número', 'Estoque', ['Estoque Full']),
+    'unitsSoldInLast30Days': FM('sold_30d', 'Número', 'Estoque', ['Estoque Full', 'Performance de Produtos']),
+    'unitsSoldInLast60Days': FM('sold_60d', 'Número', 'Estoque', ['Estoque Full']),
+    'unitsSoldInLast90Days': FM('sold_90d', 'Número', 'Estoque', ['Estoque Full']),
   };
 
   function inferType(valor, coluna) {
@@ -1672,7 +1833,7 @@
   function coberturaReal(eng) {
     const tem = destinos => eng.batches.some(b => b.aplicado && !b.arquivado && destinos.includes(b.det.destino));
     return { pedidos: tem(['pedidos']), devolucoes: tem(['devolucoes']), catalogo: tem(['catalogo']),
-      performance: tem(['performance']), estoque: tem(['estoque']), afiliados: tem(['afiliados', 'atribuicao']),
+      performance: tem(['performance', 'performance_item', 'contrib_produto']), estoque: tem(['estoque']), afiliados: tem(['afiliados', 'atribuicao']),
       atendimento: tem(['atendimento']), trafego: tem(['trafego_visao', 'trafego', 'funil']),
       algum: eng.batches.some(b => b.aplicado && !b.arquivado),
       nota: 'quando o dado real existe, o indicador demo equivalente é desativado e a análise recalculada' };
@@ -1762,6 +1923,66 @@
       .sort((a, b) => (b.sales || 0) - (a.sales || 0));
     return { semDados: false, produtos,
       revisaoHumana: produtos.filter(p => /SUGERIDO|CONFLITO|SEM CORRESPOND|AUSENTE|SEM VÍNCULO/.test(p.vinculo)) };
+  }
+
+  /* ---------- 10.E.2.5.1 · PERFORMANCE DE PRODUTOS (por anúncio/variação, todos os campos) ---------- */
+  function performanceItemView(eng, filtro) {
+    filtro = filtro || {};
+    const snaps = eng.snapshots.filter(s => s.metric_type === 'performance_item' && !s.excluidoDaAnalise &&
+      (!filtro.contaId || s.escopo.contaId === filtro.contaId));
+    if (!snaps.length) return { semDados: true, itens: [], periodo: null, conta: null };
+    const g = (m, k) => m && m[k] != null ? +m[k] : null;
+    const itens = snaps.map(s => {
+      const m = s.metricas || {};
+      /* funil só com etapas presentes — etapa ausente é declarada, nunca inventada */
+      const funil = [
+        ['Impressões', g(m, 'impressions')], ['Cliques', g(m, 'clicks')], ['Visitantes', g(m, 'visitors')],
+        ['Visualizações de página', g(m, 'page_views')], ['Adição ao carrinho', g(m, 'cart_units')],
+        ['Pedido Realizado', g(m, 'orders_placed')], ['Produto Pago', g(m, 'orders_paid')],
+      ].map(([etapa, valor]) => ({ etapa, valor, disponivel: valor != null }));
+      return {
+        item_id: s.item_id, variacao_id: s.variacao_id, produto: s.produtoNome, variacao: s.variacaoNome,
+        sku_pai: s.sku_pai, sku_variacao: s.sku_variacao, statusItem: s.statusItem, statusVariacao: s.statusVariacao,
+        marketplace: s.escopo.marketplace, conta: s.escopo.contaId, metricas: m, funil,
+        fonteArquivo: s.sourceFile, aba: s.sourceSheet, periodo: { ini: s.periodo_ini, fim: s.periodo_fim }, key: s.key,
+      };
+    }).sort((a, b) => (g(b.metricas, 'sales_paid_brl') || 0) - (g(a.metricas, 'sales_paid_brl') || 0));
+    const i0 = itens[0];
+    const tot = campo => itens.reduce((a, x) => a + (g(x.metricas, campo) || 0), 0);
+    return { semDados: false, itens, periodo: i0.periodo, conta: i0.conta, fonteArquivo: i0.fonteArquivo,
+      totais: { impressions: tot('impressions'), clicks: tot('clicks'), cart_units: tot('cart_units'),
+        orders_placed: tot('orders_placed'), orders_paid: tot('orders_paid'),
+        sales_placed_brl: Math.round(tot('sales_placed_brl') * 100) / 100, sales_paid_brl: Math.round(tot('sales_paid_brl') * 100) / 100 } };
+  }
+
+  /* ---------- 10.E.2.5.1 · DEVOLUÇÕES E CANCELAMENTOS (export real, todos os campos) ---------- */
+  function devolucoesView(eng, filtro) {
+    filtro = filtro || {};
+    const snaps = eng.snapshots.filter(s => s.metric_type === 'devolucoes' && !s.excluidoDaAnalise &&
+      (!filtro.contaId || s.escopo.contaId === filtro.contaId));
+    if (!snaps.length) return { semDados: true, eventos: [], reembolsoTotal: 0 };
+    const eventos = snaps.map(s => {
+      const m = s.metricas || {};
+      return { return_id: s.return_id || s.event_id || null, pedido: s.external_order_id, tipo: s.tipo_evento,
+        status: s.statusDevol || null, motivo: s.motivo || (s.raw['Motivo'] || null),
+        produto: s.produtoNome, variacao: s.variacaoNome, sku_pai: s.sku_pai, sku_variacao: s.sku_variacao,
+        quantidade: m.return_qty != null ? +m.return_qty : (s.raw['Quantidade de Devoluções'] != null ? +s.raw['Quantidade de Devoluções'] : null),
+        precoUnidade: m.unit_price_brl != null ? +m.unit_price_brl : null,
+        reembolso: m.refund_total_brl != null ? +m.refund_total_brl : (+s.raw['Valor reembolsado'] || 0),
+        tempoEnvio: m.return_ship_time != null ? m.return_ship_time : (s.raw['Tempo de Envio de Devolução'] || null),
+        tempoReembolso: m.refund_elapsed != null ? m.refund_elapsed : (s.raw['Tempo Decorrido de Reembolso'] || null),
+        retornoArmazem: s.retornoArmazem || null, dataPedido: s.raw['Data de Criação do Pedido'] || s.data || null,
+        marketplace: s.escopo.marketplace, conta: s.escopo.contaId, fonteArquivo: s.sourceFile, key: s.key };
+    });
+    const reembolsoTotal = Math.round(eventos.reduce((a, e) => a + (e.reembolso || 0), 0) * 100) / 100;
+    const porMotivo = {}, porStatus = {};
+    for (const e of eventos) { if (e.motivo) porMotivo[e.motivo] = (porMotivo[e.motivo] || 0) + 1; if (e.status) porStatus[e.status] = (porStatus[e.status] || 0) + 1; }
+    const periodo = eventos.map(e => e.dataPedido).filter(Boolean).sort();
+    return { semDados: false, eventos, reembolsoTotal,
+      cancelamentos: eventos.filter(e => /cancel/i.test(e.tipo || '') || /cancel/i.test(e.status || '')),
+      retornoArmazem: eventos.filter(e => e.retornoArmazem && !/^(não|nao|no|-)/i.test(String(e.retornoArmazem))),
+      porMotivo, porStatus, periodo: periodo.length ? { ini: periodo[0], fim: periodo[periodo.length - 1] } : null,
+      nota: 'evento de devolução nunca cria pedido novo; cruza por marketplace + conta + ID do pedido' };
   }
 
   /* ---------- CADEIA EXPLÍCITA PÓS-IMPORTAÇÃO (15 passos com progresso real) ---------- */
@@ -2041,14 +2262,73 @@
     inventoryFull: momento => ({
       nome: 'Current Inventory Report ' + String(momento).replace(/\D/g, '') + '.xlsx', sourceType: 'PLANILHA_SHOPEE', periodo: null, momento,
       abas: [
-        { nome: 'Total', headers: ['Product Name', 'Variations', 'Warehouse SKU ID', 'Seller SKU ID', 'Shop SKU ID', 'Barcode', 'Sellable', 'Reserved', 'Unsellable', 'Selling Speed', 'Coverage Days', 'unitsSoldInLast7Days', 'unitsSoldInLast30Days'],
+        /* 10.E.2.5.1 — todas as 22 colunas do Current Inventory Report real */
+        { nome: 'Total', headers: ['Product Name', 'Variations', 'Warehouse SKU ID', 'Seller SKU ID', 'Fulfill Mapping Mode', 'Shop SKU ID', 'Barcode', 'Recommend Replenishment Qty', 'Pending IR Approval', 'IR Approval', 'Pending ASN Inbound', 'Sellable', 'Reserved', 'Unsellable', 'Selling Speed', 'Coverage Days', 'Excess Qty', 'unitsSoldInLast7Days', 'unitsSoldInLast15Days', 'unitsSoldInLast30Days', 'unitsSoldInLast60Days', 'unitsSoldInLast90Days'],
           rows: [
-            { 'Product Name': 'Quadro Paisagem 60x90', 'Variations': '60x90', 'Warehouse SKU ID': 'WH-QP-6090', 'Seller SKU ID': 'QP-6090', 'Barcode': '7890001112223', 'Sellable': 4, 'Reserved': 2, 'Unsellable': 0, 'Selling Speed': 1.2, 'Coverage Days': 3, 'unitsSoldInLast7Days': 8, 'unitsSoldInLast30Days': 36 },
-            { 'Product Name': 'Kit 3 Quadros', 'Variations': 'Sala', 'Warehouse SKU ID': 'WH-KIT3', 'Seller SKU ID': 'KIT3-SALA', 'Barcode': '7890004445556', 'Sellable': 40, 'Reserved': 1, 'Unsellable': 0, 'Selling Speed': 0.4, 'Coverage Days': 100, 'unitsSoldInLast7Days': 3, 'unitsSoldInLast30Days': 12 },
+            { 'Product Name': 'Quadro Paisagem 60x90', 'Variations': '60x90', 'Warehouse SKU ID': 'WH-QP-6090', 'Seller SKU ID': 'QP-6090', 'Fulfill Mapping Mode': 'Null', 'Shop SKU ID': 'SHOP-QP-6090', 'Barcode': '7890001112223', 'Recommend Replenishment Qty': 20, 'Pending IR Approval': 0, 'IR Approval': 0, 'Pending ASN Inbound': 0, 'Sellable': 4, 'Reserved': 2, 'Unsellable': 1, 'Selling Speed': 1.2, 'Coverage Days': 3, 'Excess Qty': 0, 'unitsSoldInLast7Days': 8, 'unitsSoldInLast15Days': 18, 'unitsSoldInLast30Days': 36, 'unitsSoldInLast60Days': 70, 'unitsSoldInLast90Days': 104 },
+            { 'Product Name': 'Kit 3 Quadros', 'Variations': 'Sala', 'Warehouse SKU ID': 'WH-KIT3', 'Seller SKU ID': 'KIT3-SALA', 'Fulfill Mapping Mode': 'Null', 'Shop SKU ID': 'SHOP-KIT3', 'Barcode': '7890004445556', 'Recommend Replenishment Qty': 0, 'Pending IR Approval': 0, 'IR Approval': 0, 'Pending ASN Inbound': 0, 'Sellable': 40, 'Reserved': 1, 'Unsellable': 0, 'Selling Speed': 0.4, 'Coverage Days': 100, 'Excess Qty': 25, 'unitsSoldInLast7Days': 3, 'unitsSoldInLast15Days': 6, 'unitsSoldInLast30Days': 12, 'unitsSoldInLast60Days': 22, 'unitsSoldInLast90Days': 30 },
+            /* SKU alinhado com o export de Performance (mesmo SKU da Variação) — permite o cruzamento Estoque×Performance por SKU */
+            { 'Product Name': 'Kit 3 Quadros Decorativos Folhagem Dourada 40X60', 'Variations': 'Moldura Branca', 'Warehouse SKU ID': '26087246814_260259824996', 'Seller SKU ID': '456102-40X60-MB', 'Fulfill Mapping Mode': 'Null', 'Shop SKU ID': '20597021635_189573432678', 'Barcode': '7908638801613', 'Recommend Replenishment Qty': 30, 'Pending IR Approval': 0, 'IR Approval': 0, 'Pending ASN Inbound': 0, 'Sellable': 4, 'Reserved': 0, 'Unsellable': 1, 'Selling Speed': 0.27, 'Coverage Days': 15, 'Excess Qty': 0, 'unitsSoldInLast7Days': 2, 'unitsSoldInLast15Days': 5, 'unitsSoldInLast30Days': 8, 'unitsSoldInLast60Days': 15, 'unitsSoldInLast90Days': 22 },
           ] },
         { nome: 'Warehouse Stock', headers: ['Product Name', 'Warehouse SKU ID', 'Seller SKU ID', 'Warehouse', 'Stock Level', 'Sellable', 'Reserved'],
           rows: [{ 'Product Name': 'Quadro Paisagem 60x90', 'Warehouse SKU ID': 'WH-QP-6090', 'Seller SKU ID': 'QP-6090', 'Warehouse': 'Full BR-SP', 'Stock Level': 6, 'Sellable': 4, 'Reserved': 2 }] },
       ],
+    }),
+    /* 10.E.2.5.1 — Performance de Produtos (export "Análise de Produtos", por anúncio/variação) */
+    productPerformanceReal: periodo => ({
+      nome: 'Análise de Produtos Shopee.xlsx', sourceType: 'PLANILHA_SHOPEE', periodo,
+      abas: [{ nome: 'Análise de Produtos',
+        headers: ['ID do Item', 'Produto', 'Status Atual do Item', 'ID da Variação', 'Nome da Variação', 'Status Atual da Variação',
+          'SKU Principal', 'SKU da Variação', 'Impressão do Produto', 'Impressões Únicas de Produto', 'Cliques Por Produto', 'Cliques Únicos no Produto',
+          'CTR', 'Visitantes do Produto (Visita)', 'Visualizações da Página do Produto', 'Visitantes que saíram da página', 'Taxa de Rejeição do Produto',
+          'Cliques em Buscas', 'Curtidas', 'Visitantes do Produto (Adicionar ao Carrinho)', 'Unidades (Adicionar ao Carrinho)', 'Taxa de Conversão (Adicionar ao Carrinho)',
+          'Vendas (Pedido Realizado) (BRL)', 'Vendas (Pedido Pago) (BRL)', 'Pedido Feito', 'Produto Pago', 'Unidades (Pedido Realizado)', 'Unidades (Pedido Pago)',
+          'Compradores (Pedido Realizado)', 'Compradores (Pedido Pago)', 'Taxa de Conversão de Pedido (Pedido Realizado)', 'Taxa de Conversão de Pedido (Pedido Pago)',
+          'Vendas por Pedido (Pedido Realizado) (BRL)', 'Vendas por Pedido (Pedido Pago) (BRL)'],
+        rows: [
+          { 'ID do Item': '20597021635', 'Produto': 'Kit 3 Quadros Decorativos Folhagem Dourada 40X60', 'Status Atual do Item': 'Ativo',
+            'ID da Variação': '189573432678', 'Nome da Variação': 'Moldura Branca', 'Status Atual da Variação': 'Ativo',
+            'SKU Principal': '456102', 'SKU da Variação': '456102-40X60-MB', 'Impressão do Produto': '5.071.863', 'Impressões Únicas de Produto': '755.913',
+            'Cliques Por Produto': '185.395', 'Cliques Únicos no Produto': '83.158', 'CTR': '3,66%', 'Visitantes do Produto (Visita)': '80.150',
+            'Visualizações da Página do Produto': '96.500', 'Visitantes que saíram da página': '61.240', 'Taxa de Rejeição do Produto': '76,40%',
+            'Cliques em Buscas': '12.400', 'Curtidas': '3.210', 'Visitantes do Produto (Adicionar ao Carrinho)': '9.850', 'Unidades (Adicionar ao Carrinho)': '11.320',
+            'Taxa de Conversão (Adicionar ao Carrinho)': '12,29%', 'Vendas (Pedido Realizado) (BRL)': '272.982,45', 'Vendas (Pedido Pago) (BRL)': '242.565,98',
+            'Pedido Feito': '1.150', 'Produto Pago': '1.085', 'Unidades (Pedido Realizado)': '1.266', 'Unidades (Pedido Pago)': '1.180',
+            'Compradores (Pedido Realizado)': '1.085', 'Compradores (Pedido Pago)': '1.010', 'Taxa de Conversão de Pedido (Pedido Realizado)': '0,62%',
+            'Taxa de Conversão de Pedido (Pedido Pago)': '0,56%', 'Vendas por Pedido (Pedido Realizado) (BRL)': '237,27', 'Vendas por Pedido (Pedido Pago) (BRL)': '223,56' },
+          { 'ID do Item': '44411503612', 'Produto': 'Quadro Decorativo Grande Abstrato', 'Status Atual do Item': 'Ativo',
+            'ID da Variação': '', 'Nome da Variação': '', 'Status Atual da Variação': '', 'SKU Principal': '778211', 'SKU da Variação': '778211-UNICO',
+            'Impressão do Produto': '840.220', 'Impressões Únicas de Produto': '210.500', 'Cliques Por Produto': '21.030', 'Cliques Únicos no Produto': '14.900',
+            'CTR': '2,50%', 'Visitantes do Produto (Visita)': '13.800', 'Visualizações da Página do Produto': '15.200', 'Visitantes que saíram da página': '11.900',
+            'Taxa de Rejeição do Produto': '86,20%', 'Cliques em Buscas': '2.100', 'Curtidas': '540', 'Visitantes do Produto (Adicionar ao Carrinho)': '980',
+            'Unidades (Adicionar ao Carrinho)': '1.040', 'Taxa de Conversão (Adicionar ao Carrinho)': '7,10%', 'Vendas (Pedido Realizado) (BRL)': '18.640,00',
+            'Vendas (Pedido Pago) (BRL)': '14.320,00', 'Pedido Feito': '64', 'Produto Pago': '49', 'Unidades (Pedido Realizado)': '64', 'Unidades (Pedido Pago)': '49',
+            'Compradores (Pedido Realizado)': '61', 'Compradores (Pedido Pago)': '47', 'Taxa de Conversão de Pedido (Pedido Realizado)': '0,44%',
+            'Taxa de Conversão de Pedido (Pedido Pago)': '0,34%', 'Vendas por Pedido (Pedido Realizado) (BRL)': '291,25', 'Vendas por Pedido (Pedido Pago) (BRL)': '292,24' },
+        ] }],
+    }),
+    /* 10.E.2.5.1 — Devoluções e Cancelamentos (export real, por ID da Devolução) */
+    returnsReal: periodo => ({
+      nome: 'Devolucoes_Reembolsos_Shopee.xlsx', sourceType: 'PLANILHA_SHOPEE', periodo,
+      abas: [{ nome: 'Devoluções',
+        headers: ['ID da Devolução', 'ID do Pedido', 'Data de Criação do Pedido', 'Nome de Usuário do Comprador', 'Nome do Produto', 'SKU Principal',
+          'Nome da Variação', 'SKU da Variação', 'IMEI', 'Preço da Unidade', 'Tempo de Envio de Devolução', 'Status da Devolução / Reembolso',
+          'Tipo de Devolução', 'Quantidade de Devoluções', 'Solução para Retorno e Reembolso', 'Motivo da Devolução', 'Observações da Devolução',
+          'Quantia Total de Reembolsos', 'Tempo Decorrido de Reembolso', 'Retorno ao Armazém Shopee'],
+        rows: [
+          { 'ID da Devolução': 'RET-260701-001', 'ID do Pedido': '260628ABC123', 'Data de Criação do Pedido': '2026-06-28', 'Nome de Usuário do Comprador': 'j***a',
+            'Nome do Produto': 'Kit 3 Quadros Decorativos Folhagem Dourada 40X60', 'SKU Principal': '456102', 'Nome da Variação': 'Moldura Branca',
+            'SKU da Variação': '456102-40X60-MB', 'IMEI': '', 'Preço da Unidade': '237,27', 'Tempo de Envio de Devolução': '2 dias',
+            'Status da Devolução / Reembolso': 'Reembolso Concluído', 'Tipo de Devolução': 'Devolução com produto', 'Quantidade de Devoluções': '1',
+            'Solução para Retorno e Reembolso': 'Reembolso integral', 'Motivo da Devolução': 'Produto danificado no transporte', 'Observações da Devolução': 'Moldura trincada',
+            'Quantia Total de Reembolsos': '237,27', 'Tempo Decorrido de Reembolso': '5 dias', 'Retorno ao Armazém Shopee': 'Sim' },
+          { 'ID da Devolução': 'RET-260702-002', 'ID do Pedido': '260630XYZ789', 'Data de Criação do Pedido': '2026-06-30', 'Nome de Usuário do Comprador': 'm***s',
+            'Nome do Produto': 'Quadro Decorativo Grande Abstrato', 'SKU Principal': '778211', 'Nome da Variação': '', 'SKU da Variação': '778211-UNICO', 'IMEI': '',
+            'Preço da Unidade': '292,24', 'Tempo de Envio de Devolução': '—', 'Status da Devolução / Reembolso': 'Reembolso Concluído',
+            'Tipo de Devolução': 'Cancelamento', 'Quantidade de Devoluções': '1', 'Solução para Retorno e Reembolso': 'Reembolso sem devolução',
+            'Motivo da Devolução': 'Desistência do comprador', 'Observações da Devolução': '', 'Quantia Total de Reembolsos': '292,24',
+            'Tempo Decorrido de Reembolso': '2 dias', 'Retorno ao Armazém Shopee': 'Não' },
+        ] }],
     }),
     chatReal: periodo => ({
       nome: 'chat_20260604_20260703.xlsx', sourceType: 'PLANILHA_SHOPEE', periodo,
@@ -2142,6 +2422,8 @@
     lastImpact, sinaisSilencio, fatosConhecimento,
     /* 10.E.2.3 — importação multiabas real */
     stageMulti, metricasView, trafficSourcesView, productContribView, adsView, afiliadosView, brNum, isoBr, rangeBr, NOME_BASE,
+    /* 10.E.2.5.1 — contrato total de campos: performance por anúncio/variação + devoluções completas */
+    performanceItemView, devolucoesView, FIELD_MAP, PERF_ITEM_COLS, DEVOL_COLS, ESTOQUE_COLS,
     /* 10.E.2 */
     DATA_PERMS, DATA_PERMS_ALL, canData, orderTab, cepProtegido, ordersView, orderStats, geoStats, stockView,
     conversaoExplicita, valorEfetivo, correct, excludeFromAnalysis, restaurar, archiveFile, desativarVinculo,

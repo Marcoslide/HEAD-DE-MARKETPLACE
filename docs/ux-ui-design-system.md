@@ -848,3 +848,70 @@ externa é disparada.
   Rascunhos por origem, Marketplaces picker→Shopee, editor 14 abas, Saúde
   acessível por contexto, dark + mobile, console limpo. Suíte completa **638
   verdes**.
+
+## 10.E.2.5.1 — Contrato total de campos + visualização completa das fontes
+
+O sistema não pode importar uma planilha e mostrar só meia dúzia de KPIs
+escolhidos. Cada coluna recebida é memória da operação. A regra passa a ser:
+**arquivo real → todas as abas → todos os blocos → todas as colunas → valor
+bruto preservado → campo normalizado quando reconhecido → destino correto →
+visualização na área → disponível para cruzamento da Inteligência.** Nenhuma
+coluna desaparece; nenhum campo importante fica só na camada técnica.
+
+- **Três fontes prioritárias com contrato TOTAL** (`import-engine.js`):
+  - **Performance de Produtos** (`SHOPEE_PRODUCT_PERFORMANCE`, export "Análise de
+    Produtos" por anúncio/variação): recebe ID do Item, Produto, Status, ID e
+    Nome da Variação, SKU Principal e da Variação, e todos os campos de tráfego
+    (impressões/únicas, cliques/únicos, CTR, visitantes, visualizações, rejeição,
+    cliques em busca, curtidas), carrinho (visitantes/unidades/conversão) e vendas
+    (pedido realizado × pago: vendas BRL, pedidos, unidades, compradores,
+    conversão, vendas por pedido). Chave: `marketplace + conta + ID do Item +
+    variação + período`.
+  - **Devoluções e Cancelamentos** (`SHOPEE_RETURNS_REAL`, por ID da Devolução):
+    ID da Devolução/Pedido, data, comprador, produto/variação/SKU, IMEI, preço,
+    tempo de envio, status, tipo, quantidade, solução, motivo, observações,
+    reembolso total, tempo de reembolso, retorno ao armazém. Chave: `ID da
+    Devolução` (idempotente); cruza por `marketplace + conta + ID do pedido`.
+    Nunca cria pedido novo (é `order_event`).
+  - **Estoque Full** (`SHOPEE_INVENTORY_FULL`, todas as 22 colunas do Current
+    Inventory Report): Product Name, Variations, os três SKUs, Fulfill Mode,
+    Barcode, reposição, IR/ASN, Sellable/Reserved/Unsellable, Selling Speed,
+    Coverage Days, Excess, e vendas 7/15/30/60/90 dias. `stockView` passou a ler
+    as colunas reais (Sellable/Reserved/Unsellable), não só o campo legado
+    "Disponível". Snapshot: `marketplace + conta + armazém + Seller SKU +
+    momento` — a leitura mais recente é o atual, o histórico fica.
+- **Campos Recebidos em toda área** (reusa `fieldCatalog`): botão/subaba que
+  lista **cada coluna original** com valor de exemplo, tipo, campo normalizado,
+  entidade, áreas que usam e status (`utilizado` / `preservado e disponível` /
+  `aguardando mapeamento` / `excluído da análise`). Coluna sem uso fica
+  preservada e mapeável — nunca some. O `FIELD_MAP` ganhou todas as colunas das
+  três fontes (75 colunas reconhecidas nas fixtures, nenhuma órfã).
+- **Motor de cruzamento** (`inteligencia-engine.js`, `V8INT`): junta Performance
+  × Estoque × Devoluções × Cadastro pela **cadeia de prioridade** (ID do Item →
+  Variação → SKU da Variação → SKU Principal → Pedido → Devolução). Nome nunca
+  vincula sozinho; entidade sem chave forte vai para **fila de revisão**.
+  `analises` gera insights cruzados (alto tráfego + baixa conversão; muito
+  carrinho + pouco pagamento; estoque alto + baixa velocidade; estoque crítico +
+  vendas crescentes; devolução alta por variação) sempre com **fato · fonte ·
+  campos · período · cobertura · confiança · ação**. `fullIntelligence` lê
+  tendência de vendas no Full mas **nunca afirma causa** sem grupo de comparação.
+- **Estrutura em cada área da Central**: cabeçalho com **Caminho na Shopee**,
+  arquivo esperado, escopo (Empresa › Marketplace › Conta), período e
+  **Cobertura** (Completa / Parcial / Sem dados / Conflitante) + subabas
+  (Visão Geral, Dados Detalhados por dimensão, Campos Recebidos, Cruzamentos,
+  Análises/Diagnósticos, Histórico da Fonte). Sem arquivo aplicado, a área
+  declara honestamente "SEM DADOS" e lista o contrato de colunas — **nunca demo**.
+- **Realidade dos dados**: dos arquivos enviados, só o **Estoque Full** (Current
+  Inventory) traz as colunas por SKU. O relatório de Métricas é série diária por
+  fonte de tráfego (não tem ID do Item/SKU por produto), e não há arquivo de
+  Devoluções ainda. Por isso Performance e Devoluções entram com **contrato +
+  parser + estrutura completos**: no instante em que o export real for enviado,
+  toda coluna entra, aparece e cruza — sem inventar nada enquanto isso.
+- **Testes**: `ui-v8-contrato-total.test.js` (31 blocos obrigatórios: todos os
+  campos de Performance/Devoluções/Estoque; ID do Item/variação/SKU como chave;
+  funil só com etapas presentes; reembolso e período reais; devolução não vira
+  pedido; snapshot não soma; cruzamento por SKU; Campos Recebidos lista tudo;
+  campo sem uso preservado; toda análise com metadados; sem causa sem evidência;
+  idempotência; sem escrita externa). Suíte completa **669 verdes**. Headless:
+  as três fontes injetadas renderizam com subabas, Campos Recebidos, Cruzamentos
+  e Análises; console limpo, light/dark/mobile.
