@@ -1453,9 +1453,10 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   busca por SKU; RAW preservado; **reimportação sem duplicar**; status novo atualiza
   sem apagar; **instância NOVA do backend vê os mesmos pedidos, itens e vínculos**.
   **2/2 verdes**; com Conciliação e Performance, **9/9 no Postgres real** (serial).
-- **Incremento 2 (declarado)**: a tela **Pedidos** (subabas Todos/Pagos/Enviados/
+- **Incremento 2 (entregue)**: a tela **Pedidos** (subabas Todos/Pagos/Enviados/
   Atrasados/…) e o **detalhe do pedido** (Resumo · Itens e SKUs · Operação ·
-  Identidade Financeira · Conciliação · Devoluções · Histórico) consumindo a API.
+  Identidade Financeira · Conciliação · Devoluções · Histórico) consumindo a API —
+  ver seção dedicada abaixo.
 - `npm test` **753 verdes** (3 Postgres pulados sem banco).
 
 ## SPRINT 10.F.2 — correções obrigatórias (isolamento de testes + honestidade de IDs)
@@ -1478,3 +1479,34 @@ real, com prova de persistência que sobrevive a uma instância nova do backend
   (`external_listing_id_origem`/`external_variation_id_origem`, migração `007`) e
   a interface exibe a origem de cada identificador. Correção da afirmação anterior:
   a importação **não** "identifica Item ID e Variation ID" neste arquivo.
+
+## SPRINT 10.F.2 (Incremento 2) — tela real de Pedidos consumindo API/Postgres
+
+- **Fonte oficial = API/Postgres**: a tela `pedidos.js` chama `V8API.online()` e,
+  quando há backend, consome **exclusivamente** `V8API.ordersList`/`V8API.order`
+  (`renderOnline`). **Nenhum pedido, status, valor recebido ou lucro** vem de mock
+  ou IndexedDB nesse caminho. Sem backend, exibe um **PREVIEW rotulado** ("a base
+  oficial é a API/Postgres") montado a partir de `V8PED.parseOrders` +
+  `V8CONC.reconcile` — deixando explícito que preview não decide status.
+- **12 subabas**: Todos · Pagos · Em Produção · Em Embalagem · Prontos · Enviados ·
+  Entregues · Atrasados · Cancelados · Devolvidos · Não Pagos · Em Revisão. Tabela
+  com colunas financeiras (esperado × recebido × diferença × status de conciliação).
+- **Drawer de detalhe com 8 abas**: Resumo · **Itens e SKUs** · Operação e Logística
+  · **Identidade Financeira** · Conciliação · Devoluções e Reembolsos · Histórico ·
+  Inteligência Relacionada.
+- **Itens e SKUs (honestidade dura)**: Item ID e Variation ID exibidos como
+  **`AUSENTE_NA_FONTE`** (o relatório Shopee não traz as colunas — nunca inventado,
+  nome de produto jamais preenche identificador); **`SELLER_SKU`** como identidade
+  real; item sem SKU como **SEM SKU · `NEEDS_REVIEW`**; **rateio de comissão por
+  valor bruto do item — não duplicada** (mostra regra + valor original + alocado);
+  lucro **`SEM_DADOS_SUFICIENTES`** enquanto não há custo cadastrado.
+- **Identidade Financeira**: **esperado (pedido) × recebido (carteira)** com a
+  diferença; cada movimento da carteira abre o **RAW original + classificação**
+  (tipo original, descrição, data, direção, valor, arquivo, aba, linha).
+- **Busca** por ID do pedido e por SKU. `coverageNote()` preserva "Período coberto"
+  e "Campos usados" via `V8IMP.orderStats` quando há dados importados.
+- **Prova headless**: 10/10 (12 subabas, colunas financeiras, detalhe 8 abas,
+  AUSENTE_NA_FONTE, SKU como identidade, rateio sem duplicar + lucro SEM_DADOS,
+  esperado × recebido, pedido pago = CONCILIADO cruzado com a carteira, busca por
+  SKU, console limpo). Suíte sqlite **753 verdes**; PG (Conciliação + Pedidos +
+  Performance) **9/9 em paralelo, sem 429**.
