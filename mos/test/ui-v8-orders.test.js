@@ -287,17 +287,22 @@ test('37 · Fontes e Histórico: tabela transversal com colunas e ações do con
   assert.match(impJs, /Fontes e Histórico de Dados/, 'área renomeada');
 });
 
-/* ---------- 38-39 · área Pedidos e navegação ---------- */
-test('38 · área Pedidos: 10 abas, upload nasce dentro, estado vazio honesto, drawer com histórico', () => {
-  for (const t of ['Todos', 'Não pagos', 'A enviar', 'Enviados', 'Concluídos', 'Cancelados',
-    'Devoluções e Reembolsos', 'Falhas de Entrega', 'Cidades e Estados', 'Histórico de Atualizações'])
+/* ---------- 38-39 · área Pedidos (10.F.2: tela oficial via API/Postgres) ---------- */
+test('38 · área Pedidos: 12 abas, consome API, detalhe com 8 abas, honestidade de IDs', () => {
+  for (const t of ['Todos', 'Pagos', 'Em Produção', 'Em Embalagem', 'Prontos', 'Enviados',
+    'Entregues', 'Atrasados', 'Cancelados', 'Devolvidos', 'Não Pagos', 'Em Revisão'])
     assert.ok(pedJs.includes(`'${t}'`), 'aba ' + t);
+  for (const d of ['Resumo', 'Itens e SKUs', 'Operação e Logística', 'Identidade Financeira', 'Conciliação', 'Devoluções e Reembolsos', 'Histórico', 'Inteligência Relacionada'])
+    assert.ok(pedJs.includes(`'${d}'`), 'aba de detalhe ' + d);
+  assert.match(pedJs, /V8API\.ordersList/, 'consome a API oficial de pedidos');
   assert.match(pedJs, /Atualizar dados desta área/, 'upload nasce na área');
   assert.match(pedJs, /IMPORTAR\.uploadModal/, 'usa o fluxo real de upload');
   assert.match(pedJs, /SEM DADOS/, 'estado vazio honesto');
-  assert.match(pedJs, /statusHistory/, 'drawer com histórico de status');
-  assert.match(pedJs, /Excluir da análise/, 'exclusão auditada na tela');
+  assert.match(pedJs, /AUSENTE_NA_FONTE/, 'Item ID/Variation ID honestos quando ausentes na fonte');
+  assert.match(pedJs, /SELLER_SKU/, 'SKU como identidade real disponível');
+  assert.match(pedJs, /SEM_DADOS_SUFICIENTES/, 'lucro sem custo confiável não é declarado');
   assert.match(pedJs, /marketplace \+ conta \+ ID/, 'identidade única declarada');
+  assert.match(pedJs, /RAW_DATA_VIEW|podeVerComprador/, 'gate de comprador preservado');
 });
 
 test('39 · navegação nova: Pedidos no menu, Central de Inteligência, botão global de Fontes', () => {
